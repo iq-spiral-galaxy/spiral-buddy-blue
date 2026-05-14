@@ -63,6 +63,7 @@ function cacheEls() {
   els.meta = $("meta");
   els.modelSelect = $("model-select");
   els.modelTierBadge = $("model-tier-badge");
+  els.sidebarToggle = $("sidebar-toggle");
   els.roadmapCurrent = $("roadmap-current");
   els.roadmapList = $("roadmap-list");
   els.suggestion = $("suggestion-box");
@@ -110,6 +111,31 @@ function wireEvents() {
       sendMessage(
         "지금까지 다룬 내용을 바탕으로 내가 진짜 이해했는지 확인할 만한 짧은 질문 2개를 내줘. 답은 알려주지 말고.",
       );
+    }
+  });
+
+  // 사이드바 토글 (버튼 + Cmd/Ctrl+B 단축키)
+  const SIDEBAR_KEY = "spiral-buddy:sidebar-collapsed";
+  function setSidebarCollapsed(collapsed, persist = true) {
+    document.body.classList.toggle("sidebar-collapsed", collapsed);
+    if (persist) localStorage.setItem(SIDEBAR_KEY, collapsed ? "1" : "0");
+  }
+  // 초기 상태 복원
+  if (localStorage.getItem(SIDEBAR_KEY) === "1") {
+    setSidebarCollapsed(true, false);
+  }
+  if (els.sidebarToggle) {
+    els.sidebarToggle.addEventListener("click", () => {
+      const isCollapsed = document.body.classList.contains("sidebar-collapsed");
+      setSidebarCollapsed(!isCollapsed);
+    });
+  }
+  // Cmd/Ctrl + B 토글
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && (e.key === "b" || e.key === "B")) {
+      e.preventDefault();
+      const isCollapsed = document.body.classList.contains("sidebar-collapsed");
+      setSidebarCollapsed(!isCollapsed);
     }
   });
 

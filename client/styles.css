@@ -1763,3 +1763,162 @@ button.primary {
   border-color: var(--error);
   box-shadow: 0 4px 24px rgba(248, 81, 73, 0.15);
 }
+
+/* ============================================================
+   Phase 2.3 — UX 다듬기 (사이드바 토글, 큰 로고, Send 정렬)
+   ============================================================ */
+
+/* ─── 로고 타이틀 더 크게 (subtitle 제거) ─── */
+
+.brand-title {
+  font-size: 30px !important;
+  letter-spacing: -0.025em !important;
+  line-height: 1 !important;
+}
+
+.brand-row {
+  align-items: center;
+  gap: 14px;
+}
+
+.logo-spiral {
+  width: 54px !important;
+  height: 54px !important;
+}
+
+.logo-spiral svg {
+  width: 54px;
+  height: 54px;
+}
+
+/* ─── Composer (textarea + Send) — 정확히 같은 높이 ─── */
+
+.composer {
+  padding: 16px 24px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elev);
+  display: flex;
+  gap: 12px;
+  align-items: stretch;     /* 핵심: 자식들이 같은 높이로 늘어남 */
+}
+
+/* composer-input-wrap이 HTML에서 제거됐으니, textarea가 직접 자식 */
+.composer > #input {
+  flex: 1;
+  min-height: 92px;
+  max-height: 240px;
+  margin: 0;       /* 다른 곳 margin override */
+  height: auto;
+}
+
+.composer > .send-btn {
+  align-self: stretch;
+  height: auto;    /* 명시: stretch가 결정 */
+  min-height: 92px;  /* textarea와 동일한 minimum */
+}
+
+/* 옛 composer-input-wrap 클래스 호환 (있어도 무관, 없어도 무관) */
+.composer-input-wrap {
+  display: contents;   /* 있으면 그냥 wrapper 무시하고 자식이 grid/flex item이 되게 */
+}
+
+/* ─── 사이드바 토글 ─── */
+
+body {
+  transition: grid-template-columns 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.sidebar-collapsed {
+  grid-template-columns: 0 1fr;
+}
+
+#sidebar {
+  transition: opacity 0.2s ease, transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+body.sidebar-collapsed #sidebar {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-12px);
+}
+
+.sidebar-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text-dim);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle:hover {
+  background: rgba(126, 226, 255, 0.08);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.sidebar-toggle:active {
+  transform: scale(0.95);
+}
+
+body.sidebar-collapsed .sidebar-toggle {
+  background: rgba(126, 226, 255, 0.1);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* topbar — 토글 버튼이 들어가도록 gap 조정 */
+#topbar {
+  gap: 14px;
+}
+
+/* 사이드바가 닫혔을 때 main 영역의 padding 조정 */
+body.sidebar-collapsed #topbar {
+  padding-left: 22px;
+}
+
+body.sidebar-collapsed .composer {
+  padding-left: 28px;
+  padding-right: 28px;
+}
+
+/* 사이드바가 닫혔을 때 메시지 영역을 더 넓게 활용 */
+body.sidebar-collapsed .messages {
+  max-width: 920px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 키보드 단축키 힌트 (사이드바 토글 버튼 hover 시) */
+.sidebar-toggle::after {
+  content: "⌘B";
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+  opacity: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  transition: opacity 0.15s;
+}
+
+.sidebar-toggle:hover::after {
+  opacity: 1;
+}
+
+.sidebar-toggle {
+  position: relative;
+}
