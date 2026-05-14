@@ -1017,3 +1017,121 @@ button.ghost {
 .sub-roadmap-item .roadmap-item-id {
   display: none;   /* 깊은 계층에서 path 다시 표시 안 함 */
 }
+
+/* ─── Session interruption modal ─── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: modal-fade-in 0.12s ease-out;
+}
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modal {
+  background: var(--bg-elev-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px 24px 18px;
+  max-width: 460px;
+  width: calc(100% - 40px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  animation: modal-slide-in 0.16s ease-out;
+}
+
+@keyframes modal-slide-in {
+  from { transform: translateY(8px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.modal-body {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.modal-body p {
+  margin: 0 0 8px;
+}
+
+.modal-body p:last-child {
+  margin-bottom: 0;
+}
+
+.modal-body strong {
+  color: var(--text);
+}
+
+.modal-hint {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.modal-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.modal-btn {
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev-2);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+
+.modal-btn:hover {
+  border-color: var(--accent);
+  background: rgba(126, 226, 255, 0.06);
+}
+
+.modal-btn.cancel {
+  color: var(--text-faint);
+}
+
+.modal-btn.discard {
+  color: #ff8888;
+  border-color: rgba(255, 100, 100, 0.3);
+}
+
+.modal-btn.discard:hover {
+  background: rgba(255, 100, 100, 0.08);
+  border-color: rgba(255, 100, 100, 0.5);
+}
+
+.modal-btn.primary {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.modal-btn.primary:hover {
+  background: #5fd5ff;
+  border-color: #5fd5ff;
+}

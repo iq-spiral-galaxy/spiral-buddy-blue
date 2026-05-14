@@ -32,6 +32,9 @@ const state = {
   expandedCategories: new Set(), // Curated 받기 가능 카테고리
   expandedLocalCategories: new Set(), // Local 카테고리
   expandedLocalRepos: new Set(), // Local 레포 (key: "category::repo")
+  // active 로드맵이 바뀌었을 때만 자동 펼침하기 위해 마지막으로 자동 펼침한 id 기록.
+  // null이면 다음 렌더에서 active 로드맵의 cat/repo를 한 번 펼침.
+  lastAutoExpandedRoadmapId: null,
   showAvailable: false,
   curatedOrg: null,
   activeRoadmapId: null,
@@ -115,6 +118,16 @@ function wireEvents() {
       !els.roadmapList.contains(e.target)
     ) {
       els.roadmapList.classList.add("hidden");
+    }
+  });
+
+  // 세션 중 페이지 닫기 시 경고 (브라우저 기본 다이얼로그)
+  window.addEventListener("beforeunload", (e) => {
+    if (state.session) {
+      e.preventDefault();
+      e.returnValue =
+        "진행 중인 세션이 있습니다. 닫으면 현재 대화가 사라집니다.";
+      return e.returnValue;
     }
   });
 }
@@ -304,12 +317,17 @@ function renderRoadmapSelector() {
       repoMap.get(repo).push(r);
     }
 
-    // active 로드맵의 카테고리 + 레포는 자동 펼침
+    // active 로드맵의 카테고리 + 레포는 처음 한 번만 자동 펼침
+    // (사용자가 직접 토글을 닫으면 그 의도를 존중)
     const activeRoadmap = local.find((r) => r.id === state.activeRoadmapId);
-    if (activeRoadmap?.category?.name) {
+    if (
+      activeRoadmap?.category?.name &&
+      state.lastAutoExpandedRoadmapId !== state.activeRoadmapId
+    ) {
       state.expandedLocalCategories.add(activeRoadmap.category.name);
       const { repo: activeRepo } = parseHierarchy(activeRoadmap);
       state.expandedLocalRepos.add(`${activeRoadmap.category.name}::${activeRepo}`);
+      state.lastAutoExpandedRoadmapId = state.activeRoadmapId;
     }
 
     const totalRepos = Array.from(tree.values()).reduce(
@@ -686,20 +704,103 @@ async function installCuratedRepo(repoName) {
   }
 }
 
-async function switchRoadmap(roadmapId) {
-  if (state.session) {
-    if (
-      !confirm(
-        "진행 중인 세션이 있어. 종료 안 하고 로드맵을 바꾸면 현재 세션 노트는 만들어지지 않아.\n계속할래?",
-      )
-    ) {
-      return;
+/**
+ * 진행 중인 세션이 있을 때 다른 곳으로 이동하기 전 처리.
+ * @returns 'continue' (세션 없음 또는 사용자가 저장/폐기 선택 후 이동 OK)
+ *          'cancel'   (사용자가 취소함 — 호출자는 이동을 멈춰야 함)
+ */
+async function handleSessionInterruption() {
+  if (!state.session) return "continue";
+
+  const action = await sessionInterruptPrompt();
+  if (action === "cancel") return "cancel";
+
+  if (action === "save") {
+    // 저장 — 노트 생성 후 세션 종료
+    setPending(true);
+    setStatus("📝 현재 세션 저장 중…");
+    try {
+      const res = await fetch(`/api/session/${state.session.id}/end`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const result = await res.json();
+      showCompletionCard(result);
+      // 전체 로드맵 진도도 갱신 (다른 카테고리로 이동 후에도 정확하게)
+      const roadmaps = await fetch("/api/roadmaps").then((r) => r.json());
+      state.roadmaps = Array.isArray(roadmaps) ? roadmaps : [];
+      setStatus("✓ 저장 완료", "success");
+      setTimeout(() => setStatus(""), 2500);
+    } catch (err) {
+      setStatus(`저장 실패: ${err.message}`, "error");
+      setPending(false);
+      // 저장 실패 시 사용자에게 강제 폐기 여부 다시 물어보지 않음 — 안전하게 cancel
+      return "cancel";
     }
-    state.session = null;
-    enableSessionUi(false);
-    updateTopbar();
-    els.messages.innerHTML = `<div class="placeholder"><p>왼쪽에서 챕터를 골라 세션을 시작하세요.</p></div>`;
+    setPending(false);
+  } else if (action === "discard") {
+    // 폐기 — 서버 세션도 정리 (메모리 누수 방지)
+    fetch(`/api/session/${state.session.id}/cancel`, { method: "POST" }).catch(
+      () => {},
+    );
   }
+
+  state.session = null;
+  state.messages = [];
+  enableSessionUi(false);
+  updateTopbar();
+  els.messages.innerHTML = `<div class="placeholder"><p>왼쪽에서 챕터를 골라 세션을 시작하세요.</p></div>`;
+  return "continue";
+}
+
+/**
+ * 세션 인터럽트 프롬프트. 3-way custom modal.
+ * 브라우저 confirm은 yes/no 2-way라 새 모달로 구현.
+ * @returns 'save' | 'discard' | 'cancel'
+ */
+function sessionInterruptPrompt() {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal">
+        <div class="modal-title">진행 중인 세션이 있어요</div>
+        <div class="modal-body">
+          <p><strong>${escapeHtml(state.session?.chapterTitle ?? "")}</strong> (depth ${state.session?.depth ?? "?"})</p>
+          <p class="modal-hint">이대로 이동하면 현재까지의 대화는 사라집니다. 어떻게 할까요?</p>
+        </div>
+        <div class="modal-actions">
+          <button class="modal-btn cancel" data-action="cancel">취소</button>
+          <button class="modal-btn discard" data-action="discard">폐기하고 이동</button>
+          <button class="modal-btn primary" data-action="save">저장하고 이동</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    function cleanup(action) {
+      overlay.remove();
+      document.removeEventListener("keydown", onKey);
+      resolve(action);
+    }
+
+    function onKey(e) {
+      if (e.key === "Escape") cleanup("cancel");
+    }
+    document.addEventListener("keydown", onKey);
+
+    overlay.querySelectorAll(".modal-btn").forEach((btn) => {
+      btn.addEventListener("click", () => cleanup(btn.dataset.action));
+    });
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) cleanup("cancel");
+    });
+  });
+}
+
+async function switchRoadmap(roadmapId) {
+  const decision = await handleSessionInterruption();
+  if (decision === "cancel") return;
 
   state.activeRoadmapId = roadmapId;
   localStorage.setItem(LS_KEY, roadmapId);
@@ -728,16 +829,9 @@ function renderChapters() {
         ${badge}
       </button>
     `;
-    li.querySelector("button").addEventListener("click", () => {
-      if (state.session) {
-        if (
-          !confirm(
-            "진행 중인 세션이 있어. 종료 안 하고 새로 시작할까?\n(현재 세션 노트는 만들어지지 않음)",
-          )
-        )
-          return;
-        state.session = null;
-      }
+    li.querySelector("button").addEventListener("click", async () => {
+      const decision = await handleSessionInterruption();
+      if (decision === "cancel") return;
       startSession(ch.id);
     });
     els.chapterList.appendChild(li);
@@ -793,16 +887,9 @@ function renderSuggestion() {
   `;
   const btn = els.suggestion.querySelector(".start-suggested");
   if (btn && chapter) {
-    btn.addEventListener("click", () => {
-      if (state.session) {
-        if (
-          !confirm(
-            "진행 중인 세션이 있어. 종료 안 하고 새로 시작할까?\n(현재 세션 노트는 만들어지지 않음)",
-          )
-        )
-          return;
-        state.session = null;
-      }
+    btn.addEventListener("click", async () => {
+      const decision = await handleSessionInterruption();
+      if (decision === "cancel") return;
       startSession(chapter.id);
     });
   }
