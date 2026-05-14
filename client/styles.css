@@ -930,3 +930,90 @@ button.ghost {
 .category-body .curated-available-item {
   padding-left: 22px; /* 카테고리 들여쓰기 */
 }
+
+/* ─── Local 3-level hierarchy (Category > Repo > Sub-roadmap) ─── */
+
+.local-repo {
+  border-top: 1px solid var(--border-soft);
+}
+
+.local-repo:first-child {
+  border-top: none;
+}
+
+.repo-header {
+  width: 100%;
+  background: transparent;
+  border: none;
+  padding: 6px 10px 6px 22px;     /* 카테고리보다 들여쓰기 */
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  transition: background 0.1s;
+}
+
+.repo-header:hover {
+  background: rgba(126, 226, 255, 0.05);
+}
+
+.repo-header.flat-roadmap {
+  cursor: pointer;
+}
+
+.repo-header.flat-roadmap.active {
+  background: rgba(126, 226, 255, 0.12);
+  color: var(--accent);
+}
+
+.repo-emoji {
+  font-size: 11px;
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.repo-name {
+  flex: 1;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.repo-body {
+  display: flex;
+  flex-direction: column;
+}
+
+.repo-body.hidden {
+  display: none;
+}
+
+.sub-roadmap-item {
+  padding-left: 38px !important;    /* repo보다 더 깊이 들여쓰기 */
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 11px !important;
+}
+
+.sub-roadmap-item:hover {
+  background: rgba(126, 226, 255, 0.05) !important;
+}
+
+.sub-roadmap-item.active {
+  background: rgba(126, 226, 255, 0.15) !important;
+}
+
+.sub-roadmap-item .roadmap-item-name {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.sub-roadmap-item .roadmap-item-id {
+  display: none;   /* 깊은 계층에서 path 다시 표시 안 함 */
+}

@@ -30,7 +30,8 @@ const state = {
   curatedAvailable: [],
   curatedGroups: [],
   expandedCategories: new Set(), // Curated 받기 가능 카테고리
-  expandedLocalCategories: new Set(), // Local 카테고리 (active 로드맵의 카테고리는 자동 펼침)
+  expandedLocalCategories: new Set(), // Local 카테고리
+  expandedLocalRepos: new Set(), // Local 레포 (key: "category::repo")
   showAvailable: false,
   curatedOrg: null,
   activeRoadmapId: null,
@@ -263,44 +264,167 @@ function renderRoadmapSelector() {
   const parts = [];
 
   if (local.length > 0) {
-    // 카테고리별로 그룹화
-    const byCategory = new Map();
-    for (const r of local) {
-      const catName = r.category?.name ?? "Uncategorized";
-      if (!byCategory.has(catName)) {
-        byCategory.set(catName, {
-          category: r.category ?? { name: "Uncategorized", emoji: "📁", color: "#888888" },
-          roadmaps: [],
-        });
+    // 3-level 계층: category → repo → sub-roadmap
+    // roadmap.id 예: "api & communication /grpc-deep-dive/grpc-fundamentals"
+    //   → category: "API & Communication" (서버에서 category 필드로 줌)
+    //   → repo: "grpc-deep-dive" (path 두 번째 segment)
+    //   → sub-roadmap: "grpc-fundamentals" (path 세 번째+)
+    function parseHierarchy(r) {
+      const segments = r.id
+        .split("/")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      if (segments.length >= 3) {
+        return {
+          repo: segments[1],
+          sub: segments.slice(2).join("/"),
+          isFlat: false,
+        };
+      } else if (segments.length === 2) {
+        // category 폴더 안에 바로 sub 없는 레포 (드물 듯)
+        return { repo: segments[1], sub: null, isFlat: true };
       }
-      byCategory.get(catName).roadmaps.push(r);
+      return { repo: segments[0] ?? r.name, sub: null, isFlat: true };
     }
 
-    // active 로드맵의 카테고리는 자동 펼침
+    // 카테고리 → 레포 → 로드맵 트리 구조
+    const tree = new Map(); // catName → Map<repoName, Roadmap[]>
+    const catMeta = new Map(); // catName → category meta
+
+    for (const r of local) {
+      const catName = r.category?.name ?? "Uncategorized";
+      catMeta.set(
+        catName,
+        r.category ?? { name: "Uncategorized", emoji: "📁", color: "#888888" },
+      );
+      const { repo } = parseHierarchy(r);
+      if (!tree.has(catName)) tree.set(catName, new Map());
+      const repoMap = tree.get(catName);
+      if (!repoMap.has(repo)) repoMap.set(repo, []);
+      repoMap.get(repo).push(r);
+    }
+
+    // active 로드맵의 카테고리 + 레포는 자동 펼침
     const activeRoadmap = local.find((r) => r.id === state.activeRoadmapId);
     if (activeRoadmap?.category?.name) {
       state.expandedLocalCategories.add(activeRoadmap.category.name);
+      const { repo: activeRepo } = parseHierarchy(activeRoadmap);
+      state.expandedLocalRepos.add(`${activeRoadmap.category.name}::${activeRepo}`);
     }
 
+    const totalRepos = Array.from(tree.values()).reduce(
+      (sum, m) => sum + m.size,
+      0,
+    );
     parts.push(
-      `<div class="roadmap-group-title">📁 Local (${local.length}) · ${byCategory.size} categories</div>`,
+      `<div class="roadmap-group-title">📁 Local · ${tree.size} categories · ${totalRepos} repos · ${local.length} roadmaps</div>`,
     );
 
-    for (const [catName, group] of byCategory) {
-      const isExpanded = state.expandedLocalCategories.has(catName);
-      const caret = isExpanded ? "▼" : "▶";
-      const itemsHtml = isExpanded
-        ? group.roadmaps.map(roadmapItemHtml).join("")
-        : "";
+    for (const [catName, repoMap] of tree) {
+      const cat = catMeta.get(catName);
+      const catExpanded = state.expandedLocalCategories.has(catName);
+      const catCaret = catExpanded ? "▼" : "▶";
+
+      let catBody = "";
+      if (catExpanded) {
+        for (const [repoName, roadmaps] of repoMap) {
+          const repoKey = `${catName}::${repoName}`;
+          const repoExpanded = state.expandedLocalRepos.has(repoKey);
+          const repoCaret = repoExpanded ? "▼" : "▶";
+
+          // 레포의 누적 진도
+          const repoTotalChapters = roadmaps.reduce(
+            (sum, r) => sum + r.chapterCount,
+            0,
+          );
+          const repoVisitedChapters = roadmaps.reduce(
+            (sum, r) => sum + r.visitedChapters,
+            0,
+          );
+          const repoMaxDepth = roadmaps.reduce(
+            (m, r) => Math.max(m, r.maxDepth ?? 0),
+            0,
+          );
+          const repoDepthBadge =
+            repoMaxDepth > 0
+              ? `<span class="depth-pill">d${repoMaxDepth}</span>`
+              : "";
+
+          // 단일 sub-roadmap만 있고 그게 자기 자신(repo)이면 바로 클릭 가능하게
+          const isSingleFlat =
+            roadmaps.length === 1 && parseHierarchy(roadmaps[0]).isFlat;
+
+          let repoBody = "";
+          if (repoExpanded && !isSingleFlat) {
+            // sub-roadmap 목록 렌더링
+            const sortedSubs = [...roadmaps].sort((a, b) => {
+              const subA = parseHierarchy(a).sub ?? a.name;
+              const subB = parseHierarchy(b).sub ?? b.name;
+              return subA.localeCompare(subB);
+            });
+            repoBody = sortedSubs
+              .map((r) => {
+                const isActive = r.id === state.activeRoadmapId;
+                const { sub } = parseHierarchy(r);
+                const displayName = sub ?? r.name;
+                const lastDate = r.lastDate ?? "—";
+                const depthBadge =
+                  r.maxDepth > 0
+                    ? `<span class="depth-pill">d${r.maxDepth}</span>`
+                    : "";
+                return `
+                  <button class="roadmap-item sub-roadmap-item ${isActive ? "active" : ""}" data-id="${escapeAttr(r.id)}">
+                    <div class="roadmap-item-name">${escapeHtml(displayName)}</div>
+                    <div class="roadmap-item-meta">
+                      ${depthBadge}
+                      <span class="roadmap-item-progress">${r.visitedChapters}/${r.chapterCount}</span>
+                      <span class="roadmap-item-date">${escapeHtml(lastDate)}</span>
+                    </div>
+                  </button>
+                `;
+              })
+              .join("");
+          }
+
+          // Flat 레포(sub 없는 단일 로드맵)이면 헤더 자체가 클릭으로 active 설정
+          const repoHeaderAttrs = isSingleFlat
+            ? `data-flat-roadmap-id="${escapeAttr(roadmaps[0].id)}"`
+            : `data-local-repo="${escapeAttr(repoKey)}"`;
+          const repoClass = isSingleFlat
+            ? "repo-header flat-roadmap"
+            : "repo-header";
+          const isFlatActive =
+            isSingleFlat && roadmaps[0].id === state.activeRoadmapId;
+
+          catBody += `
+            <div class="local-repo">
+              <button class="${repoClass} ${isFlatActive ? "active" : ""}" ${repoHeaderAttrs}>
+                ${!isSingleFlat ? `<span class="cat-caret">${repoCaret}</span>` : `<span class="cat-caret"> </span>`}
+                <span class="repo-emoji">📦</span>
+                <span class="repo-name">${escapeHtml(repoName)}</span>
+                ${repoDepthBadge}
+                <span class="cat-count">${isSingleFlat ? roadmaps[0].chapterCount : roadmaps.length}</span>
+              </button>
+              <div class="repo-body ${repoExpanded && !isSingleFlat ? "" : "hidden"}">${repoBody}</div>
+            </div>
+          `;
+        }
+      }
+
+      const totalRoadmapsInCat = Array.from(repoMap.values()).reduce(
+        (sum, arr) => sum + arr.length,
+        0,
+      );
+
       parts.push(`
         <div class="curated-category local-category">
-          <button class="category-header" data-local-cat="${escapeAttr(catName)}" style="--cat-color: ${escapeAttr(group.category.color)}">
-            <span class="cat-caret">${caret}</span>
-            <span class="cat-emoji">${escapeHtml(group.category.emoji)}</span>
+          <button class="category-header" data-local-cat="${escapeAttr(catName)}" style="--cat-color: ${escapeAttr(cat.color)}">
+            <span class="cat-caret">${catCaret}</span>
+            <span class="cat-emoji">${escapeHtml(cat.emoji)}</span>
             <span class="cat-name">${escapeHtml(catName)}</span>
-            <span class="cat-count">${group.roadmaps.length}</span>
+            <span class="cat-count">${repoMap.size}r · ${totalRoadmapsInCat}</span>
           </button>
-          <div class="category-body ${isExpanded ? "" : "hidden"}">${itemsHtml}</div>
+          <div class="category-body ${catExpanded ? "" : "hidden"}">${catBody}</div>
         </div>
       `);
     }
@@ -472,6 +596,33 @@ function renderRoadmapSelector() {
         state.expandedLocalCategories.add(catName);
       }
       renderRoadmapSelector();
+    });
+  });
+
+  // wire local repo headers (collapsible)
+  els.roadmapList.querySelectorAll(".repo-header[data-local-repo]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const key = btn.dataset.localRepo;
+      if (state.expandedLocalRepos.has(key)) {
+        state.expandedLocalRepos.delete(key);
+      } else {
+        state.expandedLocalRepos.add(key);
+      }
+      renderRoadmapSelector();
+    });
+  });
+
+  // wire flat repo headers (sub-roadmap 하나뿐 → 헤더 자체가 클릭으로 active 설정)
+  els.roadmapList.querySelectorAll(".repo-header[data-flat-roadmap-id]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.flatRoadmapId;
+      if (id === state.activeRoadmapId) {
+        els.roadmapList.classList.add("hidden");
+        return;
+      }
+      switchRoadmap(id);
     });
   });
 }
