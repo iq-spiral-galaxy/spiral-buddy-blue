@@ -1771,24 +1771,25 @@ button.primary {
 /* ─── 로고 타이틀 더 크게 (subtitle 제거) ─── */
 
 .brand-title {
-  font-size: 30px !important;
-  letter-spacing: -0.025em !important;
+  font-size: 24px !important;
+  letter-spacing: -0.02em !important;
   line-height: 1 !important;
+  white-space: nowrap;
 }
 
 .brand-row {
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
 .logo-spiral {
-  width: 54px !important;
-  height: 54px !important;
+  width: 42px !important;
+  height: 42px !important;
 }
 
 .logo-spiral svg {
-  width: 54px;
-  height: 54px;
+  width: 42px;
+  height: 42px;
 }
 
 /* ─── Composer (textarea + Send) — 정확히 같은 높이 ─── */
