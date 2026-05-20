@@ -48,9 +48,27 @@ Phase 2.3 stable 위에 학습 흐름 마찰을 줄이는 큰 묶음 추가:
 - **Windows**: `Spiral Buddy Setup <version>.exe`
 - **Linux**: `Spiral Buddy-<version>.AppImage`
 
-첫 실행 시 setup wizard가 뜨고 **API 키**와 **Obsidian Vault 경로** 두 개만 입력하면 끝. 학습 자료 디렉토리는 선택(없으면 GitHub Curated `iq-dev-lab`만 사용).
+첫 실행 시 setup wizard가 뜨고 **API 키**와 **Obsidian Vault 경로** 두 개만 입력하면 끝. vault는 흔한 경로(`~/Documents/Obsidian Vault`, iCloud `~/Library/Mobile Documents/iCloud~md~obsidian/Documents` 등)에서 자동 감지 시도. 학습 자료 디렉토리는 (1) 본인 경로 직접 지정 / (2) **"📥 iq-dev-lab 38개 자동 다운로드" 버튼 한 번에 받기** / (3) 비우고 Curated만 사용 — 셋 다 가능.
 
-> ⚠️ 현재 자가서명/notarization 안 한 빌드. macOS는 첫 실행 시 "확인되지 않은 개발자" 경고 — **우클릭 → 열기**로 우회. Windows는 SmartScreen 경고 → "추가 정보" → "실행". 코드는 모두 공개됨.
+### ⚠️ macOS — "손상됨" 경고가 뜬다면
+
+```
+'Spiral Buddy'은(는) 손상되었기 때문에 열 수 없습니다.
+```
+
+코드 사인/공증 없이 배포해서 **macOS Gatekeeper가 quarantine 속성 때문에 차단**한 거야 (실제로 손상된 게 아님). 터미널에서 한 줄 실행하면 풀림:
+
+```bash
+# 1. dmg 마운트 + .app을 Applications로 끌어 놓은 뒤
+xattr -cr "/Applications/Spiral Buddy.app"
+
+# 또는 dmg를 마운트하기 전에 dmg 자체의 quarantine을 제거
+xattr -d com.apple.quarantine ~/Downloads/Spiral-Buddy-*.dmg
+```
+
+이후 정상적으로 실행됨. 정식 해결은 Apple Developer ID 발급 + notarization인데 비용/시간 들어가서 미뤘음. **친구·동료에게 공유할 땐 위 명령어도 함께 알려주세요.**
+
+> Windows는 SmartScreen 경고가 뜨면 **"추가 정보" → "실행"** 클릭. 코드는 모두 공개됨.
 
 ### 방법 B — 소스에서 실행 (개발자 / 커스터마이즈)
 

@@ -68,3 +68,59 @@ jobs:
             release/*.AppImage
             release/*.yml
           if-no-files-found: ignore
+
+  # 3개 OS 빌드 끝나면 release body에 사용자 안내문 자동 작성
+  release-notes:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cat > NOTES.md <<'EOF'
+          # Spiral Buddy ${TAG_PLACEHOLDER}
+
+          ## 다운로드
+
+          | OS | 파일 |
+          |---|---|
+          | macOS Apple Silicon | `Spiral-Buddy-*-arm64.dmg` |
+          | macOS Intel | `Spiral-Buddy-*.dmg` (arm64 아닌 것) |
+          | Windows | `Spiral-Buddy-Setup-*.exe` |
+          | Linux | `Spiral-Buddy-*.AppImage` |
+
+          ## ⚠️ macOS — "손상됨" 경고가 뜨면
+
+          Code signing/공증을 안 한 빌드라 macOS Gatekeeper가 차단합니다 (실제 손상 아님).
+          터미널에서 아래 명령 한 번만 실행하면 풀립니다:
+
+          ```bash
+          # .app을 Applications로 옮긴 뒤
+          xattr -cr "/Applications/Spiral Buddy.app"
+          ```
+
+          ## ⚠️ Windows — SmartScreen 경고가 뜨면
+
+          "추가 정보" → "실행" 클릭. 코드는 모두 공개되어 있습니다.
+
+          ## 사용 방법
+
+          1. 본인 OS 파일 다운로드 → 더블클릭
+          2. Setup wizard에서 **API 키** + **Obsidian Vault 경로** 입력
+             - Vault는 흔한 위치에서 자동 감지됨 (클릭 한 번)
+          3. (선택) **"iq-dev-lab 38개 자동 다운로드"** 카드 클릭 → 부모 폴더 선택 → 1~5분 대기
+          4. "시작하기" → 메인 앱
+
+          ## 자세한 안내
+
+          [README](https://github.com/iq-agent-lab/iq-spiral-buddy/blob/main/README.md)
+          EOF
+          # ${TAG} 치환
+          sed -i "s/\${TAG_PLACEHOLDER}/${TAG}/g" NOTES.md
+          gh release edit "$TAG" --notes-file NOTES.md

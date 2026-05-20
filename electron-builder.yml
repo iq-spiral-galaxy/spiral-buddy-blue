@@ -34,8 +34,10 @@ mac:
       arch:
         - arm64
         - x64
-  # 자가서명도 안 함 — 사용자가 우클릭 → "열기"로 우회. 초기 배포용.
-  identity: null
+  # Apple Developer ID 없이 ad-hoc 서명 ("-"). identity: null은 서명을 완전히 끄는 것이고
+  # 그 경우 macOS Sequoia에서 즉시 "손상됨" 표시. ad-hoc은 일부 환경에서 우회됨.
+  # 그래도 안 되면 사용자는 README 안내대로 `xattr -cr` 실행 필요.
+  identity: "-"
   hardenedRuntime: false
   gatekeeperAssess: false
 
