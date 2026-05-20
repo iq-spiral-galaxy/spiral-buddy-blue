@@ -1,3 +1,6 @@
 allowBuilds:
   electron: true
   esbuild: false
+# transitive deps가 electron-builder packaging에 누락되지 않도록 npm 스타일 평탄
+# node_modules 사용. (.npmrc의 node-linker=hoisted와 동일 효과 — 이중 안전망)
+nodeLinker: hoisted
