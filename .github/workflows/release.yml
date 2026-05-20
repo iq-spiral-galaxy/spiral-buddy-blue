@@ -15,6 +15,8 @@ permissions:
 jobs:
   build:
     runs-on: ${{ matrix.os }}
+    # 정상 빌드는 1-3분. 7분 초과는 거의 hang이므로 자동 cancel.
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -47,6 +49,14 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # Linux: AppImage 빌드에 libfuse2 필요. Ubuntu 24.04+에서는 기본 미포함이라
+      # electron-builder가 sandbox/fuse 관련 setup에서 멈추는 케이스가 잦음.
+      - name: (Linux) Install AppImage build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 || sudo apt-get install -y libfuse2t64
+
       - name: Build TypeScript
         run: pnpm exec tsc
 
@@ -55,6 +65,11 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # macOS code signing은 skip (자가서명/notarization은 후속 단계)
           CSC_IDENTITY_AUTO_DISCOVERY: false
+          # Linux: electron-builder가 appimage tool을 다운로드하다 hang하는 케이스 방지
+          USE_HARD_LINKS: false
+          DEBUG: ${{ runner.os == 'Linux' && 'electron-builder' || '' }}
+        # 빌드 자체에도 timeout — 행이면 12분 후 강제 종료
+        timeout-minutes: 12
         run: pnpm exec electron-builder --publish always
 
       - name: Upload artifacts (fallback)
