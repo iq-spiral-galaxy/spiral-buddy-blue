@@ -3,8 +3,12 @@ import { Hono } from "hono";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import fs from "node:fs/promises";
-import open from "open";
 import chalk from "chalk";
+
+// `open` 패키지는 NO_OPEN=1이 아닐 때만 dynamic import.
+// 이유: open이 transitive로 wsl-utils 같은 optional dep을 가지는데
+// electron-builder가 일부 환경에서 그걸 누락시켜 module 로드 자체가
+// 실패함. dynamic import로 만들면 그 코드 path가 실행될 때만 resolve.
 
 import { loadConfig } from "./config.js";
 import { createApi } from "./routes.js";
@@ -136,10 +140,13 @@ export async function startServer(): Promise<{ url: string; port: number }> {
   });
 
   if (process.env.NO_OPEN !== "1") {
-    setTimeout(() => {
-      open(url).catch(() => {
+    setTimeout(async () => {
+      try {
+        const { default: open } = await import("open");
+        await open(url);
+      } catch {
         console.log(chalk.gray(`  (auto-open failed, visit ${url} manually)`));
-      });
+      }
     }, 500);
   }
 
