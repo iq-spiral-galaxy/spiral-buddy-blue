@@ -15,18 +15,20 @@ const os = require("node:os");
 const { spawn, spawnSync } = require("node:child_process");
 const net = require("node:net");
 const https = require("node:https");
+const { pathToFileURL } = require("node:url");
 
-// asar 외부에 둬야 child process가 접근 가능 (asar는 file:// import만 됨)
-const APP_ROOT = app.isPackaged
-  ? path.join(process.resourcesPath, "app")
-  : path.resolve(__dirname, "..");
+// dev: <worktree>/  ·  packaged: Contents/Resources/app/  (asar: false 기준)
+// app.getAppPath()가 두 경우 모두 정확.
+const APP_ROOT = app.getAppPath();
 
 const CONFIG_PATH = path.join(app.getPath("userData"), "spiral-buddy-config.json");
+const LOG_DIR = app.getPath("logs"); // macOS: ~/Library/Logs/<productName>
+const SERVER_LOG_PATH = path.join(LOG_DIR, "server.log");
 
 let mainWindow = null;
 let setupWindow = null;
-let serverProcess = null;
 let serverPort = null;
+let serverStarted = false;
 
 function loadConfig() {
   // 1순위: userData에 저장된 GUI 설정
@@ -110,47 +112,49 @@ async function waitForServer(port, timeoutMs = 15000) {
   return false;
 }
 
-function startServerProcess(cfg) {
+async function startServerInProcess(cfg) {
   const port = serverPort;
-  const env = {
-    ...process.env,
-    ELECTRON_RUN_AS_NODE: "1",
-    ANTHROPIC_API_KEY: cfg.anthropicApiKey,
-    SPIRAL_VAULT_PATH: cfg.vaultPath,
-    PORT: String(port),
-    NO_OPEN: "1", // Electron이 BrowserWindow로 열기 때문에 자동 브라우저 오픈 끔
-  };
-  if (cfg.roadmapRoot) env.SPIRAL_ROADMAP_ROOT = cfg.roadmapRoot;
-  if (cfg.curatedOrg) env.SPIRAL_CURATED_ORG = cfg.curatedOrg;
-  if (cfg.githubToken) env.SPIRAL_GITHUB_TOKEN = cfg.githubToken;
-  if (cfg.model) env.SPIRAL_MODEL = cfg.model;
-  if (cfg.maxTokens) env.SPIRAL_MAX_TOKENS = String(cfg.maxTokens);
-  if (cfg.vaultName) env.SPIRAL_VAULT_NAME = cfg.vaultName;
+  // process.env에 config 주입 — server는 process.env 기반으로 동작
+  process.env.ANTHROPIC_API_KEY = cfg.anthropicApiKey;
+  process.env.SPIRAL_VAULT_PATH = cfg.vaultPath;
+  process.env.PORT = String(port);
+  process.env.NO_OPEN = "1";
+  if (cfg.roadmapRoot) process.env.SPIRAL_ROADMAP_ROOT = cfg.roadmapRoot;
+  if (cfg.curatedOrg) process.env.SPIRAL_CURATED_ORG = cfg.curatedOrg;
+  if (cfg.githubToken) process.env.SPIRAL_GITHUB_TOKEN = cfg.githubToken;
+  if (cfg.model) process.env.SPIRAL_MODEL = cfg.model;
+  if (cfg.maxTokens) process.env.SPIRAL_MAX_TOKENS = String(cfg.maxTokens);
+  if (cfg.vaultName) process.env.SPIRAL_VAULT_NAME = cfg.vaultName;
 
   const serverEntry = path.join(APP_ROOT, "dist", "server.js");
+
+  // 진단용 로그 — 패키지 앱에서 사용자가 확인 가능
+  fs.mkdirSync(LOG_DIR, { recursive: true });
+  fs.appendFileSync(
+    SERVER_LOG_PATH,
+    `[${new Date().toISOString()}] startServer (in-process)\n` +
+      `  APP_ROOT=${APP_ROOT}\n` +
+      `  serverEntry=${serverEntry}\n` +
+      `  exists=${fs.existsSync(serverEntry)}\n` +
+      `  PORT=${port}\n` +
+      `  isPackaged=${app.isPackaged}\n` +
+      `  electron=${process.versions.electron}, node=${process.versions.node}\n\n`,
+  );
+
   if (!fs.existsSync(serverEntry)) {
     throw new Error(
-      `Server entry not found: ${serverEntry}\nDid you forget to run 'pnpm build'?`,
+      `Server entry not found:\n${serverEntry}\n\n패키지 자산이 누락된 빌드일 수 있습니다.`,
     );
   }
 
-  serverProcess = spawn(process.execPath, [serverEntry], {
-    env,
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  serverProcess.stdout?.on("data", (b) => process.stdout.write(`[srv] ${b}`));
-  serverProcess.stderr?.on("data", (b) => process.stderr.write(`[srv] ${b}`));
-  serverProcess.on("exit", (code) => {
-    console.log(`[main] server exited with code ${code}`);
-    serverProcess = null;
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      dialog.showErrorBox(
-        "Spiral Buddy",
-        `백엔드 서버가 종료되었습니다 (exit ${code}). 앱을 다시 시작해주세요.`,
-      );
-      app.quit();
-    }
-  });
+  // CJS에서 ESM 동적 import. file:// URL 필수.
+  const url = pathToFileURL(serverEntry).href;
+  const mod = await import(url);
+  if (typeof mod.startServer !== "function") {
+    throw new Error(`dist/server.js does not export startServer()`);
+  }
+  // startServer는 listen 시작 직후 return. waitForServer로 실제 ready 시점 확인.
+  await mod.startServer();
 }
 
 function createSetupWindow() {
@@ -169,7 +173,7 @@ function createSetupWindow() {
   setupWindow.loadFile(path.join(__dirname, "setup.html"));
   setupWindow.on("closed", () => {
     setupWindow = null;
-    if (!mainWindow && !serverProcess) {
+    if (!mainWindow && !serverStarted) {
       // 사용자가 설정 안 하고 닫음 → 앱 종료
       app.quit();
     }
@@ -203,16 +207,35 @@ async function createMainWindow() {
 
 async function bootWithConfig(cfg) {
   serverPort = await findFreePort();
-  startServerProcess(cfg);
-  const ready = await waitForServer(serverPort);
-  if (!ready) {
+  try {
+    await startServerInProcess(cfg);
+  } catch (err) {
+    const msg = err instanceof Error ? `${err.message}\n\n${err.stack ?? ""}` : String(err);
+    try {
+      fs.appendFileSync(
+        SERVER_LOG_PATH,
+        `[${new Date().toISOString()}] startServer error:\n${msg}\n\n`,
+      );
+    } catch {
+      /* ignore */
+    }
     dialog.showErrorBox(
-      "Spiral Buddy",
-      "백엔드 서버를 시작할 수 없습니다. 콘솔 로그를 확인하세요.",
+      "Spiral Buddy — 서버 시작 실패",
+      `서버를 시작할 수 없습니다.\n\n${err?.message ?? err}\n\n로그 파일: ${SERVER_LOG_PATH}`,
     );
     app.quit();
     return;
   }
+  const ready = await waitForServer(serverPort, 8000);
+  if (!ready) {
+    dialog.showErrorBox(
+      "Spiral Buddy — 서버 시작 실패",
+      `서버가 localhost:${serverPort}에서 응답하지 않습니다.\n\n로그 파일: ${SERVER_LOG_PATH}`,
+    );
+    app.quit();
+    return;
+  }
+  serverStarted = true;
   await createMainWindow();
 }
 
@@ -500,12 +523,7 @@ app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });
 
-app.on("before-quit", () => {
-  if (serverProcess) {
-    serverProcess.kill();
-    serverProcess = null;
-  }
-});
+// 서버가 in-process라 별도 종료 처리 불필요 — Electron app exit 시 자연 종료.
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
