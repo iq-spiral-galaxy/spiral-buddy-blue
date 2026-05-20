@@ -27,7 +27,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # pnpm 11.1.1+가 node:sqlite (Node 22.13+) 빌트인을 요구
+          node-version: "22"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
