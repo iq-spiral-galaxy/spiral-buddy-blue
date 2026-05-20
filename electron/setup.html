@@ -18,6 +18,7 @@
         --danger: #ff7a7a;
       }
       * { box-sizing: border-box; }
+      .hidden { display: none !important; }
       body {
         margin: 0;
         padding: 24px 28px;
@@ -116,6 +117,77 @@
         font-weight: 400;
         margin-left: 6px;
       }
+      .vault-detected {
+        font-size: 11px;
+        color: var(--accent);
+        margin-top: 6px;
+        cursor: pointer;
+      }
+      .vault-detected:hover { text-decoration: underline; }
+      .divider-text {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 14px 0 10px;
+        color: var(--text-faint);
+        font-size: 11px;
+      }
+      .divider-text::before,
+      .divider-text::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--border-soft);
+      }
+      .download-card {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 16px;
+        cursor: pointer;
+        transition: border-color 120ms, background 120ms;
+      }
+      .download-card:hover:not(.disabled):not(.downloading):not(.done) {
+        border-color: var(--accent);
+        background: rgba(126, 226, 255, 0.05);
+      }
+      .download-card.disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .download-card-title {
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 4px;
+      }
+      .download-card-sub {
+        font-size: 11px;
+        color: var(--text-faint);
+        line-height: 1.5;
+      }
+      .download-progress {
+        margin-top: 10px;
+        font-size: 11px;
+        color: var(--text-dim);
+        font-family: ui-monospace, "JetBrains Mono", monospace;
+      }
+      .progress-bar {
+        height: 4px;
+        background: var(--bg-elev-2);
+        border-radius: 2px;
+        margin-top: 6px;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), #b794f6);
+        width: 0%;
+        transition: width 200ms ease-out;
+      }
+      .download-card.done {
+        border-color: var(--accent);
+        background: rgba(126, 226, 255, 0.06);
+      }
     </style>
   </head>
   <body>
@@ -139,6 +211,7 @@
         <button class="pick-btn" id="pick-vault" type="button">선택…</button>
       </div>
       <div class="hint">학습 노트가 저장될 위치. <code>.obsidian/</code> 디렉토리가 있는 vault 루트나 그 하위 폴더.</div>
+      <div class="vault-detected hidden" id="vault-detected"></div>
     </div>
 
     <div class="field">
@@ -147,7 +220,18 @@
         <input id="roadmap-root" type="text" placeholder="/Users/.../iq-dev-lab (선택)" />
         <button class="pick-btn" id="pick-roadmap" type="button">선택…</button>
       </div>
-      <div class="hint">로컬 학습 자료가 있는 폴더. 비워두면 GitHub Curated (iq-dev-lab)만 사용됩니다.</div>
+      <div class="hint">이미 학습 자료가 있다면 그 경로를 지정. 비워두면 GitHub Curated (iq-dev-lab)만 사용.</div>
+
+      <div class="divider-text">또는 한 번에 받기</div>
+
+      <div class="download-card" id="download-card" role="button" tabindex="0">
+        <div class="download-card-title">📥 iq-dev-lab 38개 deep-dive 레포 자동 다운로드</div>
+        <div class="download-card-sub" id="download-card-sub">
+          Java Core · Spring · DB · MSA · Architecture · 등 카테고리별 deep-dive 레포를 한 번에 <code>git clone --depth=1</code>. 약 200–500MB · 1–5분.
+        </div>
+        <div class="download-progress hidden" id="download-progress"></div>
+        <div class="progress-bar hidden" id="progress-bar-wrap"><div class="progress-fill" id="progress-fill"></div></div>
+      </div>
     </div>
 
     <div class="error" id="error-msg"></div>

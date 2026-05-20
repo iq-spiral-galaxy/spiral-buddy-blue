@@ -11,8 +11,10 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
-const { spawn } = require("node:child_process");
+const os = require("node:os");
+const { spawn, spawnSync } = require("node:child_process");
 const net = require("node:net");
+const https = require("node:https");
 
 // asar 외부에 둬야 child process가 접근 가능 (asar는 file:// import만 됨)
 const APP_ROOT = app.isPackaged
@@ -250,6 +252,232 @@ ipcMain.handle("setup:validate-and-save", async (_e, cfg) => {
 
 ipcMain.handle("app:open-external", (_e, url) => {
   if (typeof url === "string") shell.openExternal(url);
+});
+
+// ─── Vault 자동 감지 ─────────────────────────────────────────
+
+ipcMain.handle("setup:detect-vault", async () => {
+  const candidates = [
+    path.join(os.homedir(), "Documents", "Obsidian Vault"),
+    path.join(os.homedir(), "Documents", "Obsidian"),
+    path.join(os.homedir(), "Obsidian"),
+    path.join(
+      os.homedir(),
+      "Library",
+      "Mobile Documents",
+      "iCloud~md~obsidian",
+      "Documents",
+    ),
+    path.join(os.homedir(), "Documents"),
+  ];
+  // 1단계: 후보 자체가 .obsidian을 가진 vault인지
+  for (const cand of candidates) {
+    if (fs.existsSync(path.join(cand, ".obsidian"))) {
+      return { found: true, path: cand };
+    }
+  }
+  // 2단계: 후보 안 하위 디렉토리 한 단계 탐색
+  for (const parent of candidates) {
+    if (!fs.existsSync(parent)) continue;
+    try {
+      const children = fs.readdirSync(parent, { withFileTypes: true });
+      for (const c of children) {
+        if (!c.isDirectory()) continue;
+        if (c.name.startsWith(".")) continue;
+        const full = path.join(parent, c.name);
+        if (fs.existsSync(path.join(full, ".obsidian"))) {
+          return { found: true, path: full };
+        }
+      }
+    } catch {
+      /* skip */
+    }
+  }
+  return { found: false };
+});
+
+// ─── git 존재 확인 ───────────────────────────────────────────
+
+ipcMain.handle("setup:check-git", () => {
+  try {
+    const res = spawnSync("git", ["--version"], {
+      encoding: "utf-8",
+      timeout: 3000,
+    });
+    if (res.status === 0) {
+      return { ok: true, version: (res.stdout || "").trim() };
+    }
+    return { ok: false, error: "git이 설치되어 있지 않습니다." };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
+// ─── iq-dev-lab 38개 레포 자동 다운로드 ──────────────────────
+
+const CURATED_ORG = "iq-dev-lab";
+
+function fetchOrgRepos(org) {
+  return new Promise((resolve, reject) => {
+    const results = [];
+    const fetchPage = (page) => {
+      const req = https.request(
+        {
+          host: "api.github.com",
+          path: `/orgs/${org}/repos?per_page=100&page=${page}&type=public`,
+          headers: {
+            "User-Agent": "spiral-buddy-setup",
+            Accept: "application/vnd.github+json",
+          },
+        },
+        (res) => {
+          const chunks = [];
+          res.on("data", (c) => chunks.push(c));
+          res.on("end", () => {
+            if (res.statusCode !== 200) {
+              return reject(
+                new Error(
+                  `GitHub API ${res.statusCode}: ${Buffer.concat(chunks).toString().slice(0, 200)}`,
+                ),
+              );
+            }
+            const data = JSON.parse(Buffer.concat(chunks).toString());
+            results.push(...data);
+            if (data.length === 100) fetchPage(page + 1);
+            else resolve(results);
+          });
+        },
+      );
+      req.on("error", reject);
+      req.end();
+    };
+    fetchPage(1);
+  });
+}
+
+function shouldSkipRepo(repo) {
+  if (repo.archived) return true;
+  if (repo.fork) return true;
+  if (repo.private) return true;
+  if (repo.size === 0) return true;
+  if (repo.name.startsWith(".")) return true;
+  if (repo.name.endsWith(".github.io")) return true;
+  return false;
+}
+
+function cloneRepo(parentDir, repo, depth = 1) {
+  return new Promise((resolve, reject) => {
+    const dest = path.join(parentDir, repo.name);
+    if (fs.existsSync(dest)) {
+      // 이미 있으면 skip
+      return resolve({ name: repo.name, skipped: true });
+    }
+    const child = spawn(
+      "git",
+      [
+        "clone",
+        "--depth",
+        String(depth),
+        "--quiet",
+        repo.clone_url,
+        dest,
+      ],
+      { stdio: ["ignore", "ignore", "pipe"] },
+    );
+    let stderr = "";
+    child.stderr.on("data", (b) => (stderr += b.toString()));
+    child.on("exit", (code) => {
+      if (code === 0) resolve({ name: repo.name, ok: true });
+      else
+        reject(
+          new Error(`${repo.name} clone failed (exit ${code}): ${stderr.slice(0, 200)}`),
+        );
+    });
+    child.on("error", reject);
+  });
+}
+
+ipcMain.handle("setup:pick-parent-dir", async () => {
+  const result = await dialog.showOpenDialog({
+    title: "iq-dev-lab을 받을 부모 디렉토리 선택",
+    properties: ["openDirectory", "createDirectory"],
+    defaultPath: path.join(os.homedir(), "Documents"),
+    buttonLabel: "이 폴더에 받기",
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0];
+});
+
+ipcMain.handle("setup:download-curated", async (event, args) => {
+  const send = (channel, payload) => {
+    event.sender.send(channel, payload);
+  };
+  const parentDir = args?.parentDir;
+  if (!parentDir || !fs.existsSync(parentDir)) {
+    return { ok: false, error: "부모 디렉토리가 존재하지 않습니다." };
+  }
+  const targetDir = path.join(parentDir, CURATED_ORG);
+  fs.mkdirSync(targetDir, { recursive: true });
+
+  send("setup:download-progress", { phase: "fetching", message: "GitHub에서 레포 목록 가져오는 중…" });
+  let repos;
+  try {
+    const all = await fetchOrgRepos(CURATED_ORG);
+    repos = all.filter((r) => !shouldSkipRepo(r));
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+  if (repos.length === 0) {
+    return { ok: false, error: "받을 레포가 없습니다." };
+  }
+
+  send("setup:download-progress", {
+    phase: "cloning",
+    total: repos.length,
+    done: 0,
+    message: `${repos.length}개 레포 클론 시작`,
+  });
+
+  // 병렬 4개 + 직렬 큐
+  const concurrency = 4;
+  let cursor = 0;
+  let completed = 0;
+  const failed = [];
+
+  async function worker() {
+    while (true) {
+      const idx = cursor++;
+      if (idx >= repos.length) break;
+      const repo = repos[idx];
+      try {
+        await cloneRepo(targetDir, repo);
+      } catch (err) {
+        failed.push({ name: repo.name, error: err.message });
+      }
+      completed++;
+      send("setup:download-progress", {
+        phase: "cloning",
+        total: repos.length,
+        done: completed,
+        current: repo.name,
+      });
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, worker));
+
+  send("setup:download-progress", {
+    phase: "done",
+    total: repos.length,
+    done: completed,
+    failed: failed.length,
+  });
+
+  return {
+    ok: true,
+    targetDir,
+    count: completed - failed.length,
+    failed,
+  };
 });
 
 // ─── App lifecycle ───────────────────────────────────────────
