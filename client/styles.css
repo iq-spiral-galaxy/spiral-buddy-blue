@@ -2111,6 +2111,303 @@ body.sidebar-collapsed .messages {
   position: relative;
 }
 
+/* ─── Workspace selector (사이드바 상단) ─── */
+
+.workspace-selector {
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.workspace-current {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+
+.workspace-current:hover {
+  background: var(--bg-elev-3, #25252c);
+  border-color: var(--accent);
+}
+
+.workspace-icon { font-size: 14px; }
+.workspace-name { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-current .caret { color: var(--text-faint); font-size: 9px; }
+
+.workspace-list {
+  margin-top: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.workspace-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: transparent;
+  border: 0;
+  color: var(--text-dim);
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.workspace-item:hover { background: var(--bg-elev-2); color: var(--text); }
+.workspace-item.active { color: var(--accent); }
+.workspace-item.add {
+  border-top: 1px solid var(--border-soft);
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.workspace-item.add:hover { color: var(--accent); }
+.workspace-item-icon { width: 16px; }
+
+/* ─── Settings modal ─── */
+
+.settings-modal {
+  max-width: 640px;
+  width: calc(100% - 40px);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.settings-tab {
+  background: transparent;
+  border: 0;
+  color: var(--text-faint);
+  font-family: inherit;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 12px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.settings-tab:hover { color: var(--text); }
+.settings-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+.settings-panel { overflow-y: auto; flex: 1; }
+
+.settings-field {
+  margin-bottom: 16px;
+}
+
+.settings-field > label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.settings-row {
+  display: flex;
+  gap: 6px;
+}
+
+.settings-row input,
+.settings-row select,
+.settings-field input[type="text"],
+.settings-field input[type="password"] {
+  flex: 1;
+  padding: 7px 10px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.settings-row input:focus,
+.settings-field input:focus {
+  border-color: var(--accent);
+}
+
+.settings-save-btn {
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 7px 12px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.settings-save-btn:hover { background: var(--bg-elev-3, #25252c); }
+.settings-save-btn.primary { background: var(--accent); color: #0e0e11; border-color: var(--accent); font-weight: 600; }
+
+.settings-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 6px;
+}
+
+.settings-add-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text-dim);
+  padding: 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  margin-top: 8px;
+}
+
+.settings-add-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.settings-workspace-list { display: flex; flex-direction: column; gap: 8px; }
+
+.ws-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.ws-row.active { border-color: var(--accent); }
+
+.ws-row-main { flex: 1; min-width: 0; }
+.ws-row-name { font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 3px; }
+.ws-source {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-faint);
+  background: var(--bg-elev-2);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.ws-row-path, .ws-row-vaultsub {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ws-row-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.ws-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.ws-btn:hover { background: var(--bg-elev-2); }
+.ws-btn.danger { color: var(--danger, #ff7a7a); border-color: rgba(255, 90, 90, 0.3); }
+.ws-btn.danger:hover { background: rgba(255, 90, 90, 0.12); }
+.ws-active-label { font-size: 11px; color: var(--accent); padding: 0 8px; }
+
+/* ─── Add workspace modal ─── */
+
+.add-workspace-modal {
+  max-width: 520px;
+  width: calc(100% - 40px);
+  padding: 18px 20px;
+}
+
+.radio-row { display: flex; flex-direction: column; gap: 6px; }
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.radio-option:has(input:checked) {
+  border-color: var(--accent);
+  background: rgba(126, 226, 255, 0.05);
+}
+
+.add-ws-error {
+  font-size: 12px;
+  color: var(--danger, #ff7a7a);
+  margin: 8px 0;
+}
+
+.add-ws-progress {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  margin: 8px 0;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.settings-actions button {
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 16px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.settings-actions button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0e0e11;
+  font-weight: 600;
+}
+
+.settings-actions button:disabled { opacity: 0.5; cursor: progress; }
+
+/* topbar 설정 버튼 (다른 action-btn처럼) */
+#settings-btn svg { color: var(--text-dim); }
+#settings-btn:hover svg { color: var(--text); }
+
 /* ─── Trash button & modal ─── */
 
 .trash-section {

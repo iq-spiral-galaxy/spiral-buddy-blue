@@ -91,6 +91,14 @@ function cacheEls() {
   els.activitySummary = $("activity-summary");
   els.activityGrid = $("activity-grid");
   els.activityMonthLabels = $("activity-month-labels");
+  // settings / workspace
+  els.settingsBtn = $("settings-btn");
+  els.settingsModal = $("settings-modal");
+  els.settingsModalClose = $("settings-modal-close");
+  els.workspaceCurrent = $("workspace-current");
+  els.workspaceName = $("workspace-name");
+  els.workspaceList = $("workspace-list");
+  els.addWsModal = $("add-workspace-modal");
 }
 
 // ──────────────────────────────────────────────────────────
@@ -187,6 +195,15 @@ function wireEvents() {
       document.body.style.removeProperty("--sidebar-w");
       localStorage.removeItem(SIDEBAR_WIDTH_KEY);
     });
+  }
+
+  // 설정 + 워크스페이스 (Electron 모드에서만 동작 — window.spiralSettings 존재 여부)
+  if (window.spiralSettings) {
+    initSettings();
+  } else {
+    // 브라우저 모드 (pnpm dev) — 설정 버튼 숨김, 워크스페이스 셀렉터 숨김
+    els.settingsBtn?.classList.add("hidden");
+    document.getElementById("workspace-section")?.classList.add("hidden");
   }
 
   // 휴지통
@@ -1227,6 +1244,334 @@ function openChapterNotePopover(anchorEl, chapter) {
     document.addEventListener("mousedown", _onOutsideClick, true);
     document.addEventListener("keydown", _onPopoverKey, true);
   }, 0);
+}
+
+// ──────────────────────────────────────────────────────────
+// 설정 + 워크스페이스 (Electron 모드 전용)
+// ──────────────────────────────────────────────────────────
+
+let _settingsCache = null;
+
+async function initSettings() {
+  _settingsCache = await window.spiralSettings.get();
+  renderWorkspaceSelector();
+
+  // topbar 설정 버튼
+  els.settingsBtn?.addEventListener("click", openSettingsModal);
+  els.settingsModalClose?.addEventListener("click", closeSettingsModal);
+  els.settingsModal?.addEventListener("click", (e) => {
+    if (e.target === els.settingsModal) closeSettingsModal();
+  });
+
+  // 워크스페이스 셀렉터 토글
+  els.workspaceCurrent?.addEventListener("click", () => {
+    els.workspaceList?.classList.toggle("hidden");
+  });
+
+  // ESC로 모달 닫기
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      if (els.settingsModal && !els.settingsModal.classList.contains("hidden")) {
+        closeSettingsModal();
+      }
+      if (els.addWsModal && !els.addWsModal.classList.contains("hidden")) {
+        closeAddWorkspaceModal();
+      }
+    }
+  });
+
+  // 설정 모달 탭 스위칭
+  els.settingsModal?.querySelectorAll(".settings-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      els.settingsModal
+        .querySelectorAll(".settings-tab")
+        .forEach((t) => t.classList.toggle("active", t === tab));
+      const target = tab.dataset.tab;
+      els.settingsModal
+        .querySelectorAll(".settings-panel")
+        .forEach((p) =>
+          p.classList.toggle("hidden", p.dataset.panel !== target),
+        );
+    });
+  });
+
+  // 일반 설정 액션들
+  document.getElementById("settings-save-api-key")?.addEventListener("click", saveApiKey);
+  document.getElementById("settings-save-vault")?.addEventListener("click", saveVault);
+  document.getElementById("settings-pick-vault")?.addEventListener("click", pickVault);
+  document.getElementById("settings-save-model")?.addEventListener("click", saveModel);
+
+  // 워크스페이스 액션
+  document
+    .getElementById("settings-add-workspace-btn")
+    ?.addEventListener("click", openAddWorkspaceModal);
+
+  // 새 워크스페이스 모달
+  initAddWorkspaceModal();
+}
+
+function renderWorkspaceSelector() {
+  if (!_settingsCache) return;
+  const active = _settingsCache.workspaces.find(
+    (w) => w.id === _settingsCache.activeWorkspaceId,
+  );
+  if (active && els.workspaceName) {
+    els.workspaceName.textContent = active.name;
+  }
+  if (!els.workspaceList) return;
+  els.workspaceList.innerHTML = _settingsCache.workspaces
+    .map((w) => {
+      const isActive = w.id === _settingsCache.activeWorkspaceId;
+      return `
+        <button class="workspace-item ${isActive ? "active" : ""}" data-id="${escapeAttr(w.id)}">
+          <span class="workspace-item-icon">${isActive ? "✓" : "·"}</span>
+          <span class="workspace-item-name">${escapeHtml(w.name)}</span>
+        </button>
+      `;
+    })
+    .join("") +
+    `<button class="workspace-item add" id="workspace-list-add">＋ 새 워크스페이스</button>`;
+
+  els.workspaceList.querySelectorAll(".workspace-item[data-id]").forEach((b) => {
+    b.addEventListener("click", async () => {
+      const id = b.dataset.id;
+      if (id === _settingsCache.activeWorkspaceId) {
+        els.workspaceList.classList.add("hidden");
+        return;
+      }
+      const ok = window.confirm(
+        `워크스페이스를 전환하면 앱이 재시작됩니다. 진행할까요?`,
+      );
+      if (!ok) return;
+      await window.spiralSettings.switchWorkspace(id);
+    });
+  });
+  document.getElementById("workspace-list-add")?.addEventListener("click", () => {
+    els.workspaceList.classList.add("hidden");
+    openAddWorkspaceModal();
+  });
+}
+
+function openSettingsModal() {
+  if (!_settingsCache) return;
+  els.settingsModal.classList.remove("hidden");
+  els.settingsModal.setAttribute("aria-hidden", "false");
+  document.getElementById("settings-api-key").value = "";
+  document.getElementById("settings-api-key").placeholder =
+    _settingsCache.apiKeyMasked ?? "sk-ant-...";
+  document.getElementById("settings-vault-path").value =
+    _settingsCache.vaultPath ?? "";
+  document.getElementById("settings-api-key-status").textContent = "";
+
+  // 모델 목록은 state.models에서 (이미 메인앱에 로드됨)
+  const modelSel = document.getElementById("settings-model");
+  if (modelSel) {
+    modelSel.innerHTML = (state.models ?? [])
+      .map(
+        (m) =>
+          `<option value="${escapeAttr(m.id)}"${m.id === _settingsCache.model ? " selected" : ""}>${escapeHtml(m.label ?? m.id)}</option>`,
+      )
+      .join("");
+  }
+
+  renderWorkspaceListInSettings();
+}
+
+function closeSettingsModal() {
+  els.settingsModal?.classList.add("hidden");
+}
+
+async function saveApiKey() {
+  const input = document.getElementById("settings-api-key");
+  const status = document.getElementById("settings-api-key-status");
+  const val = input.value.trim();
+  if (!val) {
+    status.textContent = "키를 입력하세요.";
+    return;
+  }
+  const res = await window.spiralSettings.updateApiKey(val);
+  if (res.ok) {
+    status.textContent = "✓ 저장됨 (다음 세션부터 적용)";
+    _settingsCache = await window.spiralSettings.get();
+    input.value = "";
+    input.placeholder = _settingsCache.apiKeyMasked;
+  } else {
+    status.textContent = `✗ ${res.error}`;
+  }
+}
+
+async function pickVault() {
+  const p = await window.spiralSettings.pickDirectory({
+    title: "Vault 경로 선택",
+  });
+  if (p) document.getElementById("settings-vault-path").value = p;
+}
+
+async function saveVault() {
+  const val = document.getElementById("settings-vault-path").value.trim();
+  const res = await window.spiralSettings.updateVault(val);
+  if (res.ok) {
+    alert("Vault 경로가 저장됐습니다. 앱을 재시작합니다.");
+    // restartNeeded → 사용자에게 안내. 자동 재시작은 메인 process에서.
+  } else {
+    alert(`저장 실패: ${res.error}`);
+  }
+}
+
+async function saveModel() {
+  const val = document.getElementById("settings-model").value;
+  await window.spiralSettings.updateModel(val);
+  _settingsCache = await window.spiralSettings.get();
+}
+
+function renderWorkspaceListInSettings() {
+  const container = document.getElementById("settings-workspace-list");
+  if (!container || !_settingsCache) return;
+  container.innerHTML = _settingsCache.workspaces
+    .map((w) => {
+      const isActive = w.id === _settingsCache.activeWorkspaceId;
+      const sourceTag = w.source ? `<span class="ws-source">${escapeHtml(w.source)}</span>` : "";
+      return `
+        <div class="ws-row ${isActive ? "active" : ""}">
+          <div class="ws-row-main">
+            <div class="ws-row-name">
+              ${isActive ? "✓ " : ""}${escapeHtml(w.name)}
+              ${sourceTag}
+            </div>
+            <div class="ws-row-path"><code>${escapeHtml(w.roadmapRoot ?? "")}</code></div>
+            <div class="ws-row-vaultsub">노트: <code>vault/${escapeHtml(w.vaultSubDir ?? "spiral-buddy")}/</code></div>
+          </div>
+          <div class="ws-row-actions">
+            ${
+              isActive
+                ? '<span class="ws-active-label">활성</span>'
+                : `<button data-action="switch" data-id="${escapeAttr(w.id)}" class="ws-btn">전환</button>`
+            }
+            ${
+              _settingsCache.workspaces.length > 1
+                ? `<button data-action="remove" data-id="${escapeAttr(w.id)}" class="ws-btn danger">삭제</button>`
+                : ""
+            }
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+  container.querySelectorAll(".ws-btn").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const action = btn.dataset.action;
+      const id = btn.dataset.id;
+      if (action === "switch") {
+        const ok = window.confirm("전환 시 앱이 재시작됩니다. 진행할까요?");
+        if (!ok) return;
+        await window.spiralSettings.switchWorkspace(id);
+      } else if (action === "remove") {
+        const ws = _settingsCache.workspaces.find((w) => w.id === id);
+        const ok = window.confirm(
+          `워크스페이스 "${ws?.name}"를 삭제할까요?\n(학습 자료 폴더와 노트 파일은 그대로 남습니다.)`,
+        );
+        if (!ok) return;
+        const res = await window.spiralSettings.removeWorkspace(id);
+        if (!res.ok) alert(res.error);
+        else {
+          _settingsCache = await window.spiralSettings.get();
+          renderWorkspaceListInSettings();
+          renderWorkspaceSelector();
+        }
+      }
+    });
+  });
+}
+
+// ─── 새 워크스페이스 추가 모달 ─────────────────────────────────
+
+function initAddWorkspaceModal() {
+  document.getElementById("add-ws-close")?.addEventListener("click", closeAddWorkspaceModal);
+  document.getElementById("add-ws-cancel")?.addEventListener("click", closeAddWorkspaceModal);
+  els.addWsModal?.addEventListener("click", (e) => {
+    if (e.target === els.addWsModal) closeAddWorkspaceModal();
+  });
+  document.querySelectorAll('input[name="ws-source"]').forEach((r) => {
+    r.addEventListener("change", () => {
+      const isGit = document.querySelector('input[name="ws-source"]:checked').value === "git";
+      document.getElementById("add-ws-git-field").classList.toggle("hidden", !isGit);
+      document.getElementById("add-ws-dir-field").classList.toggle("hidden", isGit);
+    });
+  });
+  document.getElementById("add-ws-pick-dir")?.addEventListener("click", async () => {
+    const p = await window.spiralSettings.pickDirectory({
+      title: "학습 자료 디렉토리 선택",
+    });
+    if (p) document.getElementById("add-ws-local-path").value = p;
+  });
+  document.getElementById("add-ws-submit")?.addEventListener("click", submitAddWorkspace);
+
+  // progress listener
+  window.spiralSettings.onWorkspaceProgress((p) => {
+    const box = document.getElementById("add-ws-progress");
+    if (!box) return;
+    box.classList.remove("hidden");
+    if (p.phase === "cloning") {
+      box.textContent = `git clone 중… ${p.message ?? ""}`;
+    } else if (p.phase === "done") {
+      box.textContent = `✓ "${p.name}" 추가 완료`;
+    }
+  });
+}
+
+function openAddWorkspaceModal() {
+  els.addWsModal.classList.remove("hidden");
+  els.addWsModal.setAttribute("aria-hidden", "false");
+  document.getElementById("add-ws-name").value = "";
+  document.getElementById("add-ws-git-url").value = "";
+  document.getElementById("add-ws-local-path").value = "";
+  document.getElementById("add-ws-error").classList.add("hidden");
+  document.getElementById("add-ws-progress").classList.add("hidden");
+  document.querySelector('input[name="ws-source"][value="git"]').checked = true;
+  document.getElementById("add-ws-git-field").classList.remove("hidden");
+  document.getElementById("add-ws-dir-field").classList.add("hidden");
+}
+
+function closeAddWorkspaceModal() {
+  els.addWsModal?.classList.add("hidden");
+}
+
+async function submitAddWorkspace() {
+  const errBox = document.getElementById("add-ws-error");
+  errBox.classList.add("hidden");
+  const name = document.getElementById("add-ws-name").value.trim();
+  if (!name) {
+    errBox.textContent = "이름을 입력하세요.";
+    errBox.classList.remove("hidden");
+    return;
+  }
+  const sourceKind = document.querySelector('input[name="ws-source"]:checked').value;
+  const submitBtn = document.getElementById("add-ws-submit");
+  submitBtn.disabled = true;
+  submitBtn.textContent = "추가 중…";
+  const args = { name, sourceKind };
+  if (sourceKind === "git") {
+    args.gitUrl = document.getElementById("add-ws-git-url").value.trim();
+  } else {
+    args.localPath = document.getElementById("add-ws-local-path").value.trim();
+  }
+  const res = await window.spiralSettings.addWorkspace(args);
+  submitBtn.disabled = false;
+  submitBtn.textContent = "추가";
+  if (!res.ok) {
+    errBox.textContent = res.error;
+    errBox.classList.remove("hidden");
+    return;
+  }
+  _settingsCache = await window.spiralSettings.get();
+  renderWorkspaceListInSettings();
+  renderWorkspaceSelector();
+  closeAddWorkspaceModal();
+  // 새 워크스페이스로 전환 제안
+  const switchOk = window.confirm(
+    `"${name}" 추가 완료. 지금 이 워크스페이스로 전환할까요? (앱 재시작)`,
+  );
+  if (switchOk) await window.spiralSettings.switchWorkspace(res.workspace.id);
 }
 
 // ──────────────────────────────────────────────────────────

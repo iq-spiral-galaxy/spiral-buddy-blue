@@ -30,15 +30,53 @@ let setupWindow = null;
 let serverPort = null;
 let serverStarted = false;
 
+// Config 스키마 (multi-workspace):
+//   {
+//     anthropicApiKey, vaultPath, vaultName, model, maxTokens, githubToken, curatedOrg,  // 전역
+//     activeWorkspaceId,
+//     workspaces: [{ id, name, roadmapRoot, vaultSubDir, source, sourceUrl?, categoriesOrg? }]
+//   }
+//
+// 옛 스키마 (single):
+//   { anthropicApiKey, vaultPath, roadmapRoot, ... }  → workspaces[0]으로 자동 마이그레이션.
+
+function migrateConfig(raw) {
+  if (!raw) return null;
+  // 이미 새 스키마
+  if (Array.isArray(raw.workspaces)) return raw;
+  // 옛 스키마 → workspaces 배열로 변환
+  const ws = {
+    id: "default",
+    name: raw.roadmapRoot
+      ? path.basename(raw.roadmapRoot)
+      : "기본 워크스페이스",
+    roadmapRoot: raw.roadmapRoot ?? null,
+    vaultSubDir: "spiral-buddy",
+    source: "legacy",
+    categoriesOrg: raw.curatedOrg ?? "iq-dev-lab",
+  };
+  return {
+    anthropicApiKey: raw.anthropicApiKey,
+    vaultPath: raw.vaultPath,
+    vaultName: raw.vaultName,
+    model: raw.model,
+    maxTokens: raw.maxTokens,
+    githubToken: raw.githubToken,
+    curatedOrg: raw.curatedOrg ?? "iq-dev-lab",
+    activeWorkspaceId: ws.id,
+    workspaces: [ws],
+  };
+}
+
 function loadConfig() {
   // 1순위: userData에 저장된 GUI 설정
   try {
     const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
-    return JSON.parse(raw);
+    return migrateConfig(JSON.parse(raw));
   } catch {
     /* fallthrough */
   }
-  // 2순위: APP_ROOT/.env (dev 환경, 또는 사용자가 직접 .env로 운영)
+  // 2순위: APP_ROOT/.env (dev 환경)
   try {
     const envPath = path.join(APP_ROOT, ".env");
     if (fs.existsSync(envPath)) {
@@ -51,7 +89,7 @@ function loadConfig() {
       const apiKey = get("ANTHROPIC_API_KEY");
       const vaultPath = get("SPIRAL_VAULT_PATH");
       if (apiKey && vaultPath) {
-        return {
+        return migrateConfig({
           anthropicApiKey: apiKey,
           vaultPath,
           roadmapRoot: get("SPIRAL_ROADMAP_ROOT"),
@@ -62,7 +100,7 @@ function loadConfig() {
             : null,
           vaultName: get("SPIRAL_VAULT_NAME"),
           githubToken: get("SPIRAL_GITHUB_TOKEN"),
-        };
+        });
       }
     }
   } catch {
@@ -76,14 +114,37 @@ function saveConfig(cfg) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), "utf-8");
 }
 
+function activeWorkspace(cfg) {
+  if (!cfg?.workspaces?.length) return null;
+  return (
+    cfg.workspaces.find((w) => w.id === cfg.activeWorkspaceId) ??
+    cfg.workspaces[0]
+  );
+}
+
 function hasRequiredConfig(cfg) {
   return Boolean(
     cfg &&
       typeof cfg.anthropicApiKey === "string" &&
       cfg.anthropicApiKey.length > 0 &&
       typeof cfg.vaultPath === "string" &&
-      cfg.vaultPath.length > 0,
+      cfg.vaultPath.length > 0 &&
+      activeWorkspace(cfg),
   );
+}
+
+function uniqueId(base, taken) {
+  const slug = base
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "ws";
+  if (!taken.has(slug)) return slug;
+  for (let i = 2; i < 999; i++) {
+    const candidate = `${slug}-${i}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return `${slug}-${Date.now()}`;
 }
 
 async function findFreePort() {
@@ -114,13 +175,17 @@ async function waitForServer(port, timeoutMs = 15000) {
 
 async function startServerInProcess(cfg) {
   const port = serverPort;
-  // process.env에 config 주입 — server는 process.env 기반으로 동작
+  const ws = activeWorkspace(cfg);
+  // process.env에 active workspace 기반으로 주입
   process.env.ANTHROPIC_API_KEY = cfg.anthropicApiKey;
   process.env.SPIRAL_VAULT_PATH = cfg.vaultPath;
   process.env.PORT = String(port);
   process.env.NO_OPEN = "1";
-  if (cfg.roadmapRoot) process.env.SPIRAL_ROADMAP_ROOT = cfg.roadmapRoot;
-  if (cfg.curatedOrg) process.env.SPIRAL_CURATED_ORG = cfg.curatedOrg;
+  if (ws?.roadmapRoot) process.env.SPIRAL_ROADMAP_ROOT = ws.roadmapRoot;
+  if (ws?.vaultSubDir) process.env.SPIRAL_VAULT_SUBDIR = ws.vaultSubDir;
+  // categoriesOrg가 있으면 curated org를 그걸로 (iq-dev-lab 매핑용)
+  const curatedOrg = ws?.categoriesOrg ?? cfg.curatedOrg;
+  if (curatedOrg) process.env.SPIRAL_CURATED_ORG = curatedOrg;
   if (cfg.githubToken) process.env.SPIRAL_GITHUB_TOKEN = cfg.githubToken;
   if (cfg.model) process.env.SPIRAL_MODEL = cfg.model;
   if (cfg.maxTokens) process.env.SPIRAL_MAX_TOKENS = String(cfg.maxTokens);
@@ -253,19 +318,43 @@ ipcMain.handle("setup:pick-directory", async (_e, opts) => {
   return result.filePaths[0];
 });
 
-ipcMain.handle("setup:validate-and-save", async (_e, cfg) => {
+ipcMain.handle("setup:validate-and-save", async (_e, input) => {
   // 최소 검증
-  if (!cfg?.anthropicApiKey?.startsWith("sk-")) {
+  if (!input?.anthropicApiKey?.startsWith("sk-")) {
     return { ok: false, error: "API 키는 'sk-'로 시작해야 합니다." };
   }
-  if (!cfg?.vaultPath || !fs.existsSync(cfg.vaultPath)) {
+  if (!input?.vaultPath || !fs.existsSync(input.vaultPath)) {
     return { ok: false, error: "Vault 경로가 존재하지 않습니다." };
   }
-  if (cfg.roadmapRoot && !fs.existsSync(cfg.roadmapRoot)) {
+  if (input.roadmapRoot && !fs.existsSync(input.roadmapRoot)) {
     return { ok: false, error: "Roadmap 경로가 존재하지 않습니다." };
   }
+
+  // 새 스키마로 저장. 첫 워크스페이스 = "기본" (또는 디렉토리 이름)
+  const wsName = input.roadmapRoot
+    ? path.basename(input.roadmapRoot)
+    : "기본 워크스페이스";
+  const cfg = {
+    anthropicApiKey: input.anthropicApiKey,
+    vaultPath: input.vaultPath,
+    vaultName: input.vaultName ?? null,
+    model: input.model ?? null,
+    maxTokens: input.maxTokens ?? null,
+    githubToken: input.githubToken ?? null,
+    curatedOrg: "iq-dev-lab",
+    activeWorkspaceId: "default",
+    workspaces: [
+      {
+        id: "default",
+        name: wsName,
+        roadmapRoot: input.roadmapRoot ?? null,
+        vaultSubDir: "spiral-buddy",
+        source: input.source ?? "setup",
+        categoriesOrg: "iq-dev-lab",
+      },
+    ],
+  };
   saveConfig(cfg);
-  // setup → main으로 전환
   if (setupWindow && !setupWindow.isDestroyed()) {
     setupWindow.close();
   }
@@ -334,6 +423,172 @@ ipcMain.handle("setup:check-git", () => {
   } catch (err) {
     return { ok: false, error: err.message };
   }
+});
+
+// ─── Settings (메인 앱에서 설정/워크스페이스 관리) ─────────────
+
+ipcMain.handle("settings:get", () => {
+  const cfg = loadConfig();
+  if (!cfg) return null;
+  // API 키는 마스킹해서 반환 (UI 표시용). 수정 시 별도 IPC 사용.
+  return {
+    apiKeyMasked: cfg.anthropicApiKey
+      ? cfg.anthropicApiKey.slice(0, 7) + "..." + cfg.anthropicApiKey.slice(-4)
+      : null,
+    vaultPath: cfg.vaultPath,
+    vaultName: cfg.vaultName,
+    model: cfg.model,
+    activeWorkspaceId: cfg.activeWorkspaceId,
+    workspaces: cfg.workspaces ?? [],
+    githubToken: cfg.githubToken ? "(set)" : null,
+  };
+});
+
+ipcMain.handle("settings:update-api-key", (_e, { apiKey }) => {
+  if (!apiKey?.startsWith("sk-")) {
+    return { ok: false, error: "API 키는 'sk-'로 시작해야 합니다." };
+  }
+  const cfg = loadConfig();
+  if (!cfg) return { ok: false, error: "config not found" };
+  cfg.anthropicApiKey = apiKey;
+  saveConfig(cfg);
+  return { ok: true };
+});
+
+ipcMain.handle("settings:update-vault", (_e, { vaultPath }) => {
+  if (!vaultPath || !fs.existsSync(vaultPath)) {
+    return { ok: false, error: "Vault 경로가 존재하지 않습니다." };
+  }
+  const cfg = loadConfig();
+  if (!cfg) return { ok: false, error: "config not found" };
+  cfg.vaultPath = vaultPath;
+  cfg.vaultName = path.basename(vaultPath);
+  saveConfig(cfg);
+  return { ok: true, restartNeeded: true };
+});
+
+ipcMain.handle("settings:update-model", (_e, { model }) => {
+  const cfg = loadConfig();
+  if (!cfg) return { ok: false, error: "config not found" };
+  cfg.model = model || null;
+  saveConfig(cfg);
+  return { ok: true };
+});
+
+ipcMain.handle("settings:switch-workspace", (_e, { id }) => {
+  const cfg = loadConfig();
+  if (!cfg) return { ok: false, error: "config not found" };
+  if (!cfg.workspaces.find((w) => w.id === id)) {
+    return { ok: false, error: "workspace 없음" };
+  }
+  cfg.activeWorkspaceId = id;
+  saveConfig(cfg);
+  // 워크스페이스 전환은 앱 재시작 (server in-process라 깔끔)
+  setTimeout(() => {
+    app.relaunch();
+    app.exit(0);
+  }, 100);
+  return { ok: true };
+});
+
+ipcMain.handle("settings:remove-workspace", (_e, { id }) => {
+  const cfg = loadConfig();
+  if (!cfg) return { ok: false, error: "config not found" };
+  if (cfg.workspaces.length <= 1) {
+    return { ok: false, error: "마지막 워크스페이스는 삭제할 수 없습니다." };
+  }
+  cfg.workspaces = cfg.workspaces.filter((w) => w.id !== id);
+  // 삭제된 게 active면 첫 번째로 전환
+  if (cfg.activeWorkspaceId === id) {
+    cfg.activeWorkspaceId = cfg.workspaces[0].id;
+    saveConfig(cfg);
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 100);
+    return { ok: true, restartNeeded: true };
+  }
+  saveConfig(cfg);
+  return { ok: true };
+});
+
+// Git URL 클론 또는 기존 디렉토리 지정으로 새 워크스페이스 추가
+ipcMain.handle("settings:add-workspace", async (event, args) => {
+  const cfg = loadConfig();
+  if (!cfg) return { ok: false, error: "config not found" };
+  const send = (channel, payload) => event.sender.send(channel, payload);
+
+  const name = (args?.name ?? "").trim() || "새 워크스페이스";
+  const sourceKind = args?.sourceKind; // "git" | "dir"
+  const takenIds = new Set(cfg.workspaces.map((w) => w.id));
+  const id = uniqueId(name, takenIds);
+  // 기본 vault sub-dir: spiral-buddy-<id> (default와 안 겹치게)
+  const vaultSubDir = id === "default" ? "spiral-buddy" : `spiral-buddy-${id}`;
+
+  let roadmapRoot;
+  if (sourceKind === "dir") {
+    if (!args.localPath || !fs.existsSync(args.localPath)) {
+      return { ok: false, error: "디렉토리가 존재하지 않습니다." };
+    }
+    roadmapRoot = args.localPath;
+  } else if (sourceKind === "git") {
+    if (!args.gitUrl?.startsWith("http")) {
+      return { ok: false, error: "git URL이 잘못되었습니다." };
+    }
+    // 기본 클론 위치: <vaultPath>/../iq-spiral-buddy-data/<id>/<repoName>
+    // 또는 사용자가 parentDir 지정 가능
+    const parentDir =
+      args.parentDir ||
+      path.join(path.dirname(cfg.vaultPath), "iq-spiral-buddy-data", id);
+    fs.mkdirSync(parentDir, { recursive: true });
+    // repo 이름 추출
+    const m = args.gitUrl.match(/\/([^/]+?)(?:\.git)?$/);
+    const repoName = m?.[1] ?? id;
+    const dest = path.join(parentDir, repoName);
+    send("settings:workspace-progress", {
+      phase: "cloning",
+      message: `${args.gitUrl} → ${dest}`,
+    });
+    try {
+      await new Promise((resolve, reject) => {
+        const child = spawn(
+          "git",
+          ["clone", "--depth", "1", "--quiet", args.gitUrl, dest],
+          { stdio: ["ignore", "ignore", "pipe"] },
+        );
+        let stderr = "";
+        child.stderr.on("data", (b) => (stderr += b.toString()));
+        child.on("exit", (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`git clone failed: ${stderr.slice(0, 200)}`));
+        });
+        child.on("error", reject);
+      });
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+    roadmapRoot = dest;
+  } else {
+    return { ok: false, error: "sourceKind는 'git' 또는 'dir'이어야 합니다." };
+  }
+
+  const ws = {
+    id,
+    name,
+    roadmapRoot,
+    vaultSubDir,
+    source: sourceKind === "git" ? "git-clone" : "manual-dir",
+    sourceUrl: args.gitUrl ?? null,
+    // iq-dev-lab 카테고리는 자동 적용. 다른 레포면 카테고리 없음.
+    categoriesOrg:
+      args.gitUrl?.includes("iq-dev-lab") || roadmapRoot.includes("iq-dev-lab")
+        ? "iq-dev-lab"
+        : null,
+  };
+  cfg.workspaces.push(ws);
+  saveConfig(cfg);
+  send("settings:workspace-progress", { phase: "done", id, name });
+  return { ok: true, workspace: ws };
 });
 
 // ─── iq-dev-lab 38개 레포 자동 다운로드 ──────────────────────

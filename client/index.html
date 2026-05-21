@@ -63,6 +63,16 @@
         </div>
       </header>
 
+      <section class="workspace-selector" id="workspace-section">
+        <h2>Workspace</h2>
+        <button id="workspace-current" class="workspace-current" title="워크스페이스 전환">
+          <span class="workspace-icon">📚</span>
+          <span class="workspace-name" id="workspace-name">loading…</span>
+          <span class="caret">▼</span>
+        </button>
+        <div id="workspace-list" class="workspace-list hidden"></div>
+      </section>
+
       <section class="roadmap-selector" id="roadmap-section">
         <h2>Roadmap</h2>
         <button id="roadmap-current" class="roadmap-current">
@@ -141,6 +151,12 @@
             </svg>
             <span>End &amp; Save</span>
           </button>
+          <button id="settings-btn" class="action-btn" title="설정">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -208,6 +224,112 @@
           <span class="activity-cell" data-level="3"></span>
           <span class="activity-cell" data-level="4"></span>
           <span>많음</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+        <header class="trash-modal-header">
+          <h3 id="settings-modal-title">설정</h3>
+          <button id="settings-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+        </header>
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-tab="general">일반</button>
+          <button class="settings-tab" data-tab="workspaces">워크스페이스</button>
+        </div>
+
+        <div class="settings-panel" data-panel="general">
+          <div class="settings-field">
+            <label>Anthropic API Key</label>
+            <div class="settings-row">
+              <input id="settings-api-key" type="password" placeholder="sk-ant-..." autocomplete="off" />
+              <button id="settings-save-api-key" class="settings-save-btn" type="button">저장</button>
+            </div>
+            <div class="settings-hint" id="settings-api-key-status"></div>
+          </div>
+
+          <div class="settings-field">
+            <label>Obsidian Vault 경로</label>
+            <div class="settings-row">
+              <input id="settings-vault-path" type="text" />
+              <button id="settings-pick-vault" class="settings-save-btn" type="button">선택…</button>
+              <button id="settings-save-vault" class="settings-save-btn primary" type="button">저장</button>
+            </div>
+            <div class="settings-hint">변경 시 앱이 자동 재시작됩니다.</div>
+          </div>
+
+          <div class="settings-field">
+            <label>기본 모델</label>
+            <div class="settings-row">
+              <select id="settings-model"></select>
+              <button id="settings-save-model" class="settings-save-btn" type="button">저장</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="settings-panel hidden" data-panel="workspaces">
+          <div class="settings-workspace-list" id="settings-workspace-list"></div>
+          <button id="settings-add-workspace-btn" class="settings-add-btn" type="button">
+            ＋ 새 워크스페이스 추가
+          </button>
+          <div class="settings-hint">
+            워크스페이스마다 vault 안의 별도 폴더에 노트가 저장되어 섞이지 않습니다.
+            전환은 앱 재시작 후 적용됩니다.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="add-workspace-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal add-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="add-ws-title">
+        <header class="trash-modal-header">
+          <h3 id="add-ws-title">새 워크스페이스 추가</h3>
+          <button id="add-ws-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+        </header>
+
+        <div class="settings-field">
+          <label>이름</label>
+          <input id="add-ws-name" type="text" placeholder="예: 백엔드 면접 질문" />
+        </div>
+
+        <div class="settings-field">
+          <label>방식</label>
+          <div class="radio-row">
+            <label class="radio-option">
+              <input type="radio" name="ws-source" value="git" checked />
+              <span>📥 Git 레포 URL로 클론</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="ws-source" value="dir" />
+              <span>📁 기존 디렉토리 지정</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-field" id="add-ws-git-field">
+          <label>Git 레포 URL</label>
+          <input id="add-ws-git-url" type="text" placeholder="https://github.com/owner/repo" />
+          <div class="settings-hint">
+            예: <code>https://github.com/ksundong/backend-interview-question</code>.
+            기본 위치는 vault 옆 <code>iq-spiral-buddy-data/&lt;id&gt;/</code>에 클론됩니다.
+          </div>
+        </div>
+
+        <div class="settings-field hidden" id="add-ws-dir-field">
+          <label>로컬 디렉토리 경로</label>
+          <div class="settings-row">
+            <input id="add-ws-local-path" type="text" />
+            <button id="add-ws-pick-dir" class="settings-save-btn" type="button">선택…</button>
+          </div>
+        </div>
+
+        <div class="add-ws-error hidden" id="add-ws-error"></div>
+        <div class="add-ws-progress hidden" id="add-ws-progress"></div>
+
+        <div class="settings-actions">
+          <button id="add-ws-cancel" type="button">취소</button>
+          <button id="add-ws-submit" class="primary" type="button">추가</button>
         </div>
       </div>
     </div>

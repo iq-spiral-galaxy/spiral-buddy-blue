@@ -20,7 +20,9 @@ export interface SpiralNote {
   body: string;
 }
 
-const SPIRAL_DIR = "spiral-buddy";
+// 노트 저장 위치 (vault 안의 sub-dir). workspace별로 다른 폴더 사용 가능.
+// env로 주입 가능: 기본 "spiral-buddy", 다른 방은 "spiral-buddy-<id>" 등.
+const SPIRAL_DIR = process.env.SPIRAL_VAULT_SUBDIR?.trim() || "spiral-buddy";
 const TRASH_DIR = ".trash";
 
 export async function listSpiralNotes(
@@ -98,7 +100,7 @@ export async function writeNewNote(
   vaultPath: string,
   note: NewNote,
 ): Promise<string> {
-  const spiralRoot = path.join(vaultPath, "spiral-buddy");
+  const spiralRoot = path.join(vaultPath, SPIRAL_DIR);
   await fs.mkdir(spiralRoot, { recursive: true });
 
   const date = new Date().toISOString().slice(0, 10);

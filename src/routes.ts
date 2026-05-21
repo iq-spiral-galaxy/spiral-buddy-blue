@@ -52,11 +52,12 @@ export function createApi(config: Config) {
   // 헬퍼
   // ─────────────────────────────────────────────────────
 
+  const vaultSubDir = process.env.SPIRAL_VAULT_SUBDIR?.trim() || "spiral-buddy";
   function obsidianUri(fileNameOrPath: string): string | null {
     if (!config.vaultName || !config.vaultPath) return null;
     const absPath = path.isAbsolute(fileNameOrPath)
       ? fileNameOrPath
-      : path.join(config.vaultPath, "spiral-buddy", fileNameOrPath);
+      : path.join(config.vaultPath, vaultSubDir, fileNameOrPath);
     const root = config.obsidianVaultRoot ?? config.vaultPath;
     const relativeToVault = path.relative(root, absPath).replace(/\.md$/, "");
     return `obsidian://open?vault=${encodeURIComponent(config.vaultName)}&file=${encodeURIComponent(relativeToVault)}`;
