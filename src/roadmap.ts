@@ -158,13 +158,15 @@ async function walk(
       chapterCount: directMdFiles.length,
       sortKey: parentSortPrefix + path.basename(currentDir),
     });
-    return;
+    // ⚠ return하지 않음 — 자체가 roadmap이어도 sub-dir에 더 깊은 roadmap이
+    // 있을 수 있음(예: tech-interview 레포의 Web/ → Web/Spring/, Web/Vue/...).
+    // sub-dir 탐색 계속해서 학습 자료 누락 방지.
   }
 
-  // 컨테이너 — README에서 child 순서 추출
+  // 컨테이너 또는 mixed 디렉토리 — README에서 child 순서 추출
   const childOrder = await readContainerChildOrder(currentDir);
 
-  // 로드맵이 아니면 하위 디렉토리들 탐색
+  // 하위 디렉토리들 탐색
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (entry.name.startsWith(".")) continue;

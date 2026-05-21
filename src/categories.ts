@@ -132,19 +132,19 @@ export function normalizeRepoName(s: string): string {
  * org가 주어지면 그 조직 카테고리 정의와 매핑 시도 → emoji/color 활용.
  * 매핑 안 되면 첫 segment 이름 그대로, 1-level path면 "Uncategorized".
  */
+const UNCATEGORIZED: CategoryDef = {
+  name: "Topics",
+  emoji: "🗂",
+  color: "#9ca3af",
+  repos: [],
+};
+
 export async function categorizeLocalRoadmap(
   org: string | null,
   roadmapId: string,
 ): Promise<CategoryDef> {
   const segments = roadmapId.split("/").map((s) => s.trim()).filter(Boolean);
-  if (segments.length === 0) {
-    return {
-      name: "Uncategorized",
-      emoji: "📁",
-      color: "#888888",
-      repos: [],
-    };
-  }
+  if (segments.length === 0) return UNCATEGORIZED;
 
   const defs = org ? await getOrgCategories(org) : null;
   const firstSeg = segments[0]!;
@@ -165,15 +165,8 @@ export async function categorizeLocalRoadmap(
     }
   }
 
-  // 3) 매칭 실패 — 1 segment뿐이면 Uncategorized, 2+ segment면 첫 segment를 카테고리 표시
-  if (segments.length < 2) {
-    return {
-      name: "Uncategorized",
-      emoji: "📁",
-      color: "#888888",
-      repos: [],
-    };
-  }
+  // 3) 매칭 실패 — 1 segment뿐이면 Topics, 2+ segment면 첫 segment를 카테고리로
+  if (segments.length < 2) return UNCATEGORIZED;
   return {
     name: firstSeg,
     emoji: "📁",
