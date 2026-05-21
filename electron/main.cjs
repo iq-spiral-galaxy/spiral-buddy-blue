@@ -30,6 +30,14 @@ let setupWindow = null;
 let serverPort = null;
 let serverStarted = false;
 
+function displayWorkspaceName(nameOrPath) {
+  const raw = String(nameOrPath ?? "").trim();
+  const base = raw ? path.basename(raw) : "";
+  const normalized = (base || raw).toLowerCase().replace(/[\s_-]+/g, "-");
+  if (normalized === "iq-dev-lab") return "IQ Dev Lab";
+  return raw;
+}
+
 // Config 스키마 (multi-workspace):
 //   {
 //     anthropicApiKey, vaultPath, vaultName, model, maxTokens, githubToken, curatedOrg,  // 전역
@@ -48,7 +56,7 @@ function migrateConfig(raw) {
   const ws = {
     id: "default",
     name: raw.roadmapRoot
-      ? path.basename(raw.roadmapRoot)
+      ? displayWorkspaceName(raw.roadmapRoot)
       : "기본 워크스페이스",
     roadmapRoot: raw.roadmapRoot ?? null,
     vaultSubDir: "spiral-buddy",
@@ -332,7 +340,7 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
 
   // 새 스키마로 저장. 첫 워크스페이스 = "기본" (또는 디렉토리 이름)
   const wsName = input.roadmapRoot
-    ? path.basename(input.roadmapRoot)
+    ? displayWorkspaceName(input.roadmapRoot)
     : "기본 워크스페이스";
   const cfg = {
     anthropicApiKey: input.anthropicApiKey,

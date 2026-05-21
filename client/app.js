@@ -98,6 +98,20 @@ function groupIconHtml(name) {
   return `<span class="group-icon" aria-hidden="true">${svgIcon(name, "group-icon-svg")}</span>`;
 }
 
+function displayWorkspaceName(workspace) {
+  const rawName = String(workspace?.name ?? "");
+  const normalized = rawName.toLowerCase().replace(/[\s_-]+/g, "-");
+  const rootBase = String(workspace?.roadmapRoot ?? "")
+    .split(/[\\/]/)
+    .filter(Boolean)
+    .pop()
+    ?.toLowerCase();
+  if (normalized === "iq-dev-lab" || rootBase === "iq-dev-lab") {
+    return "IQ Dev Lab";
+  }
+  return rawName || "Workspace";
+}
+
 // ──────────────────────────────────────────────────────────
 // DOM refs
 // ──────────────────────────────────────────────────────────
@@ -1362,7 +1376,7 @@ function renderWorkspaceSelector() {
     (w) => w.id === _settingsCache.activeWorkspaceId,
   );
   if (active && els.workspaceName) {
-    els.workspaceName.textContent = active.name;
+    els.workspaceName.textContent = displayWorkspaceName(active);
   }
   if (!els.workspaceList) return;
   els.workspaceList.innerHTML = _settingsCache.workspaces
@@ -1371,7 +1385,7 @@ function renderWorkspaceSelector() {
       return `
         <button class="workspace-item ${isActive ? "active" : ""}" data-id="${escapeAttr(w.id)}">
           <span class="workspace-item-icon">${isActive ? "✓" : "·"}</span>
-          <span class="workspace-item-name">${escapeHtml(w.name)}</span>
+          <span class="workspace-item-name">${escapeHtml(displayWorkspaceName(w))}</span>
         </button>
       `;
     })
@@ -1501,11 +1515,12 @@ function renderWorkspaceListInSettings() {
     .map((w) => {
       const isActive = w.id === _settingsCache.activeWorkspaceId;
       const sourceTag = w.source ? `<span class="ws-source">${escapeHtml(w.source)}</span>` : "";
+      const displayName = displayWorkspaceName(w);
       return `
         <div class="ws-row ${isActive ? "active" : ""}">
           <div class="ws-row-main">
             <div class="ws-row-name">
-              ${isActive ? "✓ " : ""}${escapeHtml(w.name)}
+              ${isActive ? "✓ " : ""}${escapeHtml(displayName)}
               ${sourceTag}
             </div>
             <div class="ws-row-path"><code>${escapeHtml(w.roadmapRoot ?? "")}</code></div>
@@ -1546,7 +1561,7 @@ function renderWorkspaceListInSettings() {
 function openRemoveWorkspaceModal(ws) {
   const modal = document.getElementById("remove-ws-modal");
   if (!modal) return;
-  document.getElementById("remove-ws-name").textContent = ws.name;
+  document.getElementById("remove-ws-name").textContent = displayWorkspaceName(ws);
   document.getElementById("remove-ws-dir-path").innerHTML = ws.roadmapRoot
     ? `<code>${escapeHtml(ws.roadmapRoot)}</code> 가 영구 삭제됩니다.`
     : "이 워크스페이스에 학습 자료 경로가 없습니다.";

@@ -1,7 +1,7 @@
 // 앱 아이콘 생성기:
-//   1. 정확한 archimedean spiral 좌표 계산
-//   2. SVG 문자열 생성 (옵시디언 보라 + 클로드 오렌지 + cyan 나선)
-//   3. (선택) 1024 PNG 출력 — @resvg/resvg-js가 있으면 사용
+//   1. 여백이 있는 archimedean spiral 좌표 계산
+//   2. SVG 문자열 생성 (deep navy + violet + warm cyan/orange)
+//   3. 1024 PNG 출력 — @resvg/resvg-js가 있으면 사용
 //
 // 출력: electron/build/icon.svg, electron/build/icon.png
 
@@ -11,19 +11,21 @@ import path from "node:path";
 const SIZE = 1024;
 const CENTER = SIZE / 2;
 
-// Archimedean spiral: r(θ) = a + b·θ
-// 5턴 (θ: 0 → 10π), 시작 위에서 (-90° offset)
-const TURNS = 4.5;
-const POINTS = 600; // 부드러움
-const B = (SIZE * 0.42) / (TURNS * 2 * Math.PI);
-const OFFSET = -Math.PI / 2;
+// Archimedean spiral: r(θ) = a + b·θ.
+// 앱 아이콘 크기에서는 빼곡한 4+턴보다 2.35턴이 더 선명하게 읽힌다.
+const TURNS = 2.35;
+const POINTS = 420;
+const START_R = SIZE * 0.058;
+const OUTER_R = SIZE * 0.32;
+const B = (OUTER_R - START_R) / (TURNS * 2 * Math.PI);
+const OFFSET = -Math.PI / 2.08;
 
 function spiralPath(): string {
   const cmds: string[] = [];
   for (let i = 0; i <= POINTS; i++) {
     const t = i / POINTS;
     const theta = t * TURNS * 2 * Math.PI;
-    const r = B * theta;
+    const r = START_R + B * theta;
     const angle = theta + OFFSET;
     const x = CENTER + r * Math.cos(angle);
     const y = CENTER + r * Math.sin(angle);
@@ -39,28 +41,33 @@ function svg(): string {
   <!-- Spiral Buddy icon: 옵시디언 보라 + 클로드 오렌지 + cyan 나선형 -->
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#8b7ce0"/>
-      <stop offset="42%" stop-color="#5d4eb8"/>
-      <stop offset="100%" stop-color="#1e1342"/>
+      <stop offset="0%" stop-color="#263557"/>
+      <stop offset="45%" stop-color="#5f5acb"/>
+      <stop offset="100%" stop-color="#101626"/>
     </linearGradient>
-    <radialGradient id="glow" cx="50%" cy="48%" r="60%">
-      <stop offset="0%"  stop-color="#ffc99b" stop-opacity="0.55"/>
-      <stop offset="35%" stop-color="#e88752" stop-opacity="0.32"/>
-      <stop offset="70%" stop-color="#cc785c" stop-opacity="0.08"/>
+    <radialGradient id="glow" cx="58%" cy="62%" r="62%">
+      <stop offset="0%"  stop-color="#ffcf9d" stop-opacity="0.46"/>
+      <stop offset="38%" stop-color="#f18c5e" stop-opacity="0.24"/>
+      <stop offset="72%" stop-color="#cc785c" stop-opacity="0.06"/>
       <stop offset="100%" stop-color="#cc785c" stop-opacity="0"/>
     </radialGradient>
+    <radialGradient id="coolGlow" cx="32%" cy="24%" r="62%">
+      <stop offset="0%" stop-color="#9decff" stop-opacity="0.1"/>
+      <stop offset="58%" stop-color="#9decff" stop-opacity="0.025"/>
+      <stop offset="100%" stop-color="#9decff" stop-opacity="0"/>
+    </radialGradient>
     <linearGradient id="rim" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="0%"  stop-color="#ffffff" stop-opacity="0.24"/>
       <stop offset="40%" stop-color="#ffffff" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="spiralStroke" x1="20%" y1="0%" x2="80%" y2="100%">
-      <stop offset="0%"   stop-color="#7ee2ff"/>
-      <stop offset="35%"  stop-color="#ffffff"/>
-      <stop offset="68%"  stop-color="#ffd4a8"/>
-      <stop offset="100%" stop-color="#ff8a5b"/>
+    <linearGradient id="spiralStroke" x1="18%" y1="4%" x2="83%" y2="96%">
+      <stop offset="0%"   stop-color="#9decff"/>
+      <stop offset="42%"  stop-color="#f7fbff"/>
+      <stop offset="72%"  stop-color="#ffd49e"/>
+      <stop offset="100%" stop-color="#ff875b"/>
     </linearGradient>
-    <filter id="spiralGlow" x="-15%" y="-15%" width="130%" height="130%">
-      <feGaussianBlur in="SourceGraphic" stdDeviation="5" result="blur"/>
+    <filter id="spiralGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="blur"/>
       <feMerge>
         <feMergeNode in="blur"/>
         <feMergeNode in="SourceGraphic"/>
@@ -72,10 +79,17 @@ function svg(): string {
   <rect x="0" y="0" width="${SIZE}" height="${SIZE}" rx="220" ry="220" fill="url(#bg)"/>
   <!-- 옵시디언 보석 림 라이트 -->
   <rect x="0" y="0" width="${SIZE}" height="${SIZE}" rx="220" ry="220" fill="url(#rim)"/>
-  <!-- 클로드 오렌지 글로우 -->
-  <circle cx="${CENTER}" cy="${CENTER - 12}" r="450" fill="url(#glow)"/>
+  <!-- soft brand glow -->
+  <circle cx="${CENTER + 38}" cy="${CENTER + 72}" r="460" fill="url(#glow)"/>
+  <circle cx="${CENTER - 118}" cy="${CENTER - 138}" r="340" fill="url(#coolGlow)"/>
+  <path d="M 228 258 C 336 136 537 92 699 162 C 814 211 879 312 894 430"
+        stroke="#ffffff"
+        stroke-width="18"
+        stroke-linecap="round"
+        fill="none"
+        opacity="0.12"/>
 
-  <!-- 나선 (archimedean, ${TURNS}턴) -->
+  <!-- open spiral (archimedean, ${TURNS}턴) -->
   <path d="${d}"
         stroke="url(#spiralStroke)"
         stroke-width="58"
@@ -84,9 +98,9 @@ function svg(): string {
         fill="none"
         filter="url(#spiralGlow)"/>
 
-  <!-- 나선 중앙 강조 점 (작은 발광) -->
-  <circle cx="${CENTER}" cy="${CENTER}" r="14" fill="#ffffff" opacity="0.85"/>
-  <circle cx="${CENTER}" cy="${CENTER}" r="22" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.4"/>
+  <!-- calm center -->
+  <circle cx="${CENTER}" cy="${CENTER}" r="18" fill="#ffffff" opacity="0.9"/>
+  <circle cx="${CENTER}" cy="${CENTER}" r="38" fill="none" stroke="#ffffff" stroke-width="3" opacity="0.2"/>
 </svg>
 `;
 }

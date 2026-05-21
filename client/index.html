@@ -66,7 +66,14 @@
       <section class="workspace-selector" id="workspace-section">
         <h2>Workspace</h2>
         <button id="workspace-current" class="workspace-current" title="워크스페이스 전환">
-          <span class="workspace-icon">📚</span>
+          <span class="workspace-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3.5 19 7.4v7.2l-7 3.9-7-3.9V7.4l7-3.9Z" />
+              <path d="m5 7.4 7 3.9 7-3.9" />
+              <path d="M12 11.3v7.2" />
+              <path d="M8.5 9.3v3.9l3.5 2 3.5-2V9.3" />
+            </svg>
+          </span>
           <span class="workspace-name" id="workspace-name">loading…</span>
           <span class="caret">▼</span>
         </button>
