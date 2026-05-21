@@ -2949,31 +2949,33 @@ body.sidebar-resizing #sidebar-resizer {
   place-items: center;
   width: 38px !important;
   height: 38px !important;
-  border: 1px solid rgba(159, 179, 193, 0.18);
+  border: 1px solid rgba(138, 232, 255, 0.24);
   border-radius: 50%;
   background:
-    linear-gradient(145deg, rgba(159, 179, 193, 0.075), rgba(213, 160, 111, 0.035)),
+    linear-gradient(145deg, rgba(138, 232, 255, 0.1), rgba(197, 167, 255, 0.08)),
     rgba(10, 13, 19, 0.72);
   box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.18),
-    inset 0 0 12px rgba(159, 179, 193, 0.045),
-    inset 0 0 1px rgba(255, 255, 255, 0.2);
+    0 0 18px rgba(138, 232, 255, 0.18),
+    inset 0 0 14px rgba(138, 232, 255, 0.075),
+    inset 0 0 1px rgba(255, 255, 255, 0.24);
 }
 
 .logo-spiral svg {
   width: 34px;
   height: 34px;
-  filter: drop-shadow(0 0 8px rgba(159, 179, 193, 0.16));
+  filter:
+    drop-shadow(0 0 8px rgba(138, 232, 255, 0.36))
+    drop-shadow(0 0 14px rgba(197, 167, 255, 0.14));
 }
 
 .brand-title {
   font-size: 24px !important;
   letter-spacing: 0 !important;
   line-height: 1 !important;
-  background: linear-gradient(135deg, #dce8ed 0%, #f0eef2 52%, #d6c5ae 100%);
+  background: linear-gradient(135deg, #9decff 0%, #efe8ff 48%, #c5a7ff 78%, #ffd58a 100%);
   -webkit-background-clip: text;
   background-clip: text;
-  text-shadow: 0 0 18px rgba(159, 179, 193, 0.1);
+  text-shadow: 0 0 24px rgba(138, 232, 255, 0.15);
 }
 
 .model-selector {
@@ -3537,60 +3539,44 @@ button.primary:hover:not(:disabled),
 .roadmap-group-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   padding: 10px 12px 7px;
-  background:
-    linear-gradient(90deg, rgba(159, 179, 193, 0.045), transparent 70%),
-    rgba(5, 8, 13, 0.34);
+  background: rgba(5, 8, 13, 0.3);
 }
 
 .group-icon {
   display: inline-grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
-  border: 1px solid rgba(159, 179, 193, 0.14);
-  border-radius: 6px;
-  background:
-    linear-gradient(145deg, rgba(159, 179, 193, 0.08), rgba(213, 160, 111, 0.025)),
-    rgba(10, 14, 20, 0.55);
-  color: #98aab7;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  width: 19px;
+  height: 19px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #7f929f;
+  box-shadow: none;
   flex-shrink: 0;
 }
 
 .group-icon-svg {
-  width: 12px;
-  height: 12px;
+  width: 13px;
+  height: 13px;
 }
 
 .category-header {
   position: relative;
-  min-height: 52px;
-  padding: 9px 12px 9px 13px;
-  gap: 9px;
+  min-height: 50px;
+  padding: 9px 12px;
+  gap: 8px;
   border-left: 0;
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--cat-color, #8ae8ff) 7%, transparent), transparent 55%),
-    rgba(13, 18, 26, 0.3);
+  background: rgba(11, 16, 24, 0.24);
 }
 
 .category-header::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 10px;
-  bottom: 10px;
-  width: 2px;
-  border-radius: 0 999px 999px 0;
-  background: color-mix(in srgb, var(--cat-color, var(--accent)) 72%, #9ba8b2);
-  box-shadow: 0 0 10px color-mix(in srgb, var(--cat-color, #8ae8ff) 16%, transparent);
+  content: none;
 }
 
 .category-header:hover {
-  background:
-    linear-gradient(90deg, color-mix(in srgb, var(--cat-color, #8ae8ff) 10%, transparent), transparent 62%),
-    rgba(159, 179, 193, 0.04);
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .cat-caret {
@@ -3604,34 +3590,40 @@ button.primary:hover:not(:disabled),
 }
 
 .cat-icon {
+  position: relative;
   display: inline-grid;
   place-items: center;
-  width: 27px;
-  height: 27px;
-  border: 1px solid color-mix(in srgb, var(--cat-color, #8ae8ff) 24%, rgba(255, 255, 255, 0.08));
-  border-radius: 7px;
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--cat-color, #8ae8ff) 8%, transparent), rgba(255, 255, 255, 0.01)),
-    rgba(6, 9, 14, 0.62);
-  color: color-mix(in srgb, var(--cat-color, #8ae8ff) 58%, #c8d3da);
-  box-shadow:
-    0 3px 12px rgba(0, 0, 0, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.055);
+  width: 25px;
+  height: 25px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: color-mix(in srgb, var(--cat-color, #8ae8ff) 54%, #9daab4);
+  box-shadow: none;
   flex-shrink: 0;
-  transition: border-color 140ms ease, color 140ms ease, background 140ms ease;
+  transition: color 140ms ease, opacity 140ms ease;
+}
+
+.cat-icon::after {
+  content: "";
+  position: absolute;
+  right: 1px;
+  bottom: 2px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--cat-color, #8ae8ff) 58%, #8f9aa3);
+  opacity: 0.58;
 }
 
 .cat-icon-svg {
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
+  opacity: 0.95;
 }
 
 .category-header:hover .cat-icon {
-  color: color-mix(in srgb, var(--cat-color, #8ae8ff) 70%, #d9e1e6);
-  border-color: color-mix(in srgb, var(--cat-color, #8ae8ff) 38%, rgba(255, 255, 255, 0.12));
-  background:
-    linear-gradient(145deg, color-mix(in srgb, var(--cat-color, #8ae8ff) 11%, transparent), rgba(255, 255, 255, 0.012)),
-    rgba(6, 9, 14, 0.66);
+  color: color-mix(in srgb, var(--cat-color, #8ae8ff) 72%, #dce6ea);
 }
 
 .cat-name {
@@ -3640,23 +3632,19 @@ button.primary:hover:not(:disabled),
 }
 
 .cat-count {
-  min-width: 58px;
+  min-width: auto;
   justify-content: center;
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
-  border-color: rgba(148, 169, 190, 0.18);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
-    rgba(6, 9, 14, 0.46);
-  color: #8ea0ad;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  padding: 2px 0;
+  border: 0;
+  background: transparent;
+  color: #72828e;
+  box-shadow: none;
 }
 
 .category-body {
-  background:
-    linear-gradient(90deg, rgba(159, 179, 193, 0.022), transparent 42%),
-    rgba(5, 8, 13, 0.24);
+  background: rgba(5, 8, 13, 0.22);
 }
 
 .local-repo {
@@ -3671,42 +3659,37 @@ button.primary:hover:not(:disabled),
 }
 
 .repo-header:hover {
-  background: rgba(159, 179, 193, 0.045);
+  background: rgba(255, 255, 255, 0.022);
 }
 
 .repo-header.flat-roadmap.active {
   background:
-    linear-gradient(90deg, rgba(159, 179, 193, 0.1), rgba(213, 160, 111, 0.035)),
-    rgba(159, 179, 193, 0.03);
+    linear-gradient(90deg, rgba(138, 232, 255, 0.12), rgba(197, 167, 255, 0.055)),
+    rgba(138, 232, 255, 0.035);
 }
 
 .repo-icon {
   display: inline-grid;
   place-items: center;
-  width: 23px;
-  height: 23px;
-  border: 1px solid rgba(148, 169, 190, 0.16);
-  border-radius: 7px;
-  background:
-    linear-gradient(145deg, rgba(148, 169, 190, 0.12), rgba(255, 255, 255, 0.02)),
-    rgba(8, 12, 18, 0.58);
-  color: #9eacb6;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  width: 21px;
+  height: 21px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #80909c;
+  box-shadow: none;
   flex-shrink: 0;
 }
 
 .repo-icon-svg {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
 }
 
 .repo-header:hover .repo-icon,
 .repo-header.active .repo-icon {
-  color: #a9bac5;
-  border-color: rgba(159, 179, 193, 0.28);
-  box-shadow:
-    0 0 12px rgba(159, 179, 193, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  color: #b8c6cf;
+  box-shadow: none;
 }
 
 .repo-name {
@@ -3730,13 +3713,13 @@ button.primary:hover:not(:disabled),
   }
 
   .cat-icon {
-    width: 25px;
-    height: 25px;
+    width: 23px;
+    height: 23px;
   }
 
   .cat-icon-svg {
-    width: 13px;
-    height: 13px;
+    width: 14px;
+    height: 14px;
   }
 
   .cat-count {
