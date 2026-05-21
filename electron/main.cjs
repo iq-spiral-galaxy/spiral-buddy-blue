@@ -235,7 +235,8 @@ function createSetupWindow() {
     width: 600,
     height: 640,
     title: "Spiral Buddy — 초기 설정",
-    backgroundColor: "#0e0e11",
+    backgroundColor: "#090c12",
+    icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
@@ -260,7 +261,8 @@ async function createMainWindow() {
     minWidth: 800,
     minHeight: 600,
     title: "Spiral Buddy",
-    backgroundColor: "#0e0e11",
+    backgroundColor: "#090c12",
+    icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,
