@@ -589,27 +589,44 @@ ipcMain.handle("settings:add-workspace", async (event, args) => {
     const m = args.gitUrl.match(/\/([^/]+?)(?:\.git)?$/);
     const repoName = m?.[1] ?? id;
     const dest = path.join(parentDir, repoName);
-    send("settings:workspace-progress", {
-      phase: "cloning",
-      message: `${args.gitUrl} → ${dest}`,
-    });
-    try {
-      await new Promise((resolve, reject) => {
-        const child = spawn(
-          "git",
-          ["clone", "--depth", "1", "--quiet", args.gitUrl, dest],
-          { stdio: ["ignore", "ignore", "pipe"] },
-        );
-        let stderr = "";
-        child.stderr.on("data", (b) => (stderr += b.toString()));
-        child.on("exit", (code) => {
-          if (code === 0) resolve();
-          else reject(new Error(`git clone failed: ${stderr.slice(0, 200)}`));
+
+    // 폴더 이미 있고 비어있지 않으면 git clone 안 하고 그대로 사용.
+    // (이전에 받은 거라 가정. 다시 받고 싶으면 워크스페이스 삭제 시
+    //  "학습 자료 디렉토리도 영구 삭제" 체크 후 다시 추가하면 됨.)
+    let reusedExisting = false;
+    if (fs.existsSync(dest)) {
+      const entries = fs.readdirSync(dest).filter((n) => n !== ".DS_Store");
+      if (entries.length > 0) {
+        reusedExisting = true;
+        send("settings:workspace-progress", {
+          phase: "reusing",
+          message: `기존 폴더 사용 (재클론 없이): ${dest}`,
         });
-        child.on("error", reject);
+      }
+    }
+    if (!reusedExisting) {
+      send("settings:workspace-progress", {
+        phase: "cloning",
+        message: `${args.gitUrl} → ${dest}`,
       });
-    } catch (err) {
-      return { ok: false, error: err.message };
+      try {
+        await new Promise((resolve, reject) => {
+          const child = spawn(
+            "git",
+            ["clone", "--depth", "1", "--quiet", args.gitUrl, dest],
+            { stdio: ["ignore", "ignore", "pipe"] },
+          );
+          let stderr = "";
+          child.stderr.on("data", (b) => (stderr += b.toString()));
+          child.on("exit", (code) => {
+            if (code === 0) resolve();
+            else reject(new Error(`git clone failed: ${stderr.slice(0, 200)}`));
+          });
+          child.on("error", reject);
+        });
+      } catch (err) {
+        return { ok: false, error: err.message };
+      }
     }
     roadmapRoot = dest;
   } else {

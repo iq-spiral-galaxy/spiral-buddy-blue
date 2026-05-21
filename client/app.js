@@ -1589,6 +1589,8 @@ function initAddWorkspaceModal() {
     box.classList.remove("hidden");
     if (p.phase === "cloning") {
       box.textContent = `git clone 중… ${p.message ?? ""}`;
+    } else if (p.phase === "reusing") {
+      box.textContent = `↪ ${p.message ?? "기존 폴더 사용"} (재클론 없이 등록)`;
     } else if (p.phase === "done") {
       box.textContent = `✓ "${p.name}" 추가 완료`;
     }
