@@ -46,6 +46,21 @@ jobs:
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: ${{ runner.os }}-pnpm-
 
+      # electron zip + electron-builder-binaries 캐시 — 다운로드 stall(hang)이
+      # macOS/Linux 빌드를 9분+ 멈추는 주 원인이라 캐시로 다운로드 자체를 줄임.
+      - name: Cache electron binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: ${{ runner.os }}-electron-30.5.1
+          restore-keys: ${{ runner.os }}-electron-
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -67,19 +82,26 @@ jobs:
           # Linux: electron-builder가 appimage tool을 다운로드하다 hang하는 케이스 방지
           USE_HARD_LINKS: false
           DEBUG: ${{ runner.os == 'Linux' && 'electron-builder' || '' }}
-        timeout-minutes: 12
-        # publish는 별도 step에서. electron-builder가 같은 step 안에서 multi-arch를
-        # 병렬 publish하면 GitHub Release create race로 두 번째가 422 실패함.
-        # GitHub Releases binary 다운로드가 종종 502 일시 장애 → 셸 retry 3번.
+        timeout-minutes: 22
+        # publish는 별도 step. electron-builder가 한 step에서 multi-arch를 병렬
+        # publish하면 Release create race(422)라 분리.
+        # 또한 electron zip 다운로드가 stall하면 프로세스가 무한 hang함 →
+        # 단순 retry로는 못 잡음. perl alarm으로 각 시도에 360초 hard timeout을
+        # 걸고(타임아웃 시 SIGALRM으로 강제 종료) 재시도. perl은 macOS/Linux/
+        # Windows(git-bash) 모두 기본 탑재.
         shell: bash
         run: |
+          run_with_timeout() {
+            perl -e 'alarm shift @ARGV; exec @ARGV or die "exec failed: $!"' \
+              360 pnpm exec electron-builder --publish never
+          }
           for i in 1 2 3; do
-            if pnpm exec electron-builder --publish never; then
+            if run_with_timeout; then
               echo "✓ build succeeded on attempt $i"
               exit 0
             fi
-            echo "✗ build failed on attempt $i; sleeping 30s before retry…"
-            sleep 30
+            echo "✗ build attempt $i failed or timed out; retry in 15s…"
+            sleep 15
           done
           echo "build failed after 3 attempts"
           exit 1
