@@ -3,7 +3,7 @@ import { streamText } from "hono/streaming";
 import path from "node:path";
 
 import type { Config } from "./config.js";
-import { createClient, streamTurn } from "./claude.js";
+import { createClient, completeOnce, streamTurn } from "./claude.js";
 import {
   discoverRoadmaps,
   findRoadmap,
@@ -825,6 +825,75 @@ export function createApi(config: Config) {
         );
       }
     });
+  });
+
+  // ─────────────────────────────────────────────────────
+  // 5c. Prompt refine (보내기 전 다듬기)
+  //     사용자가 막 쓴 문장을 명확한 학습 질문으로 정돈.
+  //     원본 의도/언어는 보존. 단발성 응답 (스트리밍 X).
+  // ─────────────────────────────────────────────────────
+
+  app.post("/refine-prompt", async (c) => {
+    const body = await c.req
+      .json<{
+        text: string;
+        context?: string;
+        model?: string;
+      }>()
+      .catch(() => null);
+    const raw = (body?.text ?? "").trim();
+    if (!raw) {
+      return c.json({ error: "text is required" }, 400);
+    }
+    if (raw.length > 4000) {
+      return c.json({ error: "text too long (max 4000 chars)" }, 400);
+    }
+
+    const systemPrompt =
+      "당신은 학습자가 AI 튜터에게 보내려는 거친 메시지를 다듬는 편집자다.\n" +
+      "원문을 받아 **그대로 보낼 만한 명확한 한 개의 메시지**로 재작성한다.\n\n" +
+      "원칙:\n" +
+      "- **원본 의도와 언어를 보존**한다. 한국어면 한국어, 영어면 영어로.\n" +
+      "- 모호한 지시어(이거/그거)와 오타를 정리하되, 사용자가 안 쓴 새 정보·새 질문을 추가하지 않는다.\n" +
+      "- 너무 짧으면 의도를 분명히 풀어주고, 너무 길면 핵심만 추린다.\n" +
+      "- 친근한 1인칭/반말 톤은 유지한다. 격식체로 바꾸지 말 것.\n" +
+      "- 답이 아니라 **재작성된 메시지 본문만** 출력한다. 따옴표, 머리말(\"수정본:\" 등), 설명 일절 금지.\n" +
+      "- 마크다운 코드블록으로 감싸지 말 것.";
+
+    const userMessage = body?.context
+      ? `**참고 — 현재 학습 맥락 (절대 본문에 포함시키지 말 것)**:\n${body.context.slice(0, 600)}\n\n---\n\n**다듬을 원문**:\n${raw}`
+      : `**다듬을 원문**:\n${raw}`;
+
+    try {
+      const { text } = await completeOnce(client, {
+        system: systemPrompt,
+        messages: [{ role: "user", content: userMessage }],
+        model: body?.model,
+        maxTokens: 1200,
+      });
+      let refined = text.trim();
+      // 혹시 모델이 코드블록으로 감쌌으면 벗긴다
+      refined = refined
+        .replace(/^```[a-zA-Z]*\n?/, "")
+        .replace(/\n?```\s*$/, "")
+        .trim();
+      // 따옴표 한 쌍으로 감싼 경우 제거
+      if (
+        (refined.startsWith('"') && refined.endsWith('"')) ||
+        (refined.startsWith("'") && refined.endsWith("'"))
+      ) {
+        refined = refined.slice(1, -1).trim();
+      }
+      if (!refined) {
+        return c.json({ error: "empty refinement" }, 502);
+      }
+      return c.json({ original: raw, refined });
+    } catch (err) {
+      return c.json(
+        { error: err instanceof Error ? err.message : String(err) },
+        500,
+      );
+    }
   });
 
   // ─────────────────────────────────────────────────────

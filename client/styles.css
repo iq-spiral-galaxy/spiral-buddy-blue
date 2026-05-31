@@ -1681,6 +1681,138 @@ button.primary {
   display: flex;
 }
 
+.composer-input-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.composer-btn-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: stretch;
+}
+
+/* ─── 프롬프트 다듬기 (refine) ─── */
+
+.refine-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 92px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.18) 0%, rgba(126, 226, 255, 0.14) 100%);
+  color: #b8a8ff;
+  border: 1px solid rgba(167, 139, 250, 0.45);
+  border-radius: 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.refine-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.32) 0%, rgba(126, 226, 255, 0.24) 100%);
+  border-color: rgba(167, 139, 250, 0.7);
+  color: #d4c4ff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(167, 139, 250, 0.22);
+}
+
+.refine-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.refine-btn:disabled {
+  background: var(--bg-elev-2);
+  color: var(--text-faint);
+  border-color: var(--border);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.refine-btn.is-loading {
+  pointer-events: none;
+  color: #b8a8ff;
+}
+
+.refine-btn.is-loading svg {
+  animation: refine-spin 0.9s linear infinite;
+}
+
+@keyframes refine-spin {
+  to { transform: rotate(360deg); }
+}
+
+.refine-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: linear-gradient(90deg, rgba(167, 139, 250, 0.14) 0%, rgba(126, 226, 255, 0.10) 100%);
+  border: 1px solid rgba(167, 139, 250, 0.35);
+  border-radius: 9px;
+  font-size: 12px;
+  color: #c8baff;
+  animation: refine-bar-in 0.22s ease-out;
+}
+
+.refine-bar.hidden {
+  display: none;
+}
+
+@keyframes refine-bar-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.refine-bar-icon {
+  display: inline-flex;
+  color: #b8a8ff;
+}
+
+.refine-bar-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.refine-bar-text {
+  flex: 1;
+  font-weight: 500;
+}
+
+.refine-bar-undo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: rgba(167, 139, 250, 0.18);
+  color: #d4c4ff;
+  border: 1px solid rgba(167, 139, 250, 0.4);
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+
+.refine-bar-undo:hover {
+  background: rgba(167, 139, 250, 0.32);
+  color: #fff;
+  border-color: rgba(167, 139, 250, 0.65);
+}
+
+.refine-bar-undo svg {
+  width: 12px;
+  height: 12px;
+}
+
 #input {
   flex: 1;
   background: var(--bg-elev-2);

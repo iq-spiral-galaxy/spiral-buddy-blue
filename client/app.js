@@ -47,6 +47,10 @@ const state = {
   messages: [],
   pending: false,
   installingRepo: null,
+  // Prompt refine (다듬기) state
+  refining: false, // 다듬는 중 (UI lock)
+  refineOriginal: null, // 마지막 다듬기 전 원본 텍스트 (rollback용). null이면 다듬은 결과 없음.
+  refineApplied: null, // 다듬어서 입력란에 들어간 텍스트 (입력 비교용)
 };
 
 // localStorage에 마지막 로드맵 저장
@@ -133,6 +137,10 @@ function cacheEls() {
   els.messages = $("messages");
   els.input = $("input");
   els.sendBtn = $("send-btn");
+  els.refineBtn = $("refine-btn");
+  els.refineBar = $("refine-bar");
+  els.refineBarText = document.querySelector("#refine-bar .refine-bar-text");
+  els.refineUndo = $("refine-undo");
   els.endBtn = $("end-btn");
   els.quizBtn = $("quiz-btn");
   els.form = $("input-form");
@@ -186,6 +194,39 @@ function wireEvents() {
     submitMessage();
   });
   els.input.addEventListener("keydown", (e) => {
+    // ⌘⇧↵ (or Ctrl+Shift+Enter) — 다듬어서 바로 send
+    if (
+      e.key === "Enter" &&
+      e.shiftKey &&
+      (e.metaKey || e.ctrlKey) &&
+      !e.isComposing &&
+      e.keyCode !== 229
+    ) {
+      e.preventDefault();
+      refineThenSend();
+      return;
+    }
+    // ⌘J / Ctrl+J — 다듬기만 (send 안 함)
+    if (
+      (e.metaKey || e.ctrlKey) &&
+      !e.shiftKey &&
+      (e.key === "j" || e.key === "J")
+    ) {
+      e.preventDefault();
+      refineInPlace();
+      return;
+    }
+    // ⌘Z — 다듬은 직후 입력란에 있을 때만 원본 복원
+    if (
+      (e.metaKey || e.ctrlKey) &&
+      !e.shiftKey &&
+      (e.key === "z" || e.key === "Z") &&
+      state.refineOriginal != null
+    ) {
+      e.preventDefault();
+      undoRefine();
+      return;
+    }
     if (
       e.key === "Enter" &&
       !e.shiftKey &&
@@ -196,6 +237,18 @@ function wireEvents() {
       submitMessage();
     }
   });
+  // 사용자가 직접 타이핑하면 다듬기 배너/원본 캐시 무효화
+  els.input.addEventListener("input", () => {
+    if (state.refineOriginal != null && els.input.value !== state.refineApplied) {
+      clearRefineState();
+    }
+  });
+  if (els.refineBtn) {
+    els.refineBtn.addEventListener("click", () => refineInPlace());
+  }
+  if (els.refineUndo) {
+    els.refineUndo.addEventListener("click", () => undoRefine());
+  }
   els.endBtn.addEventListener("click", endSession);
   els.quizBtn.addEventListener("click", () => {
     if (state.session && !state.pending) {
@@ -2879,7 +2932,150 @@ async function submitMessage() {
   const text = els.input.value.trim();
   if (!text) return;
   els.input.value = "";
+  clearRefineState();
   await sendMessage(text);
+}
+
+// ──────────────────────────────────────────────────────────
+// Prompt refine (다듬기) — /api/refine-prompt
+// ──────────────────────────────────────────────────────────
+
+function buildRefineContext() {
+  if (!state.session) return undefined;
+  const parts = [];
+  if (state.session.chapterTitle) {
+    parts.push(`학습 챕터: ${state.session.chapterTitle}`);
+  }
+  // 직전 어시스턴트 메시지 일부만 (질문 흐름 맥락)
+  const lastAssistant = [...(state.messages ?? [])]
+    .reverse()
+    .find((m) => m.role === "assistant" && m.content);
+  if (lastAssistant?.content) {
+    parts.push(`직전 튜터 응답 일부:\n${String(lastAssistant.content).slice(0, 400)}`);
+  }
+  return parts.join("\n\n") || undefined;
+}
+
+async function callRefineApi(text) {
+  const res = await fetch("/api/refine-prompt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text,
+      context: buildRefineContext(),
+      model: state.selectedModel ?? undefined,
+    }),
+  });
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const j = await res.json();
+      if (j?.error) msg = j.error;
+    } catch {}
+    throw new Error(msg);
+  }
+  return res.json(); // { original, refined }
+}
+
+function setRefining(on) {
+  state.refining = on;
+  if (!els.refineBtn) return;
+  els.refineBtn.classList.toggle("is-loading", on);
+  els.refineBtn.disabled = on || state.pending || !state.session;
+  els.input.disabled = on || !state.session;
+  if (on) setStatus("프롬프트 다듬는 중…");
+  else if (els.statusBar?.textContent === "프롬프트 다듬는 중…") setStatus("");
+}
+
+function showRefineBar(label = "프롬프트가 다듬어졌어요") {
+  if (!els.refineBar) return;
+  if (els.refineBarText) els.refineBarText.textContent = label;
+  els.refineBar.classList.remove("hidden");
+}
+
+function hideRefineBar() {
+  if (els.refineBar) els.refineBar.classList.add("hidden");
+}
+
+function clearRefineState() {
+  state.refineOriginal = null;
+  state.refineApplied = null;
+  hideRefineBar();
+}
+
+function undoRefine() {
+  if (state.refineOriginal == null) return;
+  els.input.value = state.refineOriginal;
+  clearRefineState();
+  els.input.focus();
+  // 커서를 끝으로
+  const len = els.input.value.length;
+  els.input.setSelectionRange(len, len);
+}
+
+async function refineInPlace() {
+  if (!state.session || state.pending || state.refining) return;
+  const raw = els.input.value.trim();
+  if (raw.length < 2) {
+    setStatus("다듬을 내용이 너무 짧아요.", "error");
+    setTimeout(() => setStatus(""), 1800);
+    return;
+  }
+  // 이미 다듬어진 상태에서 한 번 더 누르면, 원본 보존 유지하고 다시 다듬기
+  const originalForRollback = state.refineOriginal ?? raw;
+  setRefining(true);
+  try {
+    const { refined } = await callRefineApi(raw);
+    if (!refined || refined === raw) {
+      setStatus("이미 충분히 명확해요.", "");
+      setTimeout(() => setStatus(""), 1800);
+      return;
+    }
+    state.refineOriginal = originalForRollback;
+    state.refineApplied = refined;
+    els.input.value = refined;
+    showRefineBar("프롬프트가 다듬어졌어요 — ⌘Z 또는 [원본]으로 되돌릴 수 있어요");
+    els.input.focus();
+    const len = els.input.value.length;
+    els.input.setSelectionRange(len, len);
+  } catch (err) {
+    setStatus(`다듬기 실패: ${err.message}`, "error");
+    setTimeout(() => setStatus(""), 2500);
+  } finally {
+    setRefining(false);
+  }
+}
+
+async function refineThenSend() {
+  if (!state.session || state.pending || state.refining) return;
+  const raw = els.input.value.trim();
+  if (raw.length < 2) return;
+  setRefining(true);
+  let toSend = raw;
+  try {
+    const { refined } = await callRefineApi(raw);
+    if (refined && refined !== raw) {
+      toSend = refined;
+      // 보낸 직후에도 마지막 메시지의 원본을 잠깐 알 수 있게 status로
+      setStatus(`다듬어 보냄: "${truncate(raw, 40)}" → "${truncate(refined, 40)}"`);
+      setTimeout(() => {
+        if (els.statusBar?.textContent?.startsWith("다듬어 보냄:")) setStatus("");
+      }, 4000);
+    }
+  } catch (err) {
+    setStatus(`다듬기 실패 — 원본 그대로 보냄`, "error");
+    setTimeout(() => setStatus(""), 2500);
+  } finally {
+    setRefining(false);
+  }
+  els.input.value = "";
+  clearRefineState();
+  await sendMessage(toSend);
+}
+
+function truncate(s, n) {
+  if (!s) return "";
+  return s.length <= n ? s : s.slice(0, n - 1) + "…";
 }
 
 async function sendMessage(text) {
@@ -3191,8 +3387,9 @@ function enableSessionUi(enabled) {
   els.sendBtn.disabled = !enabled;
   els.endBtn.disabled = !enabled;
   els.quizBtn.disabled = !enabled;
+  if (els.refineBtn) els.refineBtn.disabled = !enabled;
   els.input.placeholder = enabled
-    ? "메시지 입력 후 Enter (Shift+Enter는 줄바꿈)"
+    ? "메시지 입력 후 Enter (Shift+Enter는 줄바꿈) — 다듬어 보내기 ⌘⇧↵"
     : "세션을 시작하면 입력할 수 있어요";
 }
 
@@ -3201,6 +3398,9 @@ function setPending(p) {
   els.sendBtn.disabled = p || !state.session;
   els.endBtn.disabled = p || !state.session;
   els.quizBtn.disabled = p || !state.session;
+  if (els.refineBtn) {
+    els.refineBtn.disabled = p || !state.session || state.refining === true;
+  }
 }
 
 function setStatus(text, kind = "") {

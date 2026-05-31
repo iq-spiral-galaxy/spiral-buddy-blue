@@ -173,19 +173,46 @@
       </div>
 
       <form id="input-form" class="composer">
-        <textarea
-          id="input"
-          rows="3"
-          placeholder="세션을 시작하면 입력할 수 있어요"
-          disabled
-        ></textarea>
-        <button type="submit" id="send-btn" class="send-btn" disabled>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="22" y1="2" x2="11" y2="13"/>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-          </svg>
-          <span>Send</span>
-        </button>
+        <div class="composer-input-col">
+          <textarea
+            id="input"
+            rows="3"
+            placeholder="세션을 시작하면 입력할 수 있어요"
+            disabled
+          ></textarea>
+          <div id="refine-bar" class="refine-bar hidden" role="status" aria-live="polite">
+            <span class="refine-bar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 2 L10.5 6.5 L15 8 L10.5 9.5 L9 14 L7.5 9.5 L3 8 L7.5 6.5 Z"/>
+                <path d="M18 13 l1 3 l3 1 l-3 1 l-1 3 l-1 -3 l-3 -1 l3 -1 z"/>
+              </svg>
+            </span>
+            <span class="refine-bar-text">프롬프트가 다듬어졌어요</span>
+            <button type="button" id="refine-undo" class="refine-bar-undo" title="원본으로 되돌리기 (⌘Z)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="9 14 4 9 9 4"/>
+                <path d="M4 9 h11 a5 5 0 0 1 5 5 v0 a5 5 0 0 1 -5 5 h-4"/>
+              </svg>
+              <span>원본</span>
+            </button>
+          </div>
+        </div>
+        <div class="composer-btn-col">
+          <button type="button" id="refine-btn" class="refine-btn" disabled title="프롬프트 다듬기 (⌘J) — 보내면서 다듬으려면 ⌘⇧↵">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 2 L10.5 6.5 L15 8 L10.5 9.5 L9 14 L7.5 9.5 L3 8 L7.5 6.5 Z"/>
+              <path d="M18 13 l1 3 l3 1 l-3 1 l-1 3 l-1 -3 l-3 -1 l3 -1 z"/>
+            </svg>
+            <span>다듬기</span>
+          </button>
+          <button type="submit" id="send-btn" class="send-btn" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+            <span>Send</span>
+          </button>
+        </div>
       </form>
 
       <div id="status-bar" class="status-bar"></div>
