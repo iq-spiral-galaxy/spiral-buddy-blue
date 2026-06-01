@@ -2295,12 +2295,20 @@ body.sidebar-collapsed #sidebar {
   justify-content: center;
   width: 36px;
   height: 36px;
+  padding: 0; /* 글로벌 button { padding: 8px 14px } 상속 차단 — 아이콘이 작게 보이는 원인 */
+  box-sizing: border-box;
   border: 1px solid var(--border);
   background: var(--bg-elev-2);
   color: var(--text-dim);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.sidebar-toggle svg {
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
 }
 
@@ -2314,10 +2322,11 @@ body.sidebar-collapsed #sidebar {
   transform: scale(0.95);
 }
 
-body.sidebar-collapsed .sidebar-toggle {
-  background: rgba(126, 226, 255, 0.1);
-  border-color: var(--accent);
-  color: var(--accent);
+/* 사이드바가 열려있을 때(= 활성)만 살짝 cyan 강조 — lookup-toggle이 패널 열렸을 때 보라톤 강조하는 것과 동일한 의미 패턴 ("highlighted = panel visible"). */
+body:not(.sidebar-collapsed) .sidebar-toggle {
+  background: rgba(126, 226, 255, 0.08);
+  border-color: rgba(126, 226, 255, 0.35);
+  color: var(--accent, #7ee2ff);
 }
 
 /* topbar — 토글 버튼이 들어가도록 gap 조정 */
