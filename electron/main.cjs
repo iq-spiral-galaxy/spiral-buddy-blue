@@ -48,10 +48,32 @@ function displayWorkspaceName(nameOrPath) {
 // 옛 스키마 (single):
 //   { anthropicApiKey, vaultPath, roadmapRoot, ... }  → workspaces[0]으로 자동 마이그레이션.
 
+// 추천 디폴트 모델 — Sonnet 4.6 (빠르고 충분히 똑똑함, 비용 효율적)
+const DEFAULT_MODEL = "claude-sonnet-4-6";
+
+/**
+ * v0.5.28 일회성 마이그레이션: 옛 install에서 Opus가 디폴트로 박혀있던 경우 Sonnet 4.6으로.
+ *   사용자가 명시적으로 다른 모델로 바꾼 적이 없을 가능성이 높은 케이스만 손댐:
+ *   - cfg.model이 비어있거나 (= 한 번도 안 골랐음)
+ *   - 또는 modelDefaultBaseline이 false/없음 + 현재 model이 어떤 opus 변형
+ *   modelDefaultBaseline = true 플래그를 세팅해 두 번째 실행부터는 건드리지 않음.
+ *   사용자가 settings에서 Opus를 명시적으로 다시 고르면 그 선택은 유지됨 (flag 안 건드림).
+ */
+function ensureSonnetDefault(cfg) {
+  if (cfg.modelDefaultBaseline === true) return cfg;
+  const m = (cfg.model ?? "").toString();
+  // 한 번도 모델을 명시적으로 안 골랐거나, Opus 계열이 박혀있던 경우 → Sonnet 4.6으로 리셋
+  if (!m || /^claude-opus-/i.test(m)) {
+    cfg.model = DEFAULT_MODEL;
+  }
+  cfg.modelDefaultBaseline = true;
+  return cfg;
+}
+
 function migrateConfig(raw) {
   if (!raw) return null;
   // 이미 새 스키마
-  if (Array.isArray(raw.workspaces)) return raw;
+  if (Array.isArray(raw.workspaces)) return ensureSonnetDefault(raw);
   // 옛 스키마 → workspaces 배열로 변환
   const ws = {
     id: "default",
@@ -63,7 +85,7 @@ function migrateConfig(raw) {
     source: "legacy",
     categoriesOrg: raw.curatedOrg ?? "iq-dev-lab",
   };
-  return {
+  return ensureSonnetDefault({
     anthropicApiKey: raw.anthropicApiKey,
     vaultPath: raw.vaultPath,
     vaultName: raw.vaultName,
@@ -73,14 +95,29 @@ function migrateConfig(raw) {
     curatedOrg: raw.curatedOrg ?? "iq-dev-lab",
     activeWorkspaceId: ws.id,
     workspaces: [ws],
-  };
+  });
 }
 
 function loadConfig() {
   // 1순위: userData에 저장된 GUI 설정
   try {
     const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
-    return migrateConfig(JSON.parse(raw));
+    const original = JSON.parse(raw);
+    const migrated = migrateConfig(original);
+    // 마이그레이션으로 인해 model이 바뀌었거나 baseline 플래그가 추가됐으면 디스크에 반영
+    // (다음 실행에선 다시 안 건드리도록)
+    if (
+      migrated &&
+      (migrated.model !== original.model ||
+        migrated.modelDefaultBaseline !== original.modelDefaultBaseline)
+    ) {
+      try {
+        saveConfig(migrated);
+      } catch {
+        /* best-effort */
+      }
+    }
+    return migrated;
   } catch {
     /* fallthrough */
   }

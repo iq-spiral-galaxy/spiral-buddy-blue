@@ -151,6 +151,12 @@ export function createApi(config: Config) {
       default: config.model,
       models: [
         {
+          id: "claude-sonnet-4-6",
+          label: "Sonnet 4.6",
+          tier: "balanced",
+          description: "추천 기본값. 빠르고 충분히 똑똑함",
+        },
+        {
           id: "claude-opus-4-7",
           label: "Opus 4.7",
           tier: "highest",
@@ -161,12 +167,6 @@ export function createApi(config: Config) {
           label: "Opus 4.6",
           tier: "high",
           description: "균형형. 비싸지만 학습 품질 높음",
-        },
-        {
-          id: "claude-sonnet-4-6",
-          label: "Sonnet 4.6",
-          tier: "balanced",
-          description: "추천 기본값. 빠르고 충분히 똑똑함",
         },
         {
           id: "claude-haiku-4-5",
