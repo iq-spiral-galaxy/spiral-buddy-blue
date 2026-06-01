@@ -4864,3 +4864,124 @@ body.lookup-fullscreen .lookup-panel-mini.icon-btn svg {
   margin-right: 0;
   vertical-align: 0;
 }
+
+/* ─────────────────────────────────────────────────────────
+ *   v0.5.23 — 상단 헤더 3개 (브랜드, 토픽바, Look-up) 정렬 통일
+ *   높이/baseline을 같은 var(--topbar-h)로 맞추고,
+ *   챕터 제목은 1줄 ellipsis로 묶음.
+ * ───────────────────────────────────────────────────────── */
+
+:root {
+  --topbar-h: 64px;
+}
+
+/* 토픽바 — fixed height, baseline 일치 */
+#topbar {
+  min-height: var(--topbar-h) !important;
+  height: var(--topbar-h);
+  padding: 0 22px !important;
+  align-items: center;
+  display: flex;
+}
+
+/* 좌측 사이드바 brand 영역도 같은 높이 */
+#sidebar > .brand {
+  height: var(--topbar-h);
+  min-height: var(--topbar-h);
+  padding: 0 18px !important;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(138, 232, 255, 0.13);
+}
+
+#sidebar > .brand .brand-row {
+  flex: 1;
+  min-width: 0;
+}
+
+/* logo는 살짝 축소 — 64px 헤더에 맞게 */
+#sidebar > .brand .logo-spiral {
+  width: 36px;
+  height: 36px;
+}
+
+#sidebar > .brand .logo-spiral svg {
+  width: 36px;
+  height: 36px;
+}
+
+#sidebar > .brand .brand-title {
+  font-size: 18px !important;
+}
+
+/* Look-up 헤더도 같은 높이 */
+.lookup-panel-header {
+  height: var(--topbar-h);
+  min-height: var(--topbar-h);
+  padding: 0 14px;
+  box-sizing: border-box;
+  border-bottom: 1px solid rgba(138, 232, 255, 0.13);
+}
+
+/* 토픽바 내용 — 한 줄 강제, 긴 제목 ellipsis */
+#current-chapter {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap !important;
+  overflow: hidden;
+}
+
+.topbar-chapter-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--accent-2, #c5a7ff);
+  flex-shrink: 0;
+}
+
+.topbar-chapter-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text, #edf3f5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex: 1 1 auto;
+  text-shadow: 0 0 22px rgba(138, 232, 255, 0.12);
+}
+
+#current-chapter .depth {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--accent-2);
+  padding: 2px 8px;
+  border: 1px solid rgba(197, 167, 255, 0.28);
+  border-radius: 999px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 좁은 화면에서 우측 action 버튼이 깨지지 않게 */
+#actions {
+  flex-shrink: 0;
+}
+
+/* Look-up 토글 버튼 — 살짝 강조 (사이드 학습 카드를 보여주는 토글) */
+.lookup-toggle-btn {
+  position: relative;
+}
+
+.lookup-toggle-btn:hover {
+  color: var(--accent-2, #c5a7ff);
+  border-color: rgba(197, 167, 255, 0.4);
+}
+
+body.lookup-open .lookup-toggle-btn {
+  color: var(--accent-2, #c5a7ff);
+  background: rgba(197, 167, 255, 0.12);
+  border-color: rgba(197, 167, 255, 0.45);
+}
