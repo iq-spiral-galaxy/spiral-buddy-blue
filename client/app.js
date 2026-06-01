@@ -2092,6 +2092,12 @@ function closeLookupPanel() {
 // ─── 공통 SVG 아이콘 (이모지 → lucide 통일) ───
 const FLAME_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`;
 const SPIRAL_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12 m0 0 a1 1 0 0 1 2 0 a2 2 0 0 1 -4 0 a3 3 0 0 1 6 0 a4 4 0 0 1 -8 0 a5 5 0 0 1 10 0"/></svg>`;
+// lucide copy — 두 사각형 오버랩 (Look-up 카드의 복사 버튼용)
+const COPY_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+// 복사 성공 후 잠깐 보여줄 체크
+const CHECK_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+// 카드 닫기 X
+const X_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
 const DEPTH_ICONS = {
   concise:
@@ -2122,8 +2128,8 @@ async function runLookup(query, depth) {
       </span>
       <span class="lookup-card-query" title="${escapeAttr(query)}">${escapeHtml(query)}</span>
       <div class="lookup-card-actions">
-        <button class="lookup-card-act" data-act="copy" type="button" title="복사">📋</button>
-        <button class="lookup-card-act" data-act="close" type="button" title="삭제">✕</button>
+        <button class="lookup-card-act" data-act="copy" type="button" title="복사" aria-label="복사">${COPY_SVG_INLINE}</button>
+        <button class="lookup-card-act" data-act="close" type="button" title="삭제" aria-label="삭제">${X_SVG_INLINE}</button>
       </div>
     </div>
     <div class="lookup-card-body"><span style="opacity:0.6">…</span></div>
@@ -2143,8 +2149,12 @@ async function runLookup(query, depth) {
       } else if (act === "copy") {
         const txt = bodyEl?.innerText ?? "";
         navigator.clipboard?.writeText(txt).then(() => {
-          btn.textContent = "✓";
-          setTimeout(() => (btn.textContent = "📋"), 1200);
+          btn.innerHTML = CHECK_SVG_INLINE;
+          btn.classList.add("copied");
+          setTimeout(() => {
+            btn.innerHTML = COPY_SVG_INLINE;
+            btn.classList.remove("copied");
+          }, 1200);
         });
       }
     });
