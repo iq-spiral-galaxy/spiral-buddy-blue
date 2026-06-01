@@ -733,7 +733,7 @@ button.ghost {
 /* Status bar */
 
 .status-bar {
-  height: 22px;
+  min-height: 22px;
   padding: 2px 18px;
   font-size: 11px;
   color: var(--text-faint);
@@ -741,6 +741,11 @@ button.ghost {
   border-top: 1px solid var(--border-soft);
   display: flex;
   align-items: center;
+}
+
+/* 메시지 없을 땐 자리도 차지하지 않게 — composer가 바로 화면 끝에 붙도록 */
+.status-bar:empty {
+  display: none;
 }
 
 .status-bar.error {
