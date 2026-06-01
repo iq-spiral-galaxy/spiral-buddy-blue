@@ -658,11 +658,19 @@ async function main() {
         path.join(vaultPath, "spiral-buddy", rp),
       );
 
+      // roadmap.id (예: "unit-testing/anatomy-of-good-tests") → repo + roadmap path
+      const roadmapParts = roadmap.id.split("/").filter(Boolean);
+      const repo = roadmapParts.length > 1 ? roadmapParts[0]! : null;
+      const roadmapPath =
+        roadmapParts.length > 1 ? roadmapParts.slice(1).join("/") : roadmap.id;
+
       const writtenPath = await writeNewNote(vaultPath, {
         topic,
         chapterId: chapter_id,
         roadmapId: roadmap.id,
         roadmapName: roadmap.name,
+        repo,
+        roadmap: roadmapPath,
         depth,
         tags,
         summary,

@@ -1,6 +1,7 @@
 import { completeOnce, type ClaudeClient, type ClaudeMessage } from "./claude.js";
 import type { Chapter } from "./roadmap.js";
 import type { SpiralNote, NewNote } from "./vault.js";
+import type { LookupEntry } from "./session-store.js";
 
 const STRUCTURE_SYSTEM = `You convert a learning conversation into a structured Obsidian note.
 
@@ -39,7 +40,8 @@ Rules:
 - Be ruthlessly concrete. Quote the learner's own framings when possible.
 - Don't fabricate content that wasn't in the conversation.
 - If a section has nothing real to put in it, write a single italicized line like "_이번 세션에서 다루지 않음._".
-- Tags should reflect topic, not meta ("redis-memory", "cow-semantics", not "learning", "study").`;
+- Tags should reflect topic, not meta ("redis-memory", "cow-semantics", not "learning", "study").
+- **Summary**: write a clean topical summary. Do NOT start with the chapter number (e.g., write "Fixtures & SetUp 첫 스파이럴…" not "05. Fixtures & SetUp 첫 스파이럴…"). The chapter title is recorded separately.`;
 
 /** 8섹션 헤딩 — save_note 검증/보충 시 사용 */
 export const REQUIRED_SECTIONS = [
@@ -85,6 +87,56 @@ export function validateAndPatchSections(body: string): SectionValidation {
   return { missing, patchedBody };
 }
 
+/**
+ * "05. Fixtures & SetUp" → "Fixtures & SetUp" (leading number prefix 제거).
+ * summary나 표시용 토픽에서 자연스럽게 사용.
+ */
+export function stripChapterNumberPrefix(s: string): string {
+  return s.replace(/^\s*\d+[.\-_:]\s+/, "").trim();
+}
+
+/**
+ * 챕터의 roadmapId(예: "unit-testing/anatomy-of-good-tests")를 분해해
+ *   { repo, roadmap } 반환. 슬래시가 없으면 repo는 null, roadmap은 통째로.
+ */
+export function splitRepoAndRoadmap(roadmapId: string): { repo: string | null; roadmap: string } {
+  const parts = roadmapId.split("/").filter(Boolean);
+  if (parts.length <= 1) return { repo: null, roadmap: parts[0] ?? roadmapId };
+  // 첫 segment = repo, 나머지 = roadmap path
+  return { repo: parts[0]!, roadmap: parts.slice(1).join("/") };
+}
+
+/**
+ * Lookup 기록을 마크다운 collapsible 섹션으로 변환.
+ * Obsidian/GitHub 모두에서 동작하는 <details> + <summary> 형태.
+ */
+export function renderLookupsSection(lookups: LookupEntry[]): string {
+  if (!lookups || lookups.length === 0) return "";
+  const depthLabel = (d: string) =>
+    d === "concise" ? "간결" : d === "deep" ? "깊이" : "중간";
+  const items = lookups
+    .map((l) => {
+      const q = l.query.replace(/\n/g, " ").trim();
+      const body = l.response.trim();
+      return `<details>
+<summary><strong>${escapeHtml(q)}</strong> · <em>${depthLabel(l.depth)}</em></summary>
+
+${body}
+
+</details>`;
+    })
+    .join("\n\n");
+  return `\n\n## 🔍 학습 중 찾아본 표현 (${lookups.length})\n\n${items}\n`;
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 export async function generateNote(
   client: ClaudeClient,
   args: {
@@ -92,6 +144,7 @@ export async function generateNote(
     transcript: ClaudeMessage[];
     related: SpiralNote[];
     depth: number;
+    lookups?: LookupEntry[];
   },
 ): Promise<NewNote> {
   const transcriptText = args.transcript
@@ -139,6 +192,10 @@ Now produce the structured note JSON.`;
     maxTokens: 4096,
   });
 
+  const lookupsSection = renderLookupsSection(args.lookups ?? []);
+
+  const { repo, roadmap } = splitRepoAndRoadmap(args.chapter.roadmapId);
+
   const parsed = safeJsonParse(text);
   if (!parsed) {
     return {
@@ -146,10 +203,12 @@ Now produce the structured note JSON.`;
       chapterId: args.chapter.id,
       roadmapId: args.chapter.roadmapId,
       roadmapName: args.chapter.roadmapName,
+      repo,
+      roadmap,
       depth: args.depth,
       tags: ["fallback"],
       summary: "Auto-structuring failed; raw transcript saved.",
-      body: `> ⚠ Note structuring failed. Raw transcript below.\n\n${transcriptText}`,
+      body: `> ⚠ Note structuring failed. Raw transcript below.\n\n${transcriptText}${lookupsSection}`,
       relatedNotePaths: args.related.map((r) => r.filePath),
     };
   }
@@ -159,21 +218,28 @@ Now produce the structured note JSON.`;
       ? parsed.body
       : "(note body generation failed)";
   const { patchedBody } = validateAndPatchSections(rawBody);
+  const bodyWithLookups = patchedBody + lookupsSection;
+
+  const rawSummary =
+    typeof parsed.summary === "string" ? parsed.summary : "(no summary)";
+  // 모델이 무시하고 "05. Foo" 처럼 prefix를 넣은 경우 한 번 더 정리
+  const cleanSummary = stripChapterNumberPrefix(rawSummary);
 
   return {
     topic: args.chapter.title,
     chapterId: args.chapter.id,
     roadmapId: args.chapter.roadmapId,
     roadmapName: args.chapter.roadmapName,
+    repo,
+    roadmap,
     depth: args.depth,
     tags: Array.isArray(parsed.tags)
       ? (parsed.tags as unknown[]).filter(
           (x): x is string => typeof x === "string",
         )
       : [],
-    summary:
-      typeof parsed.summary === "string" ? parsed.summary : "(no summary)",
-    body: patchedBody,
+    summary: cleanSummary,
+    body: bodyWithLookups,
     relatedNotePaths: args.related.map((r) => r.filePath),
   };
 }

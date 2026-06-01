@@ -20,6 +20,13 @@ Behavior:
 - Keep responses focused. 3-6 short paragraphs per turn is usually right. Long lectures are a smell.
 - Match the learner's language (Korean unless they switch).`;
 
+export interface LookupEntry {
+  query: string;
+  depth: "concise" | "medium" | "deep";
+  response: string;
+  at: number;
+}
+
 export interface ActiveSession {
   id: string;
   chapter: Chapter;
@@ -31,6 +38,8 @@ export interface ActiveSession {
   totalOutputTokens: number;
   /** 이번 세션에서 사용할 모델 id. 없으면 config.model 사용. */
   model?: string;
+  /** 이번 세션 진행 중 사용자가 Look-up 한 표현들 (간결/중간/깊이) */
+  lookups: LookupEntry[];
 }
 
 const sessions = new Map<string, ActiveSession>();
@@ -51,6 +60,7 @@ export function createSession(args: {
     totalInputTokens: 0,
     totalOutputTokens: 0,
     model: args.model,
+    lookups: [],
   };
   sessions.set(session.id, session);
   return session;

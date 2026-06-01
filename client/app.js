@@ -1919,6 +1919,10 @@ function initLookup() {
       const text = (window.getSelection()?.toString() ?? "").trim();
       if (!text || !depth) return;
       hideLookupToolbar();
+      // 선택 해제 — 클릭 후 강조 풀림 (다음 드래그까지)
+      try {
+        window.getSelection()?.removeAllRanges();
+      } catch {}
       runLookup(text, depth);
     });
   });
@@ -2167,6 +2171,8 @@ async function runLookup(query, depth) {
         depth,
         context: context || undefined,
         model: state.selectedModel ?? undefined,
+        // 세션 진행 중 lookup은 노트 저장 시 함께 포함됨
+        sessionId: state.session?.id,
       }),
     });
     if (!res.ok || !res.body) {
@@ -2910,6 +2916,12 @@ function renderSuggestion() {
 async function startSession(chapterId) {
   els.messages.innerHTML = "";
   state.messages = [];
+
+  // 이전 세션의 lookup 카드 자동 비우기 — 챕터별로 깨끗하게 시작
+  if (els.lookupPanelBody) {
+    els.lookupPanelBody.innerHTML = "";
+    _lookupState.cardCount = 0;
+  }
 
   const chapter = state.chapters.find((c) => c.id === chapterId);
   setStatus("Starting session…");

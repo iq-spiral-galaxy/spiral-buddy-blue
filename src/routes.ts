@@ -436,6 +436,7 @@ export function createApi(config: Config) {
             roadmapId: roadmap.id,
             roadmapName: roadmap.name,
             chapterId: ch.id,
+            chapterTitle: ch.title,
           }),
         );
         const maxDepth = matchingNotes.reduce(
@@ -773,12 +774,14 @@ export function createApi(config: Config) {
         depth?: "concise" | "medium" | "deep";
         context?: string;
         model?: string;
+        sessionId?: string;
       }>()
       .catch(() => null);
     if (!body?.query || body.query.trim().length < 2) {
       return c.json({ error: "query is required (min 2 chars)" }, 400);
     }
     const depth = body.depth ?? "medium";
+    const session = body.sessionId ? getSession(body.sessionId) : undefined;
 
     const systemByDepth: Record<string, string> = {
       concise:
@@ -809,6 +812,7 @@ export function createApi(config: Config) {
     const maxTokens = maxTokensByDepth[depth] ?? 700;
 
     return streamText(c, async (stream) => {
+      let fullResponse = "";
       try {
         await streamTurn(client, {
           system: systemPrompt,
@@ -816,9 +820,19 @@ export function createApi(config: Config) {
           model: body.model,
           maxTokens,
           onText: async (chunk) => {
+            fullResponse += chunk;
             await stream.write(chunk);
           },
         });
+        // 세션에 lookup 기록 — End&Save 시 노트에 포함됨
+        if (session && fullResponse.trim()) {
+          session.lookups.push({
+            query: body.query.trim(),
+            depth,
+            response: fullResponse.trim(),
+            at: Date.now(),
+          });
+        }
       } catch (err) {
         await stream.write(
           `\n\n[lookup error] ${err instanceof Error ? err.message : String(err)}`,
@@ -1030,6 +1044,7 @@ export function createApi(config: Config) {
           transcript: session.messages,
           related: session.related,
           depth: session.depth,
+          lookups: session.lookups,
         });
 
         await send("stage", {

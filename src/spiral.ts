@@ -101,6 +101,7 @@ Suggest what the learner should study next. Return JSON only.`;
     : [];
 
   // 관련 노트: relatedChapterIds에 포함된 것 + 추천된 챕터의 노트
+  const chaptersById = new Map(chapters.map((c) => [c.id, c]));
   const related = notes.filter((n) => {
     if (
       recommendedId &&
@@ -108,6 +109,7 @@ Suggest what the learner should study next. Return JSON only.`;
         roadmapId: roadmap.id,
         roadmapName: roadmap.name,
         chapterId: recommendedId,
+        chapterTitle: chaptersById.get(recommendedId)?.title,
       })
     ) {
       return true;
@@ -117,6 +119,7 @@ Suggest what the learner should study next. Return JSON only.`;
         roadmapId: roadmap.id,
         roadmapName: roadmap.name,
         chapterId: cid,
+        chapterTitle: chaptersById.get(cid)?.title,
       }),
     );
   });

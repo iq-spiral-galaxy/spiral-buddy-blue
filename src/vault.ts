@@ -9,10 +9,14 @@ export interface SpiralNote {
   title: string;
   topic: string;
   chapterId: string | null;
+  /** v0.5.22+ frontmatter `chapter:`. 옛 노트면 title/topic에서 fallback. */
+  chapter: string;
   /** 신규 스키마: roadmap의 root-relative path. 옛 노트는 null. */
   roadmapId: string | null;
   /** roadmap basename (표시용). 옛 노트도 보유. */
   roadmapName: string | null;
+  /** v0.5.22+: 상위 레포 (옛 노트는 roadmapId에서 추출). */
+  repo: string | null;
   date: string;
   depth: number;
   tags: string[];
@@ -59,19 +63,39 @@ async function readNote(
     const raw = await fs.readFile(abs, "utf-8");
     const parsed = matter(raw);
     const fm = parsed.data as Record<string, unknown>;
+    // 새 스키마 (v0.5.22+): chapter, repo, roadmap 우선. 옛 스키마 (title/topic/chapter_id/roadmap_id) 호환.
+    const newChapter = (fm.chapter as string | undefined) ?? null;
+    const newRepo = (fm.repo as string | undefined) ?? null;
+    const newRoadmap = (fm.roadmap as string | undefined) ?? null;
+
+    const titleFm = (fm.title as string | undefined) ?? null;
+    const topicFm = (fm.topic as string | undefined) ?? null;
+    const fallbackName = path.basename(abs, ".md");
+
+    // 옛 노트의 roadmap_id (예: "unit-testing/anatomy-of-good-tests")에서 repo 추출 (fallback)
+    const oldRoadmapId = (fm.roadmap_id as string | undefined) ?? null;
+    let inferredRepo = newRepo;
+    let inferredRoadmapName = newRoadmap;
+    if (!inferredRepo && oldRoadmapId && oldRoadmapId.includes("/")) {
+      const parts = oldRoadmapId.split("/").filter(Boolean);
+      if (parts.length > 1) {
+        inferredRepo = parts[0] ?? null;
+        if (!inferredRoadmapName) {
+          inferredRoadmapName = parts.slice(1).join("/");
+        }
+      }
+    }
+
     return {
       filePath: abs,
       relativePath,
-      title:
-        (fm.title as string | undefined) ??
-        path.basename(abs, ".md"),
-      topic:
-        (fm.topic as string | undefined) ??
-        (fm.title as string | undefined) ??
-        path.basename(abs, ".md"),
+      title: titleFm ?? newChapter ?? topicFm ?? fallbackName,
+      topic: topicFm ?? newChapter ?? titleFm ?? fallbackName,
+      chapter: newChapter ?? titleFm ?? topicFm ?? fallbackName,
       chapterId: (fm.chapter_id as string | undefined) ?? null,
-      roadmapId: (fm.roadmap_id as string | undefined) ?? null,
-      roadmapName: (fm.roadmap as string | undefined) ?? null,
+      roadmapId: oldRoadmapId,
+      roadmapName: inferredRoadmapName ?? (fm.roadmap as string | undefined) ?? null,
+      repo: inferredRepo ?? null,
       date: formatDate(fm.date),
       depth: typeof fm.depth === "number" ? fm.depth : 1,
       tags: Array.isArray(fm.tags) ? (fm.tags as string[]) : [],
@@ -84,11 +108,17 @@ async function readNote(
 }
 
 export interface NewNote {
+  /** 챕터 표시명 (예: "05. Fixtures & SetUp") — frontmatter `chapter:`로 기록 */
   topic: string;
+  /** 원본 챕터 파일 경로 (예: "05-fixtures-and-setup.md") — 매칭 fallback용 */
   chapterId: string | null;
-  /** 신규: roadmap root-relative path */
+  /** roadmap root-relative path (예: "unit-testing/anatomy-of-good-tests") */
   roadmapId: string | null;
   roadmapName: string | null;
+  /** 상위 레포 (roadmapId 첫 segment, 예: "unit-testing"). flat이면 null. */
+  repo: string | null;
+  /** 레포 내 roadmap path (예: "anatomy-of-good-tests"). flat이면 roadmapId와 동일. */
+  roadmap: string;
   depth: number;
   tags: string[];
   summary: string;
@@ -105,21 +135,20 @@ export async function writeNewNote(
 
   const date = new Date().toISOString().slice(0, 10);
 
-  // 파일명: chapter_id basename 우선 (Phase 3 개선분 유지 — 짧고 깔끔한 파일명)
-  const baseFromChapter = note.chapterId
-    ? path.basename(note.chapterId, ".md")
-    : null;
-  const slug = baseFromChapter ?? slugify(note.topic);
-
-  // 충돌 방지: suffix
-  let fileName = `${date}-${slug}-d${note.depth}.md`;
+  // 파일명: 사람 친화적 — 챕터 제목에서 "05. " 같은 prefix 빼고, " d{depth}" 붙임.
+  //   "05. Fixtures & SetUp" + depth=1 → "Fixtures & SetUp d1.md"
+  //   "test-doubles-taxonomy" + depth=2 → "test-doubles-taxonomy d2.md"
+  // 날짜 prefix 제거 (사용자 요청). 같은 챕터·depth 충돌 시 counter suffix.
+  const cleanTopic = stripLeadingChapterNumber(note.topic);
+  const safeName = sanitizeFileName(cleanTopic);
+  let fileName = `${safeName} d${note.depth}.md`;
   let counter = 2;
   while (await fileExists(path.join(spiralRoot, fileName))) {
-    fileName = `${date}-${slug}-d${note.depth}-${counter}.md`;
+    fileName = `${safeName} d${note.depth} (${counter}).md`;
     counter++;
     if (counter > 99) {
       throw new Error(
-        `Cannot find unique file name for ${date}-${slug}-d${note.depth}`,
+        `Cannot find unique file name for ${safeName} d${note.depth}`,
       );
     }
   }
@@ -129,33 +158,46 @@ export async function writeNewNote(
     path.basename(p, ".md"),
   );
 
+  // Frontmatter 순서 — 사용자 요청: repo → roadmap → chapter → depth → 그 외.
+  // title/topic/chapter_id/roadmap_id/generator는 제거. 옛 노트와의 매칭은 readNote가 호환.
   const frontmatter = [
     "---",
-    `title: "${escapeYaml(note.topic)}"`,
-    `topic: "${escapeYaml(note.topic)}"`,
-    `date: ${date}`,
+    note.repo ? `repo: "${escapeYaml(note.repo)}"` : null,
+    `roadmap: "${escapeYaml(note.roadmap)}"`,
+    `chapter: "${escapeYaml(note.topic)}"`,
     `depth: ${note.depth}`,
-    note.chapterId ? `chapter_id: "${escapeYaml(note.chapterId)}"` : null,
-    note.roadmapName ? `roadmap: "${escapeYaml(note.roadmapName)}"` : null,
-    note.roadmapId ? `roadmap_id: "${escapeYaml(note.roadmapId)}"` : null,
+    `date: ${date}`,
     `tags: [${note.tags.map((t) => `"${escapeYaml(t)}"`).join(", ")}]`,
     `summary: "${escapeYaml(note.summary)}"`,
     relatedBasenames.length
       ? `related:\n${relatedBasenames.map((b) => `  - "[[${b}]]"`).join("\n")}`
       : null,
-    "generator: iq-spiral-buddy",
     "---",
   ]
     .filter(Boolean)
     .join("\n");
 
-  // 본문 위에 H1 자동 추가 (Phase 3 개선분 유지)
+  // 본문 위에 H1 자동 추가 — 챕터 제목 그대로 (숫자 prefix 포함)
   const content = `${frontmatter}\n\n# ${note.topic}\n\n${note.body}\n`;
   await fs.writeFile(filePath, content, "utf-8");
 
   await updateIndex(spiralRoot, fileName, note);
 
   return filePath;
+}
+
+/** "05. Fixtures & SetUp" / "05-fixtures-and-setup" → 숫자 prefix 제거 */
+function stripLeadingChapterNumber(s: string): string {
+  return s.replace(/^\s*\d+[.\-_:]\s*/, "").trim();
+}
+
+/** OS 안전 파일명 — 금지문자만 치환, 공백/대소문자/`&`는 그대로 유지 */
+function sanitizeFileName(s: string): string {
+  return s
+    .replace(/[\/\\:*?"<>|]/g, "-") // 운영체제 금지문자
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120);
 }
 
 async function fileExists(p: string): Promise<boolean> {
@@ -225,28 +267,47 @@ function formatDate(v: unknown): string {
 }
 
 /**
- * 노트가 특정 (roadmapId, chapterId) 챕터를 가리키는지 판단.
+ * 노트가 특정 (roadmapId, chapterId, chapterTitle) 챕터를 가리키는지 판단.
  *
- * - 신규 스키마: 노트가 roadmap_id를 가지고 있으면 정확 매칭
- * - 옛 스키마 (roadmap_id 없음): roadmapName이 같고, 노트의 chapter_id가
- *   대상 chapter_id로 끝나거나 같으면 매칭 (옛 노트는 "ioc-container/01-foo.md" 같이
- *   roadmap 이름이 prefix로 붙어있을 수 있음)
+ * 매칭 단계 (앞부터 시도):
+ *   1. 옛 스키마: note.roadmapId + note.chapterId (정확 매칭)
+ *   2. v0.5.22+: note.repo + note.roadmapName + note.chapter (제목 매칭)
+ *   3. 옛 스키마 fallback: roadmapName 같고 chapterId 끝나거나 같음
+ *   4. 마지막 fallback: chapter 제목이 chapterTitle과 같음 + roadmapName 일치
  */
 export function noteMatchesChapter(
   note: SpiralNote,
-  target: { roadmapId: string; roadmapName: string; chapterId: string },
+  target: { roadmapId: string; roadmapName: string; chapterId: string; chapterTitle?: string },
 ): boolean {
+  // 1. roadmap_id + chapter_id 정확
   if (note.roadmapId) {
-    return note.roadmapId === target.roadmapId && note.chapterId === target.chapterId;
+    if (note.roadmapId === target.roadmapId && note.chapterId === target.chapterId) {
+      return true;
+    }
   }
-  // 옛 스키마 fallback
-  if (note.roadmapName !== target.roadmapName) return false;
-  if (!note.chapterId) return false;
-  return (
-    note.chapterId === target.chapterId ||
-    note.chapterId.endsWith(`/${target.chapterId}`) ||
-    note.chapterId === `${target.roadmapName}/${target.chapterId}`
-  );
+
+  // 2. 신 스키마: roadmap 이름 + chapter(제목) 매칭
+  if (target.chapterTitle && note.chapter) {
+    const roadmapMatches =
+      note.roadmapName === target.roadmapName ||
+      note.roadmapId === target.roadmapId;
+    if (roadmapMatches && note.chapter === target.chapterTitle) {
+      return true;
+    }
+  }
+
+  // 3. 옛 스키마 fallback (roadmap_id 없거나 다름)
+  if (note.roadmapName === target.roadmapName && note.chapterId) {
+    if (
+      note.chapterId === target.chapterId ||
+      note.chapterId.endsWith(`/${target.chapterId}`) ||
+      note.chapterId === `${target.roadmapName}/${target.chapterId}`
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 /**
