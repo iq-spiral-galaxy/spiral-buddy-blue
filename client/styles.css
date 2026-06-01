@@ -2075,6 +2075,122 @@ button.primary {
   margin-top: 2px;
 }
 
+/* ─── End card 액션 버튼들 (옵시디언, 다음 챕터, 더 깊이) ─── */
+
+.end-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 6px;
+  align-items: stretch;
+}
+
+.end-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  background: var(--bg-elev-2);
+  color: var(--text);
+}
+
+.end-action-btn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.end-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* 옵시디언 — 보조 액션 (외곽선) */
+.end-action-btn.obsidian-action {
+  border-color: rgba(126, 226, 255, 0.45);
+  color: #b5e9ff;
+  background: rgba(126, 226, 255, 0.07);
+}
+.end-action-btn.obsidian-action:hover {
+  background: rgba(126, 226, 255, 0.16);
+  border-color: var(--accent, #7ee2ff);
+  transform: translateY(-1px);
+}
+
+/* 다음 챕터 — 메인 CTA (그라데이션) */
+.end-action-btn.next-chapter-btn {
+  background: linear-gradient(135deg, #7ee2ff 0%, #5fd5ff 60%, #b794f6 100%);
+  color: #0d1117;
+  border-color: transparent;
+  box-shadow: 0 4px 14px rgba(126, 226, 255, 0.28);
+  padding: 10px 18px;
+}
+.end-action-btn.next-chapter-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(126, 226, 255, 0.42);
+}
+.end-action-btn.next-chapter-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.end-action-btn.next-chapter-btn .next-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.1;
+}
+.end-action-btn.next-chapter-btn .next-eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  opacity: 0.78;
+  text-transform: uppercase;
+}
+.end-action-btn.next-chapter-btn .next-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 2px;
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 더 깊이 — 보조 (보랏빛) */
+.end-action-btn.deeper-btn {
+  background: rgba(167, 139, 250, 0.12);
+  border-color: rgba(167, 139, 250, 0.45);
+  color: #d4c4ff;
+}
+.end-action-btn.deeper-btn:hover:not(:disabled) {
+  background: rgba(167, 139, 250, 0.24);
+  border-color: rgba(167, 139, 250, 0.7);
+  transform: translateY(-1px);
+}
+
+/* 로드맵 완료 메시지 */
+.end-action-roadmap-done {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255, 197, 122, 0.16), rgba(197, 167, 255, 0.12));
+  border: 1px solid rgba(255, 197, 122, 0.45);
+  color: #ffd2a0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
 .end-progress-summary .summary-path code {
   font-family: var(--font-mono);
   font-size: 10px;

@@ -2940,6 +2940,7 @@ async function startSession(chapterId) {
 
     state.session = {
       id: sessionId,
+      chapterId,
       depth,
       chapterTitle,
       roadmapId: decodeURIComponent(roadmapIdEnc),
@@ -3294,8 +3295,24 @@ function finalizeEndProgressCard(card, result) {
     `;
   }
 
-  // 결과 요약 + 옵시디언 링크 추가
+  // 결과 요약 + 옵시디언 링크 + 다음 챕터 진입 추가
   const elapsedMin = ((result.elapsedMs ?? 0) / 60000).toFixed(1);
+
+  // 다음 챕터 추정 — state.session이 비워지기 전이라 chapterId 사용 가능
+  const currentChapterId = state.session?.chapterId ?? null;
+  const currentDepth = result.depth ?? state.session?.depth ?? 1;
+  const idx = currentChapterId
+    ? state.chapters.findIndex((c) => c.id === currentChapterId)
+    : -1;
+  const nextChapter =
+    idx >= 0 && idx < state.chapters.length - 1
+      ? state.chapters[idx + 1]
+      : null;
+  const isLast = idx === state.chapters.length - 1 && idx >= 0;
+
+  // 같은 챕터 더 깊이 — depth 3 미만이고 next도 있을 때만 보조 옵션
+  const canGoDeeper = currentDepth < 3 && currentChapterId;
+
   const summaryDiv = document.createElement("div");
   summaryDiv.className = "end-progress-summary";
   summaryDiv.innerHTML = `
@@ -3307,15 +3324,70 @@ function finalizeEndProgressCard(card, result) {
       <span>${result.inputTokens ?? 0} in · ${result.outputTokens ?? 0} out</span>
       ${result.bodyChars ? `<span>·</span><span>${result.bodyChars.toLocaleString()}자</span>` : ""}
     </div>
-    ${
-      result.obsidianUri
-        ? `<a href="${escapeAttr(result.obsidianUri)}" class="obsidian-link">📖 옵시디언에서 열기</a>`
-        : ""
-    }
+    <div class="end-actions">
+      ${
+        result.obsidianUri
+          ? `<a href="${escapeAttr(result.obsidianUri)}" class="end-action-btn obsidian-action">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M4 4h12a3 3 0 0 1 3 3v13a1 1 0 0 1-1.5.87L12 18.4l-5.5 2.47A1 1 0 0 1 5 20V7"/>
+                <path d="M8 4v4l2-1 2 1V4"/>
+              </svg>
+              <span>옵시디언에서 열기</span>
+            </a>`
+          : ""
+      }
+      ${
+        nextChapter
+          ? `<button class="end-action-btn next-chapter-btn" data-next-id="${escapeAttr(nextChapter.id)}" type="button">
+              <span class="next-label">
+                <span class="next-eyebrow">다음 챕터</span>
+                <span class="next-title">${escapeHtml(nextChapter.title ?? nextChapter.id)}</span>
+              </span>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="5" y1="12" x2="19" y2="12"/>
+                <polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </button>`
+          : isLast
+            ? `<div class="end-action-roadmap-done">🎉 이 로드맵의 마지막 챕터를 마쳤어요!</div>`
+            : ""
+      }
+      ${
+        canGoDeeper && currentDepth < 3
+          ? `<button class="end-action-btn deeper-btn" data-same-id="${escapeAttr(currentChapterId)}" type="button" title="이 챕터를 한 단계 더 깊게 다시 학습">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M12 4v16"/>
+                <polyline points="6 14 12 20 18 14"/>
+              </svg>
+              <span>이 챕터 더 깊이 (d${currentDepth + 1})</span>
+            </button>`
+          : ""
+      }
+    </div>
     <div class="summary-path"><code>${escapeHtml(result.path ?? "")}</code></div>
   `;
   card.appendChild(summaryDiv);
   scrollToBottom();
+
+  // 버튼 wire — state.session은 곧 null이 되므로 click 시 startSession에 직접 chapterId 전달
+  const nextBtn = summaryDiv.querySelector(".next-chapter-btn");
+  if (nextBtn) {
+    nextBtn.addEventListener("click", () => {
+      const id = nextBtn.dataset.nextId;
+      if (!id) return;
+      nextBtn.disabled = true;
+      startSession(id);
+    });
+  }
+  const deeperBtn = summaryDiv.querySelector(".deeper-btn");
+  if (deeperBtn) {
+    deeperBtn.addEventListener("click", () => {
+      const id = deeperBtn.dataset.sameId;
+      if (!id) return;
+      deeperBtn.disabled = true;
+      startSession(id);
+    });
+  }
 }
 
 // ──────────────────────────────────────────────────────────
