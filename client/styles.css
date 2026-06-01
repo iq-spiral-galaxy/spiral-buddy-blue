@@ -4970,18 +4970,53 @@ body.lookup-fullscreen .lookup-panel-mini.icon-btn svg {
   flex-shrink: 0;
 }
 
-/* Look-up 토글 버튼 — 살짝 강조 (사이드 학습 카드를 보여주는 토글) */
-.lookup-toggle-btn {
-  position: relative;
+/* ─── 아이콘 전용 액션 버튼 (settings, lookup-toggle) ────
+ * 좌측 사이드바 토글(.sidebar-toggle)과 동일한 36×36 정사각 형태로 통일.
+ * 텍스트 라벨을 가진 quiz / end-btn과 구분.
+ */
+
+.icon-action-btn {
+  width: 36px !important;
+  height: 36px !important;
+  padding: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px !important;
+  background: rgba(20, 27, 37, 0.82) !important;
+  color: var(--text-dim);
+  border: 1px solid rgba(148, 169, 190, 0.18) !important;
+  flex-shrink: 0;
+  box-shadow: none !important;
+  transition: all 0.15s ease;
 }
 
-.lookup-toggle-btn:hover {
-  color: var(--accent-2, #c5a7ff);
-  border-color: rgba(197, 167, 255, 0.4);
+.icon-action-btn:hover:not(:disabled) {
+  background: rgba(138, 232, 255, 0.1) !important;
+  border-color: rgba(138, 232, 255, 0.4) !important;
+  color: var(--accent, #7ee2ff);
+  transform: none !important;
+  box-shadow: 0 0 22px rgba(138, 232, 255, 0.13) !important;
+}
+
+.icon-action-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Look-up 토글 — 활성화(패널 열려있을 때) 보라톤 */
+.lookup-toggle-btn {
+  position: relative;
 }
 
 body.lookup-open .lookup-toggle-btn {
   color: var(--accent-2, #c5a7ff);
   background: rgba(197, 167, 255, 0.12);
-  border-color: rgba(197, 167, 255, 0.45);
+  border-color: rgba(197, 167, 255, 0.45) !important;
+}
+
+body.lookup-open .lookup-toggle-btn:hover:not(:disabled) {
+  color: var(--accent-2, #c5a7ff);
+  border-color: var(--accent-2, #c5a7ff) !important;
+  background: rgba(197, 167, 255, 0.2);
 }
