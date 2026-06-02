@@ -190,6 +190,7 @@ function cacheEls() {
   els.lookupDirectContext = $("lookup-direct-context");
   els.lookupDirectCtxToggle = $("lookup-direct-ctx-toggle");
   els.lookupDirectDepth = $("lookup-direct-depth");
+  els.lookupDirectResizer = $("lookup-direct-resizer");
   // Composer 높이 조절
   els.composerResizer = $("composer-resizer");
 }
@@ -2255,6 +2256,18 @@ function initLookupDirectForm() {
     els.lookupDirectCtxToggle.classList.toggle("active", !hidden);
     if (!hidden) els.lookupDirectContext.focus();
   });
+  // Enter (Shift 없이) → submit (textarea라서 기본 동작은 줄바꿈)
+  els.lookupDirectInput?.addEventListener("keydown", (e) => {
+    if (
+      e.key === "Enter" &&
+      !e.shiftKey &&
+      !e.isComposing &&
+      e.keyCode !== 229
+    ) {
+      e.preventDefault();
+      els.lookupDirectForm.requestSubmit();
+    }
+  });
   // submit
   els.lookupDirectForm.addEventListener("submit", (e) => {
     e.preventDefault();
@@ -2266,6 +2279,50 @@ function initLookupDirectForm() {
     els.lookupDirectContext.value = "";
     // 문맥은 userQuestion으로 보냄 (서버는 lookup에서 보존)
     runLookup(keyword, depth, { userQuestion: ctx || undefined });
+  });
+
+  // 높이 리사이즈 (좌측 composer-resizer와 동일 패턴)
+  initLookupDirectResizer();
+}
+
+function initLookupDirectResizer() {
+  if (!els.lookupDirectResizer || !els.lookupDirectInput) return;
+  const KEY = "spiral-buddy:lookup-input-height";
+  const MIN = 60;
+  const MAX = 420;
+  const saved = parseInt(localStorage.getItem(KEY) ?? "0", 10);
+  if (saved >= MIN && saved <= MAX) {
+    els.lookupDirectInput.style.minHeight = `${saved}px`;
+    els.lookupDirectInput.style.maxHeight = `${saved}px`;
+  }
+  let dragging = false;
+  let startY = 0;
+  let startH = 0;
+  els.lookupDirectResizer.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    dragging = true;
+    startY = e.clientY;
+    startH = els.lookupDirectInput.offsetHeight;
+    document.body.classList.add("composer-resizing");
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    const dy = startY - e.clientY;
+    const next = Math.max(MIN, Math.min(MAX, startH + dy));
+    els.lookupDirectInput.style.minHeight = `${next}px`;
+    els.lookupDirectInput.style.maxHeight = `${next}px`;
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove("composer-resizing");
+    const h = els.lookupDirectInput.offsetHeight;
+    localStorage.setItem(KEY, String(h));
+  });
+  els.lookupDirectResizer.addEventListener("dblclick", () => {
+    els.lookupDirectInput.style.minHeight = "";
+    els.lookupDirectInput.style.maxHeight = "";
+    localStorage.removeItem(KEY);
   });
 }
 

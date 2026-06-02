@@ -238,22 +238,25 @@
         <button id="lookup-clear" class="lookup-panel-mini" type="button" title="모든 카드 지우기">전체 지우기</button>
       </header>
       <div id="lookup-panel-body" class="lookup-panel-body"></div>
+      <div id="lookup-direct-resizer" class="lookup-direct-resizer" role="separator" aria-orientation="horizontal" aria-label="Look-up 입력 높이 조절" title="드래그하여 입력창 높이 조절 (더블클릭=리셋)"></div>
       <form id="lookup-direct-form" class="lookup-direct-form">
         <textarea id="lookup-direct-context" class="lookup-direct-context hidden" placeholder="이 키워드를 어떤 맥락에서 알고 싶은지 (선택)..." rows="2"></textarea>
         <div class="lookup-direct-row">
-          <input id="lookup-direct-input" class="lookup-direct-input" type="text" autocomplete="off" placeholder="키워드/표현 입력 후 Enter…" />
-          <button type="button" id="lookup-direct-ctx-toggle" class="lookup-direct-mini" title="문맥 추가/감추기" aria-label="문맥 추가">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
-            </svg>
-          </button>
-          <button type="button" id="lookup-direct-depth" class="lookup-direct-mini lookup-direct-depth" data-depth="medium" title="응답 깊이 (간결/중간/깊이 순환)">중간</button>
-          <button type="submit" id="lookup-direct-send" class="lookup-direct-send" title="보내기 (Enter)" aria-label="보내기">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <line x1="22" y1="2" x2="11" y2="13"/>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-            </svg>
-          </button>
+          <textarea id="lookup-direct-input" class="lookup-direct-input" autocomplete="off" placeholder="키워드/표현 입력 후 Enter…" rows="3"></textarea>
+          <div class="lookup-direct-col">
+            <button type="button" id="lookup-direct-ctx-toggle" class="lookup-direct-mini" title="문맥 추가/감추기" aria-label="문맥 추가">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+            </button>
+            <button type="button" id="lookup-direct-depth" class="lookup-direct-mini lookup-direct-depth" data-depth="medium" title="응답 깊이 (간결/중간/깊이 순환)">중간</button>
+            <button type="submit" id="lookup-direct-send" class="lookup-direct-send" title="보내기 (Enter)" aria-label="보내기">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </form>
     </aside>

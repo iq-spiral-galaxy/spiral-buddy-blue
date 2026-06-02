@@ -5609,3 +5609,102 @@ body.sidebar-collapsed .messages {
 body.sidebar-collapsed:not(.lookup-open) .messages {
   max-width: 1200px;
 }
+
+/* ═══════════════════════════════════════════════════════════
+ *   v0.5.33 — Look-up 입력 textarea + resize handle + baseline
+ * ═══════════════════════════════════════════════════════════ */
+
+/* Look-up direct resize handle — composer-resizer와 동일 비주얼 */
+.lookup-direct-resizer {
+  height: 7px;
+  margin: 0 14px -4px;
+  cursor: row-resize;
+  background: transparent;
+  border-radius: 4px;
+  position: relative;
+  z-index: 3;
+  flex-shrink: 0;
+}
+
+.lookup-direct-resizer::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 3px;
+  background: rgba(148, 169, 190, 0.22);
+  border-radius: 2px;
+  transition: background 0.12s;
+}
+
+.lookup-direct-resizer:hover::before {
+  background: var(--accent-2, #c5a7ff);
+}
+
+/* 입력 textarea — 좌측 #input과 같은 baseline */
+textarea.lookup-direct-input {
+  flex: 1;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13.5px;
+  line-height: 1.55;
+  resize: none;
+  min-height: 88px;
+  max-height: 420px;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+textarea.lookup-direct-input:focus {
+  outline: none;
+  border-color: var(--accent-2, #c5a7ff);
+  box-shadow: 0 0 0 3px rgba(197, 167, 255, 0.12);
+}
+
+/* 행 → input + 세로 버튼 컬럼 */
+.lookup-direct-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.lookup-direct-col {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+  flex-shrink: 0;
+  width: 44px;
+}
+
+.lookup-direct-col .lookup-direct-mini,
+.lookup-direct-col .lookup-direct-send {
+  width: 44px;
+  height: 30px;
+  padding: 0;
+  min-width: 0;
+}
+
+.lookup-direct-col .lookup-direct-send {
+  flex: 1;
+  min-height: 38px;
+}
+
+.lookup-direct-form {
+  padding: 14px 14px 18px;
+}
+
+/* 양쪽 사이드바 다 접힘 + lookup 닫힘 — 채팅 더 넓게 */
+body.sidebar-collapsed:not(.lookup-open) .messages {
+  max-width: min(1400px, 92vw);
+}
+
+body.sidebar-collapsed:not(.lookup-open) .messages .message {
+  max-width: 100%;
+}
