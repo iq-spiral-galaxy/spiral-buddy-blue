@@ -3,7 +3,12 @@ import { streamText } from "hono/streaming";
 import path from "node:path";
 
 import type { Config } from "./config.js";
-import { createClient, completeOnce, streamTurn } from "./claude.js";
+import {
+  createClient,
+  completeOnce,
+  streamTurn,
+  friendlyApiErrorMessage,
+} from "./claude.js";
 import {
   discoverRoadmaps,
   findRoadmap,
@@ -835,7 +840,7 @@ export function createApi(config: Config) {
         }
       } catch (err) {
         await stream.write(
-          `\n\n[lookup error] ${err instanceof Error ? err.message : String(err)}`,
+          `\n\n> [!warning] Look-up 실패\n> ${friendlyApiErrorMessage(err)}`,
         );
       }
     });
@@ -979,8 +984,8 @@ export function createApi(config: Config) {
         session.totalInputTokens += usage.input;
         session.totalOutputTokens += usage.output;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "unknown";
-        await stream.write(`\n\n[Error: ${msg}]`);
+        const msg = friendlyApiErrorMessage(err);
+        await stream.write(`\n\n> [!warning] 응답을 받지 못했습니다\n> ${msg}`);
       }
     });
   });
@@ -1007,8 +1012,8 @@ export function createApi(config: Config) {
         session.totalInputTokens += usage.input;
         session.totalOutputTokens += usage.output;
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "unknown";
-        await stream.write(`\n\n[Error: ${msg}]`);
+        const msg = friendlyApiErrorMessage(err);
+        await stream.write(`\n\n> [!warning] 응답을 받지 못했습니다\n> ${msg}`);
       }
     });
   });
@@ -1082,8 +1087,7 @@ export function createApi(config: Config) {
 
         await send("done", result);
       } catch (err) {
-        const msg = err instanceof Error ? err.message : "unknown";
-        await send("error", { message: msg });
+        await send("error", { message: friendlyApiErrorMessage(err) });
       }
     });
   });

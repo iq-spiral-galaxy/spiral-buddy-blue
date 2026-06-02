@@ -109,7 +109,7 @@ export function splitRepoAndRoadmap(roadmapId: string): { repo: string | null; r
 /**
  * Look-up 응답에서 본문 첫 줄의 H1/H2 헤딩을 제거.
  * 모델이 종종 "## Buffer Pool" 같은 헤딩을 응답 맨 위에 다는데,
- * 우리는 이미 <summary>나 ### 헤딩으로 표제를 보여주므로 중복.
+ * 우리는 이미 callout 제목으로 표제를 보여주므로 중복.
  */
 function stripLeadingHeading(body: string): string {
   return body
@@ -119,35 +119,38 @@ function stripLeadingHeading(body: string): string {
 }
 
 /**
- * Look-up 기록을 사람 친화적 마크다운 섹션으로 변환.
- *   - 깊은 응답은 details/summary로 접어두고
- *   - 간결 응답은 인용 블록으로 바로 보이게
- * Obsidian/GitHub 모두에서 동작.
+ * Look-up 기록을 **Obsidian callout** 형태로 변환.
+ *
+ * Obsidian의 `<details>`는 reading view에서 안쪽 마크다운을 처리하지 않아
+ * 코드/볼드/링크가 raw 텍스트로 보임 (v0.5.29 사용자 제보).
+ *   → callout `> [!note]- ...` 형태로 전환:
+ *      - markdown이 내부에서 정상 처리됨
+ *      - `-` 접미사로 기본 collapsed
+ *      - GitHub에서도 callout 자체는 인용 블록으로 가독성 있음
+ *
+ * concise는 짧으므로 접지 않고 바로 표시(callout `+` 또는 callout 없이 ### 헤딩).
  */
 export function renderLookupsSection(lookups: LookupEntry[]): string {
   if (!lookups || lookups.length === 0) return "";
   const depthLabel = (d: string) =>
     d === "concise" ? "간결" : d === "deep" ? "깊이" : "중간";
+  const calloutType = (d: string) =>
+    d === "concise" ? "tip" : d === "deep" ? "abstract" : "note";
+
   const items = lookups
     .map((l) => {
       const q = l.query.replace(/\n/g, " ").trim();
       const body = stripLeadingHeading(l.response);
-      // concise는 접지 않고 바로 보여줘도 가벼움; medium/deep은 접어둠
-      if (l.depth === "concise") {
-        return `### ${q} · _${depthLabel(l.depth)}_\n\n${body}`;
-      }
-      return `<details>\n<summary><strong>${escapeHtml(q)}</strong> · <em>${depthLabel(l.depth)}</em></summary>\n\n${body}\n\n</details>`;
+      const fold = l.depth === "concise" ? "+" : "-"; // concise는 펼쳐서, 나머지는 접어서
+      // 본문의 각 줄 앞에 `> ` 붙여서 callout 안에 포함
+      const indented = body
+        .split("\n")
+        .map((line) => (line.length ? `> ${line}` : `>`))
+        .join("\n");
+      return `> [!${calloutType(l.depth)}]${fold} ${q} · _${depthLabel(l.depth)}_\n${indented}`;
     })
-    .join("\n\n---\n\n");
+    .join("\n\n");
   return `\n\n## 🔍 학습 중 찾아본 표현 (${lookups.length})\n\n${items}\n`;
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 export async function generateNote(
