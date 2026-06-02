@@ -17,6 +17,12 @@ contextBridge.exposeInMainWorld("spiralSetup", {
   },
 });
 
+// 자동 업데이트 (v0.5.32)
+contextBridge.exposeInMainWorld("spiralUpdate", {
+  check: () => ipcRenderer.invoke("app:check-update"),
+  install: (args) => ipcRenderer.invoke("app:install-update", args),
+});
+
 // 메인 앱에서 설정 / 워크스페이스 관리에 사용
 contextBridge.exposeInMainWorld("spiralSettings", {
   get: () => ipcRenderer.invoke("settings:get"),

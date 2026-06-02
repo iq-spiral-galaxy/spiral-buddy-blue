@@ -256,9 +256,6 @@
           </button>
         </div>
       </form>
-      <div class="lookup-panel-hint">
-        대화나 카드에서 텍스트를 드래그한 뒤 깊이를 선택해도 됩니다.
-      </div>
     </aside>
 
     <div id="lookup-toolbar" class="lookup-toolbar hidden" role="toolbar" aria-label="선택 텍스트 Look-up">
@@ -366,6 +363,16 @@
         </div>
 
         <div class="settings-panel" data-panel="general">
+          <div id="update-banner" class="update-banner hidden" role="status">
+            <span class="update-banner-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="21 12 17 12 14 21 10 3 7 12 3 12"/>
+              </svg>
+            </span>
+            <span class="update-banner-text" id="update-banner-text">최신 버전입니다.</span>
+            <button id="update-install-btn" class="update-install-btn hidden" type="button">받기</button>
+          </div>
+
           <div class="settings-field">
             <label>Anthropic API Key</label>
             <div class="settings-row">

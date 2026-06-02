@@ -1524,10 +1524,70 @@ function renderWorkspaceSelector() {
   });
 }
 
+// v0.5.32: 자동 업데이트 banner — settings modal 열릴 때마다 체크
+async function refreshUpdateBanner() {
+  const banner = document.getElementById("update-banner");
+  const text = document.getElementById("update-banner-text");
+  const installBtn = document.getElementById("update-install-btn");
+  if (!banner || !text || !installBtn) return;
+  if (!window.spiralUpdate) {
+    // Electron 모드가 아니면 숨김 (브라우저 dev에선 의미 없음)
+    banner.classList.add("hidden");
+    return;
+  }
+  banner.classList.remove("hidden");
+  banner.classList.remove("has-update", "errored");
+  text.textContent = "업데이트 확인 중…";
+  installBtn.classList.add("hidden");
+  installBtn.disabled = true;
+  let info;
+  try {
+    info = await window.spiralUpdate.check();
+  } catch (err) {
+    banner.classList.add("errored");
+    text.textContent = `업데이트 확인 실패: ${err?.message ?? err}`;
+    return;
+  }
+  if (info?.error) {
+    banner.classList.add("errored");
+    text.textContent = `업데이트 확인 실패: ${info.error}`;
+    return;
+  }
+  if (info?.updateAvailable) {
+    banner.classList.add("has-update");
+    text.innerHTML = `✨ <strong>새 버전 v${escapeHtml(info.latest)}</strong> 사용 가능 — 현재 v${escapeHtml(info.current)}`;
+    installBtn.dataset.version = info.latest;
+    installBtn.classList.remove("hidden");
+    installBtn.disabled = false;
+    installBtn.onclick = async () => {
+      if (
+        !confirm(
+          `v${info.latest}으로 업데이트 받을게요.\n앱이 자동으로 종료 후 다시 열립니다. 진행할까요?`,
+        )
+      )
+        return;
+      installBtn.disabled = true;
+      installBtn.textContent = "받는 중…";
+      try {
+        await window.spiralUpdate.install({ version: info.latest });
+      } catch (err) {
+        installBtn.disabled = false;
+        installBtn.textContent = "받기";
+        alert(`업데이트 실패: ${err?.message ?? err}`);
+      }
+    };
+  } else {
+    text.innerHTML = `✓ 최신 버전 v${escapeHtml(info?.current ?? "")}`;
+  }
+}
+
 function openSettingsModal() {
   if (!_settingsCache) return;
   els.settingsModal.classList.remove("hidden");
   els.settingsModal.setAttribute("aria-hidden", "false");
+
+  // v0.5.32: 자동 업데이트 체크
+  refreshUpdateBanner();
 
   // API 키: 입력은 비움(보안). 저장된 키는 별도 status 라인에 명확히 표시.
   const apiInput = document.getElementById("settings-api-key");

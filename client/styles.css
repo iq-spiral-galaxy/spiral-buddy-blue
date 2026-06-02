@@ -5471,3 +5471,141 @@ body.composer-resizing {
   0%, 100% { box-shadow: 0 0 8px rgba(255, 165, 100, 0.18); }
   50%      { box-shadow: 0 0 16px rgba(255, 165, 100, 0.46); }
 }
+
+/* ═══════════════════════════════════════════════════════════
+ *   v0.5.32 — UI 다듬기
+ * ═══════════════════════════════════════════════════════════ */
+
+/* 자동 업데이트 banner (설정 모달 상단) */
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-elev-2, #19212c);
+  border: 1px solid var(--border, rgba(148, 169, 190, 0.18));
+  border-radius: 10px;
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  color: var(--text-dim, #a6b2bb);
+}
+
+.update-banner.hidden {
+  display: none;
+}
+
+.update-banner.has-update {
+  background: linear-gradient(135deg, rgba(167, 139, 250, 0.14), rgba(126, 226, 255, 0.10));
+  border-color: rgba(167, 139, 250, 0.45);
+  color: var(--text, #edf3f5);
+  box-shadow: 0 0 14px rgba(167, 139, 250, 0.18);
+}
+
+.update-banner.errored {
+  background: rgba(248, 81, 73, 0.08);
+  border-color: rgba(248, 81, 73, 0.3);
+  color: #f8bbb1;
+}
+
+.update-banner-icon {
+  display: inline-flex;
+  color: #b8a8ff;
+}
+
+.update-banner-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.update-banner-text {
+  flex: 1;
+  line-height: 1.4;
+}
+
+.update-banner-text code {
+  font-family: var(--font-mono);
+  background: rgba(0, 0, 0, 0.2);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+
+.update-install-btn {
+  background: linear-gradient(135deg, #c5a7ff 0%, #b794f6 100%);
+  color: #1a1424;
+  border: none;
+  padding: 7px 14px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.update-install-btn.hidden {
+  display: none;
+}
+
+.update-install-btn:hover:not(:disabled) {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(197, 167, 255, 0.4);
+}
+
+.update-install-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ─── #3 카드 펼침 caret 더 크게 + 더 잘 보이게 ─── */
+
+.lookup-card-fold {
+  font-size: 16px !important;
+  font-weight: 700;
+  color: var(--text-dim, #a6b2bb) !important;
+  margin-right: 6px;
+  width: 16px;
+  text-align: center;
+}
+
+.lookup-card-head:hover .lookup-card-fold {
+  color: var(--accent-2, #c5a7ff) !important;
+}
+
+/* ─── #5 우측 lookup-toggle: hover 시도 보라톤으로 활성 ─── */
+
+.lookup-toggle-btn:hover:not(:disabled) {
+  background: rgba(197, 167, 255, 0.14) !important;
+  border-color: rgba(197, 167, 255, 0.45) !important;
+  color: var(--accent-2, #c5a7ff) !important;
+  box-shadow: 0 0 22px rgba(197, 167, 255, 0.22) !important;
+}
+
+/* ─── #7 좌·우 composer 높이 통일 + 양쪽 사이드바 닫힘 시 채팅 넓게 ─── */
+
+/* 우측 직접 입력 form 패딩 키워서 좌측 composer와 비슷한 vertical footprint */
+.lookup-direct-form {
+  padding: 16px 14px 20px;
+  gap: 8px;
+}
+
+.lookup-direct-input {
+  padding: 10px 12px;
+  font-size: 13.5px;
+}
+
+.lookup-direct-mini,
+.lookup-direct-send {
+  height: 38px;
+}
+
+/* 양쪽 사이드바 다 접혔을 때 메시지가 너무 좁아지지 않게 — 920 → 1100 */
+body.sidebar-collapsed .messages {
+  max-width: 1100px;
+}
+
+/* 양쪽 다 접힘 + lookup 닫혀있으면 최대로 넓게 */
+body.sidebar-collapsed:not(.lookup-open) .messages {
+  max-width: 1200px;
+}

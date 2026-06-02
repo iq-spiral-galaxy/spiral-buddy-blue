@@ -435,6 +435,147 @@ ipcMain.handle("app:open-external", (_e, url) => {
   if (typeof url === "string") shell.openExternal(url);
 });
 
+// ─── Auto-update (v0.5.32) ───────────────────────────────────
+//
+// 가벼운 구현: GitHub Releases latest를 폴링해서 새 버전이 있으면 알림.
+// "받기" 누르면 detached bash로 install 스크립트 실행하고 앱 종료.
+// 플랫폼별로 다른 자산 사용: darwin-arm64 / darwin-x64 / win32 / linux
+
+const GH_OWNER = "iq-agent-lab";
+const GH_REPO = "iq-spiral-buddy";
+const APP_VERSION = require("../package.json").version;
+
+function fetchJson(url) {
+  return new Promise((resolve, reject) => {
+    https
+      .get(
+        url,
+        {
+          headers: {
+            "User-Agent": "spiral-buddy-update-checker",
+            Accept: "application/vnd.github+json",
+          },
+        },
+        (res) => {
+          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+            return fetchJson(res.headers.location).then(resolve, reject);
+          }
+          let body = "";
+          res.on("data", (d) => (body += d));
+          res.on("end", () => {
+            try {
+              resolve(JSON.parse(body));
+            } catch (e) {
+              reject(e);
+            }
+          });
+          res.on("error", reject);
+        },
+      )
+      .on("error", reject);
+  });
+}
+
+/** semver-ish 비교: "0.5.32" > "0.5.31" → 1 */
+function cmpVersion(a, b) {
+  const pa = a.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  const pb = b.split(".").map((n) => Number.parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const av = pa[i] ?? 0;
+    const bv = pb[i] ?? 0;
+    if (av !== bv) return av - bv;
+  }
+  return 0;
+}
+
+ipcMain.handle("app:check-update", async () => {
+  try {
+    const data = await fetchJson(
+      `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/releases/latest`,
+    );
+    const tag = (data?.tag_name ?? "").replace(/^v/, "");
+    if (!tag) {
+      return { current: APP_VERSION, latest: null, updateAvailable: false };
+    }
+    const updateAvailable = cmpVersion(tag, APP_VERSION) > 0;
+    return {
+      current: APP_VERSION,
+      latest: tag,
+      updateAvailable,
+      releaseUrl: data?.html_url ?? null,
+      publishedAt: data?.published_at ?? null,
+    };
+  } catch (err) {
+    return {
+      current: APP_VERSION,
+      latest: null,
+      updateAvailable: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+});
+
+/** 플랫폼별 install 스크립트 생성 (macOS만 자동, 나머지는 release 페이지 open). */
+function buildInstallScript(version) {
+  const platform = process.platform;
+  const arch = process.arch;
+  if (platform === "darwin") {
+    const dmgName =
+      arch === "arm64"
+        ? `Spiral.Buddy-${version}-arm64.dmg`
+        : `Spiral.Buddy-${version}.dmg`;
+    const url = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/v${version}/${dmgName}`;
+    // 1. Spiral Buddy 종료 (osascript) → 2초 대기
+    // 2. dmg 다운로드 / 마운트 → 기존 앱 제거 → 새 앱 복사 → unmount → xattr 정리 → open
+    return `#!/bin/bash
+set -e
+osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null || true
+sleep 2
+cd /tmp
+curl -fL --retry 3 -o /tmp/spiral.dmg "${url}"
+hdiutil attach -nobrowse -quiet /tmp/spiral.dmg
+rm -rf '/Applications/Spiral Buddy.app'
+cp -R "/Volumes/Spiral Buddy ${version}/Spiral Buddy.app" /Applications/
+hdiutil detach -quiet "/Volumes/Spiral Buddy ${version}"
+xattr -cr '/Applications/Spiral Buddy.app'
+rm -f /tmp/spiral.dmg
+open '/Applications/Spiral Buddy.app'
+`;
+  }
+  return null; // 다른 OS는 자동 install 미지원
+}
+
+ipcMain.handle("app:install-update", async (_e, { version }) => {
+  if (!version) return { ok: false, reason: "no version" };
+  const script = buildInstallScript(version);
+  if (!script) {
+    // 자동 install 불가 → 그냥 release 페이지 열기
+    shell.openExternal(
+      `https://github.com/${GH_OWNER}/${GH_REPO}/releases/latest`,
+    );
+    return { ok: true, mode: "browser" };
+  }
+  try {
+    // 임시 스크립트 파일로 떨어뜨림 → detached bash로 실행 → 앱 종료
+    const tmpPath = path.join(os.tmpdir(), `spiral-buddy-update-${Date.now()}.sh`);
+    fs.writeFileSync(tmpPath, script, { mode: 0o755 });
+    const proc = spawn("/bin/bash", [tmpPath], {
+      detached: true,
+      stdio: "ignore",
+    });
+    proc.unref();
+    setTimeout(() => {
+      app.quit();
+    }, 500);
+    return { ok: true, mode: "macos-installer" };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: err instanceof Error ? err.message : String(err),
+    };
+  }
+});
+
 // ─── Vault 자동 감지 ─────────────────────────────────────────
 
 ipcMain.handle("setup:detect-vault", async () => {
