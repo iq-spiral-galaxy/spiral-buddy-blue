@@ -5049,3 +5049,425 @@ body.lookup-open .lookup-toggle-btn:hover:not(:disabled) {
   border-color: var(--accent-2, #c5a7ff) !important;
   background: rgba(197, 167, 255, 0.2);
 }
+
+/* ═══════════════════════════════════════════════════════════
+ *   v0.5.31 — 8개 피드백 통합
+ * ═══════════════════════════════════════════════════════════ */
+
+/* ─── #3 카드 펼침/접기 ─── */
+
+.lookup-card-head {
+  cursor: pointer;
+  user-select: none;
+}
+
+.lookup-card-head:hover {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.lookup-card-fold {
+  font-size: 11px;
+  color: var(--text-faint, #74818b);
+  margin-right: 4px;
+  transition: transform 0.15s ease;
+  display: inline-block;
+}
+
+.lookup-card.collapsed .lookup-card-fold {
+  transform: rotate(-90deg);
+}
+
+.lookup-card.collapsed .lookup-card-body,
+.lookup-card.collapsed .lookup-card-userq,
+.lookup-card.collapsed .feedback-bar {
+  display: none;
+}
+
+.lookup-card-userq {
+  padding: 6px 10px 0;
+  font-size: 11px;
+  color: var(--text-dim, #a6b2bb);
+  font-style: italic;
+  border-top: 1px dashed rgba(148, 169, 190, 0.12);
+  margin: 4px 0 0;
+}
+
+/* ─── #4 Composer resize handle ─── */
+
+.composer-resizer {
+  height: 7px;
+  margin: 0 24px -4px;
+  cursor: row-resize;
+  background: transparent;
+  border-radius: 4px;
+  position: relative;
+  z-index: 3;
+  transition: background 0.12s;
+}
+
+.composer-resizer::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 3px;
+  background: rgba(148, 169, 190, 0.22);
+  border-radius: 2px;
+  transition: background 0.12s;
+}
+
+.composer-resizer:hover::before,
+body.composer-resizing .composer-resizer::before {
+  background: var(--accent, #7ee2ff);
+}
+
+body.composer-resizing {
+  cursor: row-resize;
+  user-select: none;
+}
+
+/* ─── #6 따봉 (👍/👎) ─── */
+
+.feedback-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 2px 0;
+}
+
+.message.assistant .feedback-bar {
+  margin-left: 0;
+  opacity: 0.55;
+  transition: opacity 0.15s;
+}
+
+.message.assistant:hover .feedback-bar {
+  opacity: 1;
+}
+
+.lookup-card .feedback-bar {
+  padding: 4px 12px 8px;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+
+.lookup-card:hover .feedback-bar {
+  opacity: 1;
+}
+
+.feedback-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-faint, #74818b);
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.14s ease;
+}
+
+.feedback-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.feedback-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text, #edf3f5);
+}
+
+.feedback-btn.active[data-vote="up"] {
+  color: #67e9bf;
+  background: rgba(103, 233, 191, 0.14);
+  border-color: rgba(103, 233, 191, 0.4);
+}
+
+.feedback-btn.active[data-vote="down"] {
+  color: #ff8a5b;
+  background: rgba(255, 138, 91, 0.14);
+  border-color: rgba(255, 138, 91, 0.4);
+}
+
+.feedback-btn.just-clicked {
+  animation: feedback-pop 0.3s ease-out;
+}
+
+@keyframes feedback-pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.28); }
+  100% { transform: scale(1); }
+}
+
+/* ─── #1 질문 추가 popover ─── */
+
+.lookup-question-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(480px, calc(100vw - 40px));
+  background: var(--bg-elev, #121821);
+  border: 1px solid rgba(197, 167, 255, 0.4);
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow:
+    0 24px 60px rgba(0, 0, 0, 0.45),
+    0 0 30px rgba(197, 167, 255, 0.16);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lookup-question-popover.hidden {
+  display: none;
+}
+
+.lookup-question-keyword {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #c5a7ff;
+  background: rgba(197, 167, 255, 0.08);
+  border: 1px solid rgba(197, 167, 255, 0.22);
+  border-radius: 6px;
+  padding: 6px 10px;
+  word-break: break-word;
+}
+
+.lookup-question-keyword::before {
+  content: "선택한 표현: ";
+  color: var(--text-faint);
+  margin-right: 4px;
+}
+
+.lookup-question-text {
+  width: 100%;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  min-height: 60px;
+  box-sizing: border-box;
+}
+
+.lookup-question-text:focus {
+  outline: none;
+  border-color: var(--accent-2, #c5a7ff);
+  box-shadow: 0 0 0 3px rgba(197, 167, 255, 0.15);
+}
+
+.lookup-question-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lookup-question-cancel {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 7px 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.lookup-question-cancel:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.lookup-question-depth {
+  margin-left: auto;
+  background: var(--bg-elev-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 8px;
+  font-size: 12px;
+}
+
+.lookup-question-submit {
+  background: linear-gradient(135deg, #c5a7ff 0%, #b794f6 100%);
+  color: #1a1424;
+  border: none;
+  padding: 7px 14px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.lookup-question-submit:hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(197, 167, 255, 0.4);
+}
+
+/* 4번째 토올바 버튼 (질문) — 보랏빛 */
+.lookup-tool-btn.lookup-tool-question {
+  color: #c5a7ff;
+}
+
+.lookup-tool-btn.lookup-tool-question:hover {
+  background: rgba(197, 167, 255, 0.14);
+}
+
+/* ─── #2 Look-up 직접 입력 form ─── */
+
+.lookup-direct-form {
+  border-top: 1px solid rgba(148, 169, 190, 0.12);
+  padding: 10px 12px;
+  background: rgba(8, 10, 15, 0.55);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.lookup-direct-context {
+  width: 100%;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: var(--text);
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.lookup-direct-context:focus {
+  outline: none;
+  border-color: var(--accent-2, #c5a7ff);
+}
+
+.lookup-direct-context.hidden {
+  display: none;
+}
+
+.lookup-direct-row {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+}
+
+.lookup-direct-input {
+  flex: 1;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 8px 11px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.lookup-direct-input:focus {
+  outline: none;
+  border-color: var(--accent-2, #c5a7ff);
+  box-shadow: 0 0 0 2px rgba(197, 167, 255, 0.12);
+}
+
+.lookup-direct-mini {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 0 10px;
+  min-width: 34px;
+  height: 34px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+
+.lookup-direct-mini svg {
+  width: 14px;
+  height: 14px;
+}
+
+.lookup-direct-mini:hover {
+  color: var(--accent-2, #c5a7ff);
+  border-color: rgba(197, 167, 255, 0.35);
+}
+
+.lookup-direct-mini.active {
+  color: #c5a7ff;
+  background: rgba(197, 167, 255, 0.12);
+  border-color: rgba(197, 167, 255, 0.4);
+}
+
+.lookup-direct-depth[data-depth="concise"] { color: #e3c787; }
+.lookup-direct-depth[data-depth="medium"] { color: #b7c5d2; }
+.lookup-direct-depth[data-depth="deep"] { color: #b29bf0; }
+
+.lookup-direct-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #8ae8ff 0%, #b794f6 100%);
+  color: #071016;
+  border: none;
+  padding: 0 12px;
+  height: 34px;
+  border-radius: 7px;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+
+.lookup-direct-send svg {
+  width: 15px;
+  height: 15px;
+}
+
+.lookup-direct-send:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+/* ─── #8 Quiz 단계별 색 ─── */
+
+.action-btn.quiz[data-quiz-level="2"] {
+  background: rgba(126, 226, 255, 0.12);
+  border-color: rgba(126, 226, 255, 0.4);
+  color: #7ee2ff;
+}
+
+.action-btn.quiz[data-quiz-level="3"] {
+  background: rgba(255, 170, 100, 0.14);
+  border-color: rgba(255, 170, 100, 0.45);
+  color: #ffaa64;
+}
+
+.action-btn.quiz[data-quiz-level="4"] {
+  background: linear-gradient(135deg, rgba(255, 197, 122, 0.22), rgba(255, 138, 91, 0.18));
+  border-color: rgba(255, 197, 122, 0.55);
+  color: #ffd2a0;
+  box-shadow: 0 0 14px rgba(255, 165, 100, 0.28);
+  animation: quiz-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes quiz-pulse {
+  0%, 100% { box-shadow: 0 0 8px rgba(255, 165, 100, 0.18); }
+  50%      { box-shadow: 0 0 16px rgba(255, 165, 100, 0.46); }
+}

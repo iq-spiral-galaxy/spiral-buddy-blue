@@ -142,12 +142,17 @@ export function renderLookupsSection(lookups: LookupEntry[]): string {
       const q = l.query.replace(/\n/g, " ").trim();
       const body = stripLeadingHeading(l.response);
       const fold = l.depth === "concise" ? "+" : "-"; // concise는 펼쳐서, 나머지는 접어서
+      // 사용자가 키워드 옆에 던진 추가 질문이 있으면 첫 줄에 표기
+      const userQ = l.userQuestion?.trim();
+      const questionLine = userQ
+        ? `> _Q: ${userQ.replace(/\n/g, " ")}_\n>\n`
+        : "";
       // 본문의 각 줄 앞에 `> ` 붙여서 callout 안에 포함
       const indented = body
         .split("\n")
         .map((line) => (line.length ? `> ${line}` : `>`))
         .join("\n");
-      return `> [!${calloutType(l.depth)}]${fold} ${q} · _${depthLabel(l.depth)}_\n${indented}`;
+      return `> [!${calloutType(l.depth)}]${fold} ${q} · _${depthLabel(l.depth)}_\n${questionLine}${indented}`;
     })
     .join("\n\n");
   return `\n\n## 🔍 학습 중 찾아본 표현 (${lookups.length})\n\n${items}\n`;

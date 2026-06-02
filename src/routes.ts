@@ -780,6 +780,7 @@ export function createApi(config: Config) {
         context?: string;
         model?: string;
         sessionId?: string;
+        userQuestion?: string;
       }>()
       .catch(() => null);
     if (!body?.query || body.query.trim().length < 2) {
@@ -787,6 +788,7 @@ export function createApi(config: Config) {
     }
     const depth = body.depth ?? "medium";
     const session = body.sessionId ? getSession(body.sessionId) : undefined;
+    const userQuestion = (body.userQuestion ?? "").trim();
 
     const systemByDepth: Record<string, string> = {
       concise:
@@ -809,9 +811,12 @@ export function createApi(config: Config) {
       deep: 2200,
     };
 
+    const questionBlock = userQuestion
+      ? `\n\n**사용자의 추가 질문 (이 표현과 연결해서 답해줘)**:\n${userQuestion.slice(0, 600)}`
+      : "";
     const userMessage = body.context
-      ? `**현재 학습 맥락 (참고용)**:\n${body.context.slice(0, 800)}\n\n---\n\n**찾아보려는 표현**:\n\`\`\`\n${body.query}\n\`\`\``
-      : `**찾아보려는 표현**:\n\`\`\`\n${body.query}\n\`\`\``;
+      ? `**현재 학습 맥락 (참고용)**:\n${body.context.slice(0, 800)}\n\n---\n\n**찾아보려는 표현**:\n\`\`\`\n${body.query}\n\`\`\`${questionBlock}`
+      : `**찾아보려는 표현**:\n\`\`\`\n${body.query}\n\`\`\`${questionBlock}`;
 
     const systemPrompt = systemByDepth[depth] ?? systemByDepth.medium ?? "";
     const maxTokens = maxTokensByDepth[depth] ?? 700;
@@ -836,6 +841,7 @@ export function createApi(config: Config) {
             depth,
             response: fullResponse.trim(),
             at: Date.now(),
+            userQuestion: userQuestion || undefined,
           });
         }
       } catch (err) {

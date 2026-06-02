@@ -51,6 +51,8 @@ const state = {
   refining: false, // 다듬는 중 (UI lock)
   refineOriginal: null, // 마지막 다듬기 전 원본 텍스트 (rollback용). null이면 다듬은 결과 없음.
   refineApplied: null, // 다듬어서 입력란에 들어간 텍스트 (입력 비교용)
+  // Quiz 단계 (v0.5.31) — 매 클릭마다 1→2→3→4→1 순환
+  quizLevel: 1,
 };
 
 // localStorage에 마지막 로드맵 저장
@@ -175,6 +177,21 @@ function cacheEls() {
   els.lookupExpand = $("lookup-expand");
   els.lookupResizer = $("lookup-resizer");
   els.lookupToolbar = $("lookup-toolbar");
+  // Look-up: 질문 추가 popover
+  els.lookupQuestionPopover = $("lookup-question-popover");
+  els.lookupQuestionKeyword = $("lookup-question-keyword");
+  els.lookupQuestionText = $("lookup-question-text");
+  els.lookupQuestionDepth = $("lookup-question-depth");
+  els.lookupQuestionSubmit = $("lookup-question-submit");
+  els.lookupQuestionCancel = $("lookup-question-cancel");
+  // Look-up: 직접 입력
+  els.lookupDirectForm = $("lookup-direct-form");
+  els.lookupDirectInput = $("lookup-direct-input");
+  els.lookupDirectContext = $("lookup-direct-context");
+  els.lookupDirectCtxToggle = $("lookup-direct-ctx-toggle");
+  els.lookupDirectDepth = $("lookup-direct-depth");
+  // Composer 높이 조절
+  els.composerResizer = $("composer-resizer");
 }
 
 // ──────────────────────────────────────────────────────────
@@ -249,12 +266,12 @@ function wireEvents() {
     els.refineUndo.addEventListener("click", () => undoRefine());
   }
   els.endBtn.addEventListener("click", endSession);
+
+  // v0.5.31 #4: 입력창 높이 조절 (드래그 핸들)
+  initComposerResizer();
   els.quizBtn.addEventListener("click", () => {
-    if (state.session && !state.pending) {
-      sendMessage(
-        "지금까지 다룬 내용을 바탕으로 내가 진짜 이해했는지 확인할 만한 짧은 질문 2개를 내줘. 답은 알려주지 말고.",
-      );
-    }
+    if (!state.session || state.pending) return;
+    advanceQuiz();
   });
 
   // 사이드바 토글 (버튼 + Cmd/Ctrl+B 단축키)
@@ -1893,17 +1910,23 @@ const _lookupState = {
 function initLookup() {
   if (!els.messages || !els.lookupToolbar || !els.lookupPanel) return;
 
-  // 메시지 영역 안의 selection 감지
+  // 메시지 영역 + Look-up 패널 안의 selection 감지 (v0.5.31: 카드 본문 드래그도 지원)
   els.messages.addEventListener("mouseup", handleSelectionChange);
   els.messages.addEventListener("keyup", handleSelectionChange);
+  els.lookupPanelBody?.addEventListener("mouseup", handleSelectionChange);
+  els.lookupPanelBody?.addEventListener("keyup", handleSelectionChange);
   // 외부 클릭 시 toolbar 숨김 (단 toolbar 자체는 제외)
   document.addEventListener("mousedown", (e) => {
     if (els.lookupToolbar.contains(e.target)) return;
+    if (els.lookupQuestionPopover?.contains(e.target)) return;
     // 잠시 뒤에 selection이 사라졌는지 확인
     setTimeout(() => {
       const sel = window.getSelection();
       const txt = sel?.toString().trim() ?? "";
-      if (!txt || !els.messages.contains(sel.anchorNode)) {
+      const inMain = sel?.anchorNode && els.messages.contains(sel.anchorNode);
+      const inLookup =
+        sel?.anchorNode && els.lookupPanelBody?.contains(sel.anchorNode);
+      if (!txt || (!inMain && !inLookup)) {
         hideLookupToolbar();
       }
     }, 0);
@@ -1915,17 +1938,29 @@ function initLookup() {
     b.addEventListener("mousedown", (e) => {
       e.preventDefault(); // selection이 사라지지 않게 + focus 변경 방지
       e.stopPropagation();
-      const depth = b.dataset.depth;
       const text = (window.getSelection()?.toString() ?? "").trim();
-      if (!text || !depth) return;
+      if (!text) return;
+      const action = b.dataset.action;
+      const depth = b.dataset.depth;
+      if (action === "question") {
+        // v0.5.31 #1: 질문 추가 popover 열기 — selection 위치를 기억
+        openLookupQuestionPopover(text);
+        hideLookupToolbar();
+        return;
+      }
+      if (!depth) return;
       hideLookupToolbar();
-      // 선택 해제 — 클릭 후 강조 풀림 (다음 드래그까지)
       try {
         window.getSelection()?.removeAllRanges();
       } catch {}
       runLookup(text, depth);
     });
   });
+
+  // 질문 popover
+  initLookupQuestionPopover();
+  // 직접 입력 form
+  initLookupDirectForm();
 
   // topbar 토글 버튼 (다시 열기 진입점)
   document.getElementById("lookup-toggle")?.addEventListener("click", () => {
@@ -2018,12 +2053,15 @@ function handleSelectionChange() {
     hideLookupToolbar();
     return;
   }
-  // 메시지 영역 안인지 확인
+  // 메시지 영역 또는 Look-up 패널 본문인지 확인 (v0.5.31)
   const anchorEl =
     sel.anchorNode?.nodeType === Node.ELEMENT_NODE
       ? sel.anchorNode
       : sel.anchorNode?.parentElement;
-  if (!anchorEl || !els.messages.contains(anchorEl)) {
+  const inMain = anchorEl && els.messages.contains(anchorEl);
+  const inLookup =
+    anchorEl && els.lookupPanelBody?.contains(anchorEl);
+  if (!anchorEl || (!inMain && !inLookup)) {
     hideLookupToolbar();
     return;
   }
@@ -2089,6 +2127,135 @@ function closeLookupPanel() {
   _lookupState.open = false;
 }
 
+// ──────────────────────────────────────────────────────────
+// v0.5.31 #1 Look-up "질문 추가" popover
+// ──────────────────────────────────────────────────────────
+
+let _pendingKeyword = "";
+
+function openLookupQuestionPopover(keyword) {
+  if (!els.lookupQuestionPopover) return;
+  _pendingKeyword = keyword;
+  els.lookupQuestionKeyword.textContent = keyword;
+  els.lookupQuestionText.value = "";
+  els.lookupQuestionDepth.value = "medium";
+  // 위치: 화면 중앙 상단쯤 (간단히 fixed CSS로 처리)
+  els.lookupQuestionPopover.classList.remove("hidden");
+  setTimeout(() => els.lookupQuestionText.focus(), 30);
+}
+
+function closeLookupQuestionPopover() {
+  els.lookupQuestionPopover?.classList.add("hidden");
+  _pendingKeyword = "";
+}
+
+function initLookupQuestionPopover() {
+  if (!els.lookupQuestionPopover) return;
+  els.lookupQuestionCancel?.addEventListener("click", closeLookupQuestionPopover);
+  els.lookupQuestionSubmit?.addEventListener("click", () => {
+    const question = els.lookupQuestionText.value.trim();
+    const depth = els.lookupQuestionDepth.value || "medium";
+    const keyword = _pendingKeyword;
+    if (!keyword) return;
+    closeLookupQuestionPopover();
+    try {
+      window.getSelection()?.removeAllRanges();
+    } catch {}
+    runLookup(keyword, depth, { userQuestion: question });
+  });
+  // Enter (Shift 없이) → 보내기
+  els.lookupQuestionText?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing && e.keyCode !== 229) {
+      e.preventDefault();
+      els.lookupQuestionSubmit.click();
+    }
+    if (e.key === "Escape") {
+      closeLookupQuestionPopover();
+    }
+  });
+}
+
+// ──────────────────────────────────────────────────────────
+// v0.5.31 #2 Look-up 패널 하단 직접 입력
+// ──────────────────────────────────────────────────────────
+
+function initLookupDirectForm() {
+  if (!els.lookupDirectForm) return;
+  // depth pill 순환
+  const depths = ["concise", "medium", "deep"];
+  els.lookupDirectDepth?.addEventListener("click", () => {
+    const cur = els.lookupDirectDepth.dataset.depth || "medium";
+    const next = depths[(depths.indexOf(cur) + 1) % depths.length];
+    els.lookupDirectDepth.dataset.depth = next;
+    els.lookupDirectDepth.textContent = DEPTH_LABEL_TEXT[next] ?? next;
+  });
+  // 문맥 입력창 toggle
+  els.lookupDirectCtxToggle?.addEventListener("click", () => {
+    const hidden = els.lookupDirectContext.classList.toggle("hidden");
+    els.lookupDirectCtxToggle.classList.toggle("active", !hidden);
+    if (!hidden) els.lookupDirectContext.focus();
+  });
+  // submit
+  els.lookupDirectForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const keyword = els.lookupDirectInput.value.trim();
+    if (keyword.length < 2) return;
+    const ctx = els.lookupDirectContext.value.trim();
+    const depth = els.lookupDirectDepth.dataset.depth || "medium";
+    els.lookupDirectInput.value = "";
+    els.lookupDirectContext.value = "";
+    // 문맥은 userQuestion으로 보냄 (서버는 lookup에서 보존)
+    runLookup(keyword, depth, { userQuestion: ctx || undefined });
+  });
+}
+
+// ──────────────────────────────────────────────────────────
+// v0.5.31 #4 Composer 높이 조절 (드래그 핸들)
+// ──────────────────────────────────────────────────────────
+
+function initComposerResizer() {
+  if (!els.composerResizer || !els.input) return;
+  const KEY = "spiral-buddy:input-height";
+  const MIN = 72;
+  const MAX = 480;
+  const saved = parseInt(localStorage.getItem(KEY) ?? "0", 10);
+  if (saved >= MIN && saved <= MAX) {
+    els.input.style.minHeight = `${saved}px`;
+    els.input.style.maxHeight = `${saved}px`;
+  }
+  let dragging = false;
+  let startY = 0;
+  let startH = 0;
+  els.composerResizer.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    dragging = true;
+    startY = e.clientY;
+    startH = els.input.offsetHeight;
+    document.body.classList.add("composer-resizing");
+  });
+  document.addEventListener("mousemove", (e) => {
+    if (!dragging) return;
+    // 위로 드래그 → 입력창 커짐
+    const dy = startY - e.clientY;
+    const next = Math.max(MIN, Math.min(MAX, startH + dy));
+    els.input.style.minHeight = `${next}px`;
+    els.input.style.maxHeight = `${next}px`;
+  });
+  document.addEventListener("mouseup", () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove("composer-resizing");
+    const h = els.input.offsetHeight;
+    localStorage.setItem(KEY, String(h));
+  });
+  // 더블클릭 → 기본값으로 리셋
+  els.composerResizer.addEventListener("dblclick", () => {
+    els.input.style.minHeight = "";
+    els.input.style.maxHeight = "";
+    localStorage.removeItem(KEY);
+  });
+}
+
 // ─── 공통 SVG 아이콘 (이모지 → lucide 통일) ───
 const FLAME_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`;
 const SPIRAL_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 12 m0 0 a1 1 0 0 1 2 0 a2 2 0 0 1 -4 0 a3 3 0 0 1 6 0 a4 4 0 0 1 -8 0 a5 5 0 0 1 10 0"/></svg>`;
@@ -2113,35 +2280,69 @@ const DEPTH_LABEL_TEXT = {
   deep: "깊이",
 };
 
-async function runLookup(query, depth) {
+/**
+ * @param query 키워드/표현
+ * @param depth concise|medium|deep
+ * @param opts.userQuestion 키워드 옆에 같이 던질 추가 질문
+ */
+async function runLookup(query, depth, opts = {}) {
   openLookupPanel();
   if (!els.lookupPanelBody) return;
+  const userQuestion = (opts.userQuestion ?? "").trim() || undefined;
 
-  // 카드 생성
+  // 기존 카드는 모두 접기 (v0.5.31: 새 질문만 펼침)
+  els.lookupPanelBody.querySelectorAll(".lookup-card").forEach((c) => {
+    c.classList.add("collapsed");
+  });
+
+  // 카드 생성 (펼친 상태로)
   const card = document.createElement("article");
   card.className = "lookup-card";
+  const questionLine = userQuestion
+    ? `<div class="lookup-card-userq" title="${escapeAttr(userQuestion)}">Q. ${escapeHtml(userQuestion)}</div>`
+    : "";
   card.innerHTML = `
-    <div class="lookup-card-head">
+    <div class="lookup-card-head" role="button" tabindex="0" title="클릭하여 펼침/접기">
       <span class="lookup-card-depth" data-depth="${escapeAttr(depth)}">
         <span class="lookup-card-depth-icon">${DEPTH_ICONS[depth] ?? ""}</span>
         <span>${DEPTH_LABEL_TEXT[depth] ?? depth}</span>
       </span>
       <span class="lookup-card-query" title="${escapeAttr(query)}">${escapeHtml(query)}</span>
+      <span class="lookup-card-fold" aria-hidden="true">▾</span>
       <div class="lookup-card-actions">
         <button class="lookup-card-act" data-act="copy" type="button" title="복사" aria-label="복사">${COPY_SVG_INLINE}</button>
         <button class="lookup-card-act" data-act="close" type="button" title="삭제" aria-label="삭제">${X_SVG_INLINE}</button>
       </div>
     </div>
+    ${questionLine}
     <div class="lookup-card-body"><span style="opacity:0.6">…</span></div>
+    ${renderFeedbackBar("lookup")}
   `;
   // 새 카드는 위에 (최신순)
   els.lookupPanelBody.insertBefore(card, els.lookupPanelBody.firstChild);
   _lookupState.cardCount++;
+  // v0.5.31: 새 카드가 보이게 자동 스크롤 최상단
+  els.lookupPanelBody.scrollTop = 0;
+
   const bodyEl = card.querySelector(".lookup-card-body");
+
+  // 카드 head 클릭 → 펼침/접기 토글 (액션 버튼은 제외)
+  const headEl = card.querySelector(".lookup-card-head");
+  headEl.addEventListener("click", (e) => {
+    if (e.target.closest(".lookup-card-act")) return;
+    card.classList.toggle("collapsed");
+  });
+  headEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      card.classList.toggle("collapsed");
+    }
+  });
 
   // 카드 액션
   card.querySelectorAll(".lookup-card-act").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
       const act = btn.dataset.act;
       if (act === "close") {
         card.remove();
@@ -2159,6 +2360,9 @@ async function runLookup(query, depth) {
       }
     });
   });
+
+  // 따봉 wire
+  wireFeedbackBar(card.querySelector(".feedback-bar"));
 
   // 현재 챕터/메시지 맥락 — 가장 최근 메시지 일부를 context로
   let context = "";
@@ -2181,8 +2385,8 @@ async function runLookup(query, depth) {
         depth,
         context: context || undefined,
         model: state.selectedModel ?? undefined,
-        // 세션 진행 중 lookup은 노트 저장 시 함께 포함됨
         sessionId: state.session?.id,
+        userQuestion,
       }),
     });
     if (!res.ok || !res.body) {
@@ -2204,6 +2408,42 @@ async function runLookup(query, depth) {
   } catch (err) {
     bodyEl.innerHTML = `<p>(에러: ${escapeHtml(err.message)})</p>`;
   }
+}
+
+// ──────────────────────────────────────────────────────────
+// 따봉 (👍/👎) — v0.5.31
+// ──────────────────────────────────────────────────────────
+
+const THUMBS_UP_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v12"/><path d="M15 5.88L14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H7"/><path d="M3 22h4V10H3z"/></svg>`;
+const THUMBS_DOWN_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 14V2"/><path d="M9 18.12L10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H17"/><path d="M21 2h-4v12h4z"/></svg>`;
+
+function renderFeedbackBar(kind /* "msg" | "lookup" */) {
+  return `<div class="feedback-bar" data-kind="${escapeAttr(kind)}" role="group" aria-label="응답 만족도">
+    <button class="feedback-btn" data-vote="up" type="button" title="도움됐어요" aria-label="좋아요">${THUMBS_UP_SVG}</button>
+    <button class="feedback-btn" data-vote="down" type="button" title="아쉬워요" aria-label="아쉬워요">${THUMBS_DOWN_SVG}</button>
+  </div>`;
+}
+
+function wireFeedbackBar(bar) {
+  if (!bar) return;
+  bar.querySelectorAll(".feedback-btn").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const vote = btn.dataset.vote;
+      // 이미 같은 vote 선택돼 있으면 취소 (toggle)
+      if (btn.classList.contains("active")) {
+        btn.classList.remove("active");
+        return;
+      }
+      bar.querySelectorAll(".feedback-btn").forEach((b) =>
+        b.classList.remove("active"),
+      );
+      btn.classList.add("active");
+      // 짧은 시각 피드백 — 살짝 스케일
+      btn.classList.add("just-clicked");
+      setTimeout(() => btn.classList.remove("just-clicked"), 320);
+    });
+  });
 }
 
 // ──────────────────────────────────────────────────────────
@@ -2933,6 +3173,9 @@ async function startSession(chapterId) {
     _lookupState.cardCount = 0;
   }
 
+  // 퀴즈 단계 리셋 (v0.5.31 #8)
+  resetQuiz();
+
   const chapter = state.chapters.find((c) => c.id === chapterId);
   setStatus("Starting session…");
   setPending(true);
@@ -2992,6 +3235,69 @@ async function submitMessage() {
   els.input.value = "";
   clearRefineState();
   await sendMessage(text);
+}
+
+// ──────────────────────────────────────────────────────────
+// v0.5.31 #8 Quiz 단계별 난이도 — 누를수록 깊어짐
+// ──────────────────────────────────────────────────────────
+
+const QUIZ_LEVELS = [
+  {
+    level: 1,
+    label: "개념 확인",
+    color: "violet",
+    prompt:
+      "지금까지 다룬 내용에서 핵심 개념을 짚는 짧은 질문 2개를 내줘. 답은 알려주지 말고, 내가 먼저 말해보게 해줘.",
+  },
+  {
+    level: 2,
+    label: "적용",
+    color: "cyan",
+    prompt:
+      "오늘 배운 개념을 살짝 다른 시나리오에 적용해야 답할 수 있는 질문 2개를 내줘. 답은 알려주지 마.",
+  },
+  {
+    level: 3,
+    label: "함정·엣지케이스",
+    color: "orange",
+    prompt:
+      "오늘 다룬 개념의 흔한 오해, 함정, 또는 엣지 케이스를 찌르는 날카로운 질문 2개를 내줘. 답은 알려주지 마.",
+  },
+  {
+    level: 4,
+    label: "종합 시나리오",
+    color: "gold",
+    prompt:
+      "오늘 다룬 개념 + 관련된 사전 지식까지 엮어서 답해야 하는, 실무에서 마주칠 만한 종합 시나리오 1개를 내줘. 답을 풀어주지 말고 내가 생각해보게 해줘.",
+  },
+];
+
+function advanceQuiz() {
+  const idx = (state.quizLevel - 1 + QUIZ_LEVELS.length) % QUIZ_LEVELS.length;
+  const def = QUIZ_LEVELS[idx];
+  sendMessage(def.prompt);
+  // 다음 클릭에 다음 단계
+  state.quizLevel = (state.quizLevel % QUIZ_LEVELS.length) + 1;
+  updateQuizButton();
+}
+
+function resetQuiz() {
+  state.quizLevel = 1;
+  updateQuizButton();
+}
+
+function updateQuizButton() {
+  if (!els.quizBtn) return;
+  const next = QUIZ_LEVELS[(state.quizLevel - 1) % QUIZ_LEVELS.length];
+  // 라벨에 다음 단계 번호 표시
+  const labelEl = els.quizBtn.querySelector("span");
+  if (labelEl) {
+    labelEl.textContent =
+      next.level === 1 ? "Quiz" : `Quiz · ${next.level}`;
+  }
+  // data-level로 색 변화
+  els.quizBtn.dataset.quizLevel = String(next.level);
+  els.quizBtn.title = `퀴즈 ${next.level}/${QUIZ_LEVELS.length} — ${next.label}`;
 }
 
 // ──────────────────────────────────────────────────────────
@@ -3472,11 +3778,13 @@ function appendAssistantMessage(initialMarkdown) {
   div.innerHTML = `
     <div class="role">Claude</div>
     <div class="content"></div>
+    ${renderFeedbackBar("msg")}
   `;
   if (initialMarkdown) {
     div.querySelector(".content").innerHTML = marked.parse(initialMarkdown);
   }
   els.messages.appendChild(div);
+  wireFeedbackBar(div.querySelector(".feedback-bar"));
   scrollToBottom();
   return div;
 }

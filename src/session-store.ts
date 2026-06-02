@@ -25,6 +25,8 @@ export interface LookupEntry {
   depth: "concise" | "medium" | "deep";
   response: string;
   at: number;
+  /** 사용자가 키워드 옆에 같이 던진 추가 질문 (없으면 undefined). */
+  userQuestion?: string;
 }
 
 export interface ActiveSession {
