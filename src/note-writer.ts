@@ -107,8 +107,22 @@ export function splitRepoAndRoadmap(roadmapId: string): { repo: string | null; r
 }
 
 /**
- * Lookup 기록을 마크다운 collapsible 섹션으로 변환.
- * Obsidian/GitHub 모두에서 동작하는 <details> + <summary> 형태.
+ * Look-up 응답에서 본문 첫 줄의 H1/H2 헤딩을 제거.
+ * 모델이 종종 "## Buffer Pool" 같은 헤딩을 응답 맨 위에 다는데,
+ * 우리는 이미 <summary>나 ### 헤딩으로 표제를 보여주므로 중복.
+ */
+function stripLeadingHeading(body: string): string {
+  return body
+    .replace(/^#{1,6}\s+.+\n+/, "")
+    .replace(/^\*\*[^\n*]+\*\*\s*\n+/, "")
+    .trim();
+}
+
+/**
+ * Look-up 기록을 사람 친화적 마크다운 섹션으로 변환.
+ *   - 깊은 응답은 details/summary로 접어두고
+ *   - 간결 응답은 인용 블록으로 바로 보이게
+ * Obsidian/GitHub 모두에서 동작.
  */
 export function renderLookupsSection(lookups: LookupEntry[]): string {
   if (!lookups || lookups.length === 0) return "";
@@ -117,15 +131,14 @@ export function renderLookupsSection(lookups: LookupEntry[]): string {
   const items = lookups
     .map((l) => {
       const q = l.query.replace(/\n/g, " ").trim();
-      const body = l.response.trim();
-      return `<details>
-<summary><strong>${escapeHtml(q)}</strong> · <em>${depthLabel(l.depth)}</em></summary>
-
-${body}
-
-</details>`;
+      const body = stripLeadingHeading(l.response);
+      // concise는 접지 않고 바로 보여줘도 가벼움; medium/deep은 접어둠
+      if (l.depth === "concise") {
+        return `### ${q} · _${depthLabel(l.depth)}_\n\n${body}`;
+      }
+      return `<details>\n<summary><strong>${escapeHtml(q)}</strong> · <em>${depthLabel(l.depth)}</em></summary>\n\n${body}\n\n</details>`;
     })
-    .join("\n\n");
+    .join("\n\n---\n\n");
   return `\n\n## 🔍 학습 중 찾아본 표현 (${lookups.length})\n\n${items}\n`;
 }
 
@@ -186,10 +199,13 @@ ${transcriptText}
 
 Now produce the structured note JSON.`;
 
+  // 8000 — 챕터 본문/대화 길이가 InnoDB Buffer Pool 같은 케이스에서 8섹션 모두
+  // 채우면 4096을 넘기는 경우가 있었음. JSON이 잘리면 safeJsonParse가 실패해
+  // fallback path (raw transcript) 로 빠지므로 충분히 여유 둠.
   const { text } = await completeOnce(client, {
     system: STRUCTURE_SYSTEM,
     messages: [{ role: "user", content: userMsg }],
-    maxTokens: 4096,
+    maxTokens: 8000,
   });
 
   const lookupsSection = renderLookupsSection(args.lookups ?? []);
