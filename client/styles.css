@@ -5708,3 +5708,22 @@ body.sidebar-collapsed:not(.lookup-open) .messages {
 body.sidebar-collapsed:not(.lookup-open) .messages .message {
   max-width: 100%;
 }
+
+/* ─── v0.5.34: 좌·우 입력바 높이 micro-pixel 맞춤 ─── */
+
+/* 좌측 composer 합계: padding 16+18 + (btn-col stack ~104) = 138px */
+/* 우측 form을 정확히 138px로 매칭 */
+
+.lookup-direct-form {
+  padding: 16px 14px 18px; /* was 14/14/18 — composer와 동일 top */
+}
+
+.lookup-direct-col .lookup-direct-mini {
+  height: 28px; /* was 30 */
+}
+
+.lookup-direct-col .lookup-direct-send {
+  min-height: 36px; /* was 38 */
+}
+
+/* col 합계: 28 + 6(gap) + 28 + 6(gap) + 36 = 104px → 좌측 btn-col과 일치 */
