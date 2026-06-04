@@ -15,7 +15,7 @@
 
 > 💡 **API 호출 X — 어떤 버전인지 신경 X.** 아래 명령들은 GitHub Releases의 고정된 `latest` 별칭 URL을 사용해 다운로드합니다. 시간당 제한(rate-limit) 걸리지 않습니다.
 
-### 🍎 macOS (Apple Silicon)
+### 🍎 macOS — Apple Silicon (M1/M2/M3/M4)
 터미널에 그대로 붙여넣기 — 실행 중이면 자동 종료 → 최신 버전 받기 → 설치 → 재실행까지 한 번에:
 
 ```bash
@@ -31,7 +31,21 @@ rm -f /tmp/spiral.dmg && \
 open '/Applications/Spiral Buddy.app'
 ```
 
-> **Intel Mac**: URL의 `-arm64`를 빼고 `Spiral-Buddy-latest.dmg`로 변경.
+### 🍎 macOS — Intel
+터미널에 그대로 붙여넣기:
+
+```bash
+osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
+cd /tmp && \
+curl -fL -o /tmp/spiral.dmg "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest.dmg" && \
+MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
+rm -rf '/Applications/Spiral Buddy.app' && \
+cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
+hdiutil detach -quiet "$MOUNT" && \
+xattr -cr '/Applications/Spiral Buddy.app' && \
+rm -f /tmp/spiral.dmg && \
+open '/Applications/Spiral Buddy.app'
+```
 
 ### 🪟 Windows (PowerShell)
 **PowerShell**(시작 메뉴에서 "PowerShell" 검색) 열고 그대로 붙여넣기 — 실행 중이면 자동 종료 → silent install → 재실행:

@@ -177,22 +177,88 @@ jobs:
           cat > NOTES.md <<'EOF'
           # Spiral Buddy ${TAG_PLACEHOLDER}
 
-          ## 다운로드
+          ## ⚡ 30초 설치 (한 줄 명령)
+
+          터미널/PowerShell에 그대로 붙여넣기 — 실행 중이면 자동 종료 → 최신 받기 → 설치 → 재실행. **GitHub API 안 거치니 rate-limit 없음.**
+
+          <details>
+          <summary>🍎 <strong>macOS — Apple Silicon (M1/M2/M3/M4)</strong></summary>
+
+          ```bash
+          osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
+          cd /tmp && \
+          curl -fL -o /tmp/spiral.dmg "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest-arm64.dmg" && \
+          MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
+          rm -rf '/Applications/Spiral Buddy.app' && \
+          cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
+          hdiutil detach -quiet "$MOUNT" && \
+          xattr -cr '/Applications/Spiral Buddy.app' && \
+          rm -f /tmp/spiral.dmg && \
+          open '/Applications/Spiral Buddy.app'
+          ```
+          </details>
+
+          <details>
+          <summary>🍎 <strong>macOS — Intel</strong></summary>
+
+          ```bash
+          osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
+          cd /tmp && \
+          curl -fL -o /tmp/spiral.dmg "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest.dmg" && \
+          MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
+          rm -rf '/Applications/Spiral Buddy.app' && \
+          cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
+          hdiutil detach -quiet "$MOUNT" && \
+          xattr -cr '/Applications/Spiral Buddy.app' && \
+          rm -f /tmp/spiral.dmg && \
+          open '/Applications/Spiral Buddy.app'
+          ```
+          </details>
+
+          <details>
+          <summary>🪟 <strong>Windows — PowerShell</strong></summary>
+
+          시작 메뉴에서 **PowerShell** 검색 → 열고 그대로 붙여넣기:
+
+          ```powershell
+          $ErrorActionPreference = "Stop"
+          Get-Process "Spiral Buddy" -EA SilentlyContinue | Stop-Process -Force
+          $exe = "$env:TEMP\spiral-buddy-setup.exe"
+          Invoke-WebRequest -Uri "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest-Setup.exe" -OutFile $exe
+          Start-Process -FilePath $exe -ArgumentList "/S" -Wait
+          Remove-Item $exe -Force
+          $app = "$env:LOCALAPPDATA\Programs\spiral-buddy\Spiral Buddy.exe"
+          if (Test-Path $app) { Start-Process $app }
+          ```
+          </details>
+
+          <details>
+          <summary>🐧 <strong>Linux — AppImage</strong></summary>
+
+          ```bash
+          curl -fL -o ~/SpiralBuddy.AppImage "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest.AppImage"
+          chmod +x ~/SpiralBuddy.AppImage
+          ~/SpiralBuddy.AppImage
+          ```
+          </details>
+
+          ---
+
+          ## 또는 수동 다운로드
 
           | OS | 파일 |
           |---|---|
-          | macOS Apple Silicon | `Spiral-Buddy-*-arm64.dmg` |
-          | macOS Intel | `Spiral-Buddy-*.dmg` (arm64 아닌 것) |
-          | Windows | `Spiral-Buddy-Setup-*.exe` |
-          | Linux | `Spiral-Buddy-*.AppImage` |
+          | macOS Apple Silicon | `Spiral.Buddy-*-arm64.dmg` |
+          | macOS Intel | `Spiral.Buddy-*.dmg` (arm64 아닌 것) |
+          | Windows | `Spiral.Buddy.Setup.*.exe` |
+          | Linux | `Spiral.Buddy-*.AppImage` |
 
           ## ⚠️ macOS — "손상됨" 경고가 뜨면
 
           Code signing/공증을 안 한 빌드라 macOS Gatekeeper가 차단합니다 (실제 손상 아님).
-          터미널에서 아래 명령 한 번만 실행하면 풀립니다:
+          위 한 줄 명령은 `xattr -cr`이 포함되어 자동 해결됩니다. 수동으로 받았다면:
 
           ```bash
-          # .app을 Applications로 옮긴 뒤
           xattr -cr "/Applications/Spiral Buddy.app"
           ```
 
