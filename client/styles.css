@@ -5727,3 +5727,586 @@ body.sidebar-collapsed:not(.lookup-open) .messages .message {
 }
 
 /* col 합계: 28 + 6(gap) + 28 + 6(gap) + 36 = 104px → 좌측 btn-col과 일치 */
+
+/* ═══════════════════════════════════════════════════════════
+ *   v0.5.35 — Light 모드
+ *
+ *   기본은 :root의 어두운 팔레트. body.light-mode 시 변수 override +
+ *   hardcoded rgba/hex로 박혀있던 일부 요소도 타깃해서 보정.
+ * ═══════════════════════════════════════════════════════════ */
+
+/* 테마 선택 UI (설정 모달) */
+
+.theme-field {
+  margin-bottom: 12px;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  gap: 6px;
+  background: var(--bg-elev-2, #19212c);
+  border: 1px solid var(--border, rgba(148, 169, 190, 0.18));
+  border-radius: 10px;
+  padding: 4px;
+}
+
+.theme-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  background: transparent;
+  border: 0;
+  color: var(--text-dim, #a6b2bb);
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.theme-opt svg {
+  width: 14px;
+  height: 14px;
+}
+
+.theme-opt:hover {
+  color: var(--text, #edf3f5);
+}
+
+.theme-opt.active {
+  background: rgba(126, 226, 255, 0.16);
+  color: var(--accent, #7ee2ff);
+  box-shadow: inset 0 0 0 1px rgba(126, 226, 255, 0.32);
+}
+
+body.light-mode .theme-opt.active {
+  background: rgba(60, 130, 246, 0.16);
+  color: #2563eb;
+  box-shadow: inset 0 0 0 1px rgba(60, 130, 246, 0.32);
+}
+
+/* ─── 1) CSS 변수 override ─── */
+
+body.light-mode {
+  --bg: #f4f6fa;
+  --bg-elev: #ffffff;
+  --bg-elev-2: #eef1f6;
+  --border: #d4dae3;
+  --border-soft: #e3e7ee;
+  --text: #1a2233;
+  --text-dim: #4a5468;
+  --text-faint: #7d8696;
+  --accent: #2563eb;      /* 파랑 (다크의 cyan 자리) */
+  --accent-2: #7c5cf7;    /* 보라 (유지) */
+  --user: #c5dcf3;
+  --assistant: #f0f3f7;
+  --success: #16a34a;
+  --error: #dc2626;
+}
+
+/* ─── 2) html/body 베이스 ─── */
+
+body.light-mode {
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ─── 3) 사이드바 / topbar / lookup-panel — hardcoded 회색-진녹 톤 reset ─── */
+
+body.light-mode #sidebar {
+  background: var(--bg-elev);
+  border-right: 1px solid var(--border);
+}
+
+body.light-mode #topbar {
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%) !important;
+  border-bottom: 1px solid var(--border) !important;
+  box-shadow: 0 1px 0 rgba(20, 30, 60, 0.04) !important;
+}
+
+body.light-mode .lookup-panel {
+  background: var(--bg-elev);
+  border-left: 1px solid var(--border);
+}
+
+body.light-mode .lookup-panel-header,
+body.light-mode #sidebar > .brand {
+  background: linear-gradient(180deg, #ffffff 0%, #fafbfd 100%);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ─── 4) 메시지 / 입력 / 카드 ─── */
+
+body.light-mode .messages,
+body.light-mode #main {
+  background: var(--bg);
+}
+
+body.light-mode #main::before {
+  display: none; /* 다크 전용 그라데이션 오버레이 제거 */
+}
+
+body.light-mode .message.assistant {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+body.light-mode .message.user {
+  background: var(--user);
+  color: #1a2233;
+}
+
+body.light-mode .composer {
+  background: var(--bg-elev);
+  border-top: 1px solid var(--border);
+}
+
+body.light-mode #input,
+body.light-mode textarea.lookup-direct-input,
+body.light-mode .lookup-direct-context,
+body.light-mode .lookup-question-text {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+body.light-mode #input::placeholder,
+body.light-mode textarea.lookup-direct-input::placeholder,
+body.light-mode .lookup-direct-context::placeholder,
+body.light-mode .lookup-question-text::placeholder {
+  color: var(--text-faint);
+}
+
+body.light-mode .lookup-card {
+  background: var(--bg-elev) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text);
+}
+
+body.light-mode .lookup-card-head {
+  color: var(--text);
+}
+
+body.light-mode .lookup-card-head:hover {
+  background: rgba(60, 90, 140, 0.04);
+}
+
+body.light-mode .lookup-direct-form {
+  background: var(--bg-elev-2);
+  border-top: 1px solid var(--border);
+}
+
+/* ─── 5) 버튼·아이콘 통일 (icon-action-btn 등) ─── */
+
+body.light-mode .icon-action-btn {
+  background: #ffffff !important;
+  border-color: var(--border) !important;
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .icon-action-btn:hover:not(:disabled) {
+  background: #f0f5ff !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  box-shadow: 0 0 18px rgba(37, 99, 235, 0.16) !important;
+}
+
+body.light-mode .lookup-toggle-btn:hover:not(:disabled) {
+  background: #f4f0ff !important;
+  border-color: var(--accent-2) !important;
+  color: var(--accent-2) !important;
+  box-shadow: 0 0 18px rgba(124, 92, 247, 0.16) !important;
+}
+
+body.light-mode:not(.sidebar-collapsed) .sidebar-toggle {
+  background: #eef5ff;
+  border-color: rgba(37, 99, 235, 0.35);
+  color: var(--accent);
+}
+
+body.light-mode .sidebar-toggle {
+  background: #ffffff;
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+
+body.light-mode .sidebar-toggle:hover {
+  background: #f0f5ff;
+  box-shadow: 0 0 18px rgba(37, 99, 235, 0.16);
+}
+
+body.light-mode .action-btn.quiz {
+  background: rgba(124, 92, 247, 0.08);
+  color: #6d4cf0;
+  border-color: rgba(124, 92, 247, 0.32);
+}
+
+body.light-mode .action-btn.end,
+body.light-mode .send-btn {
+  background: linear-gradient(135deg, #2563eb 0%, #4f7dff 100%) !important;
+  color: #ffffff !important;
+}
+
+body.light-mode .send-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+body.light-mode .refine-btn {
+  background: linear-gradient(135deg, rgba(124, 92, 247, 0.1) 0%, rgba(37, 99, 235, 0.08) 100%);
+  color: #5b3fd9;
+  border-color: rgba(124, 92, 247, 0.45);
+}
+
+body.light-mode .refine-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(124, 92, 247, 0.18) 0%, rgba(37, 99, 235, 0.14) 100%);
+  border-color: var(--accent-2);
+}
+
+/* ─── 6) Look-up 카드 depth 아이콘 색 (다크에선 파스텔 강조) ─── */
+
+body.light-mode .lookup-card-depth[data-depth="concise"] .lookup-card-depth-icon { color: #b45309; }
+body.light-mode .lookup-card-depth[data-depth="medium"] .lookup-card-depth-icon { color: #475569; }
+body.light-mode .lookup-card-depth[data-depth="deep"] .lookup-card-depth-icon { color: #6d4cf0; }
+
+/* ─── 7) 모달 / 팝오버 ─── */
+
+body.light-mode .modal-overlay {
+  background: rgba(30, 40, 60, 0.42);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+body.light-mode .modal {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+body.light-mode .modal-close {
+  color: var(--text-dim);
+}
+
+body.light-mode .modal-close:hover {
+  color: var(--text);
+}
+
+body.light-mode .lookup-question-popover {
+  background: #ffffff;
+  border-color: rgba(124, 92, 247, 0.4);
+  box-shadow:
+    0 18px 50px rgba(30, 40, 60, 0.18),
+    0 0 24px rgba(124, 92, 247, 0.12);
+}
+
+/* ─── 8) 활동 캘린더 셀 (light용 청록 ramp) ─── */
+
+body.light-mode .activity-cell[data-level="0"] {
+  background: #eef1f6;
+}
+
+body.light-mode .activity-cell[data-level="1"] {
+  background: rgba(37, 99, 235, 0.18);
+}
+
+body.light-mode .activity-cell[data-level="2"] {
+  background: rgba(37, 99, 235, 0.36);
+}
+
+body.light-mode .activity-cell[data-level="3"] {
+  background: rgba(37, 99, 235, 0.58);
+}
+
+body.light-mode .activity-cell[data-level="4"] {
+  background: rgba(124, 92, 247, 0.72);
+}
+
+body.light-mode .activity-cell[data-level="5"] {
+  background: linear-gradient(135deg, #f59e0b 0%, #ef6e3a 100%);
+}
+
+/* ─── 9) 코드 블록 (마크다운 렌더) ─── */
+
+body.light-mode .message.assistant pre,
+body.light-mode .lookup-card-body pre {
+  background: #f5f7fa;
+  border: 1px solid var(--border-soft);
+  color: #1a2233;
+}
+
+body.light-mode code {
+  background: rgba(60, 90, 140, 0.08);
+  color: #4a3aaa;
+}
+
+body.light-mode .message.assistant pre code,
+body.light-mode .lookup-card-body pre code {
+  background: transparent;
+  color: inherit;
+}
+
+body.light-mode blockquote {
+  border-left-color: var(--border);
+  color: var(--text-dim);
+}
+
+/* ─── 10) 챕터/로드맵 사이드바 ─── */
+
+body.light-mode .chapter-btn,
+body.light-mode .roadmap-item {
+  color: var(--text);
+}
+
+body.light-mode .chapter-btn:hover,
+body.light-mode .roadmap-item:hover {
+  background: #f0f5ff;
+}
+
+body.light-mode .chapter-btn.active,
+body.light-mode .roadmap-item.active {
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--accent);
+}
+
+body.light-mode .roadmap-group-title {
+  color: var(--text-dim);
+  background: rgba(60, 90, 140, 0.04);
+}
+
+body.light-mode .roadmap-current,
+body.light-mode .workspace-current {
+  background: #ffffff;
+  border-color: var(--border);
+  color: var(--text);
+}
+
+body.light-mode .roadmap-list,
+body.light-mode .workspace-list {
+  background: #ffffff;
+  border-color: var(--border);
+}
+
+/* ─── 11) 토픽바 챕터 제목 ─── */
+
+body.light-mode .topbar-chapter-title {
+  color: var(--text);
+  text-shadow: none;
+}
+
+body.light-mode .topbar-chapter-icon {
+  color: var(--accent-2);
+}
+
+body.light-mode #current-chapter .depth {
+  color: var(--accent-2);
+  border-color: rgba(124, 92, 247, 0.36);
+  background: rgba(124, 92, 247, 0.06);
+}
+
+/* ─── 12) 검색 모달 / 결과 ─── */
+
+body.light-mode .search-input-wrap {
+  background: #ffffff;
+  border-color: var(--border);
+}
+
+body.light-mode .search-modal,
+body.light-mode .trash-modal,
+body.light-mode .activity-modal,
+body.light-mode .settings-modal {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+body.light-mode .search-result.active {
+  background: rgba(37, 99, 235, 0.1);
+}
+
+/* ─── 13) 입력 다듬기 / 우측 직접입력 ─── */
+
+body.light-mode .refine-bar {
+  background: linear-gradient(90deg, rgba(124, 92, 247, 0.10) 0%, rgba(37, 99, 235, 0.08) 100%);
+  border-color: rgba(124, 92, 247, 0.32);
+  color: #4a3aaa;
+}
+
+body.light-mode .refine-bar-undo {
+  background: rgba(124, 92, 247, 0.14);
+  color: #4a3aaa;
+  border-color: rgba(124, 92, 247, 0.4);
+}
+
+body.light-mode .lookup-direct-mini {
+  background: #ffffff;
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+
+body.light-mode .lookup-direct-mini:hover {
+  color: var(--accent-2);
+  border-color: rgba(124, 92, 247, 0.35);
+}
+
+body.light-mode .lookup-direct-send {
+  background: linear-gradient(135deg, #2563eb 0%, #7c5cf7 100%);
+  color: #ffffff;
+}
+
+body.light-mode .feedback-btn:hover {
+  background: rgba(60, 90, 140, 0.06);
+  color: var(--text);
+}
+
+body.light-mode .feedback-btn.active[data-vote="up"] {
+  color: var(--success);
+  background: rgba(22, 163, 74, 0.12);
+  border-color: rgba(22, 163, 74, 0.4);
+}
+
+body.light-mode .feedback-btn.active[data-vote="down"] {
+  color: var(--error);
+  background: rgba(220, 38, 38, 0.12);
+  border-color: rgba(220, 38, 38, 0.4);
+}
+
+/* ─── 14) end-progress-card / next-chapter ─── */
+
+body.light-mode .end-progress-card {
+  background: #ffffff;
+  border-color: rgba(37, 99, 235, 0.4);
+  box-shadow: 0 4px 24px rgba(37, 99, 235, 0.12);
+  color: var(--text);
+}
+
+body.light-mode .end-action-btn.next-chapter-btn {
+  background: linear-gradient(135deg, #2563eb 0%, #7c5cf7 100%);
+  color: #ffffff;
+}
+
+body.light-mode .end-action-btn.obsidian-action {
+  background: #f0f5ff;
+  border-color: rgba(37, 99, 235, 0.45);
+  color: #2563eb;
+}
+
+body.light-mode .end-action-btn.deeper-btn {
+  background: rgba(124, 92, 247, 0.08);
+  border-color: rgba(124, 92, 247, 0.45);
+  color: #6d4cf0;
+}
+
+/* ─── 15) 토올바 / 룩업 카드 hover, 작은 추가 ─── */
+
+body.light-mode .lookup-toolbar {
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px rgba(30, 40, 60, 0.12);
+}
+
+body.light-mode .lookup-tool-btn {
+  color: var(--text-dim);
+}
+
+body.light-mode .lookup-tool-btn:hover {
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--accent);
+}
+
+body.light-mode .lookup-toolbar-divider {
+  background: var(--border);
+}
+
+/* ─── 16) Streak 배지 light 적응 ─── */
+
+body.light-mode .activity-streak[data-tier="2"] .streak-flame,
+body.light-mode .activity-streak[data-tier="3"] .streak-flame,
+body.light-mode .activity-streak[data-tier="4"] .streak-flame,
+body.light-mode .activity-streak[data-tier="5"] .streak-flame {
+  filter: drop-shadow(0 0 2px rgba(239, 110, 58, 0.5));
+}
+
+body.light-mode .activity-streak[data-tier="3"],
+body.light-mode .activity-streak[data-tier="4"],
+body.light-mode .activity-streak[data-tier="5"] {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.12), rgba(239, 110, 58, 0.10));
+  border-radius: 999px;
+}
+
+/* ─── 17) update banner / settings 보조 ─── */
+
+body.light-mode .update-banner {
+  background: var(--bg-elev-2);
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+
+body.light-mode .update-banner.has-update {
+  background: linear-gradient(135deg, rgba(124, 92, 247, 0.10), rgba(37, 99, 235, 0.08));
+  border-color: rgba(124, 92, 247, 0.4);
+  color: var(--text);
+}
+
+body.light-mode .settings-tab {
+  color: var(--text-dim);
+}
+
+body.light-mode .settings-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+body.light-mode .settings-hint {
+  color: var(--text-dim);
+}
+
+body.light-mode .settings-save-btn {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+/* ─── 18) 스크롤바 light 적응 ─── */
+
+body.light-mode ::-webkit-scrollbar-thumb {
+  background: #c7cdd6;
+}
+
+body.light-mode ::-webkit-scrollbar-thumb:hover {
+  background: #aab2bd;
+}
+
+body.light-mode ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ─── 19) lookup-card-fold caret 색 ─── */
+
+body.light-mode .lookup-card-fold {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .lookup-card-head:hover .lookup-card-fold {
+  color: var(--accent-2) !important;
+}
+
+/* ─── 20) 코드블록 신택스 (간단 token 가독성) ─── */
+
+body.light-mode .hljs-keyword,
+body.light-mode .hljs-built_in { color: #c026d3; }
+body.light-mode .hljs-string { color: #b45309; }
+body.light-mode .hljs-comment { color: #6b7280; font-style: italic; }
+body.light-mode .hljs-number { color: #0891b2; }
+body.light-mode .hljs-title.function_ { color: #2563eb; }
+
+/* ─── 21) Brand 텍스트 light에서 살짝 진하게 ─── */
+
+body.light-mode .brand-title {
+  color: var(--text);
+}
+
+body.light-mode .logo-spiral svg {
+  filter: drop-shadow(0 0 8px rgba(37, 99, 235, 0.25));
+}

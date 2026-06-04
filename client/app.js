@@ -199,9 +199,44 @@ function cacheEls() {
 // Init
 // ──────────────────────────────────────────────────────────
 
+// v0.5.35 — 테마 (다크/라이트) 적용
+const THEME_KEY = "spiral-buddy:theme";
+
+function applyTheme(theme) {
+  const t = theme === "light" ? "light" : "dark";
+  document.body.classList.toggle("light-mode", t === "light");
+  document.body.classList.toggle("dark-mode", t === "dark");
+  document.querySelectorAll(".theme-opt").forEach((b) => {
+    const active = b.dataset.theme === t;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-checked", active ? "true" : "false");
+  });
+}
+
+function getStoredTheme() {
+  try {
+    return localStorage.getItem(THEME_KEY) || "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+// DOMContentLoaded 전에 미리 적용 — FOUC 방지
+applyTheme(getStoredTheme());
+
 document.addEventListener("DOMContentLoaded", async () => {
   cacheEls();
   wireEvents();
+  applyTheme(getStoredTheme()); // 버튼 active 상태 동기화
+  document.querySelectorAll(".theme-opt").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const t = btn.dataset.theme === "light" ? "light" : "dark";
+      try {
+        localStorage.setItem(THEME_KEY, t);
+      } catch {}
+      applyTheme(t);
+    });
+  });
   await loadInitial();
 });
 
