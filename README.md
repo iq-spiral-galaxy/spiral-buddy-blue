@@ -13,36 +13,34 @@
 
 ## ⚡ 30초 설치 (한 줄 명령)
 
+> 💡 **API 호출 X — 어떤 버전인지 신경 X.** 아래 명령들은 GitHub Releases의 고정된 `latest` 별칭 URL을 사용해 다운로드합니다. 시간당 제한(rate-limit) 걸리지 않습니다.
+
 ### 🍎 macOS (Apple Silicon)
 터미널에 그대로 붙여넣기 — 실행 중이면 자동 종료 → 최신 버전 받기 → 설치 → 재실행까지 한 번에:
 
 ```bash
 osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
-V=$(curl -fsSL https://api.github.com/repos/iq-agent-lab/iq-spiral-buddy/releases/latest | sed -n 's/.*"tag_name": "v\([^"]*\)".*/\1/p') && \
-echo "→ installing v$V" && cd /tmp && \
-curl -fL -o /tmp/spiral.dmg "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/download/v$V/Spiral.Buddy-$V-arm64.dmg" && \
-hdiutil attach -nobrowse -quiet /tmp/spiral.dmg && \
+cd /tmp && \
+curl -fL -o /tmp/spiral.dmg "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest-arm64.dmg" && \
+MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
 rm -rf '/Applications/Spiral Buddy.app' && \
-cp -R "/Volumes/Spiral Buddy $V/Spiral Buddy.app" /Applications/ && \
-hdiutil detach -quiet "/Volumes/Spiral Buddy $V" && \
+cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
+hdiutil detach -quiet "$MOUNT" && \
 xattr -cr '/Applications/Spiral Buddy.app' && \
 rm -f /tmp/spiral.dmg && \
 open '/Applications/Spiral Buddy.app'
 ```
 
-> **Intel Mac**: 위 명령에서 `-arm64`를 빼고 `Spiral.Buddy-$V.dmg`로 변경.
+> **Intel Mac**: URL의 `-arm64`를 빼고 `Spiral-Buddy-latest.dmg`로 변경.
 
 ### 🪟 Windows (PowerShell)
-**PowerShell**(시작 메뉴에서 "PowerShell" 검색) 열고 그대로 붙여넣기 — 실행 중이면 자동 종료 → 최신 버전 받기 → silent install → 재실행:
+**PowerShell**(시작 메뉴에서 "PowerShell" 검색) 열고 그대로 붙여넣기 — 실행 중이면 자동 종료 → silent install → 재실행:
 
 ```powershell
 $ErrorActionPreference = "Stop"
 Get-Process "Spiral Buddy" -EA SilentlyContinue | Stop-Process -Force
-$r = Invoke-RestMethod "https://api.github.com/repos/iq-agent-lab/iq-spiral-buddy/releases/latest"
-$V = $r.tag_name -replace '^v'
-Write-Host "-> installing v$V"
 $exe = "$env:TEMP\spiral-buddy-setup.exe"
-Invoke-WebRequest -Uri "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/download/v$V/Spiral.Buddy.Setup.$V.exe" -OutFile $exe
+Invoke-WebRequest -Uri "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest-Setup.exe" -OutFile $exe
 Start-Process -FilePath $exe -ArgumentList "/S" -Wait
 Remove-Item $exe -Force
 $app = "$env:LOCALAPPDATA\Programs\spiral-buddy\Spiral Buddy.exe"
@@ -50,11 +48,8 @@ if (Test-Path $app) { Start-Process $app }
 ```
 
 ### 🐧 Linux
-[Releases 페이지](https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest)에서 `.AppImage` 다운로드 → 실행권한 부여 후 실행.
-
 ```bash
-V=$(curl -fsSL https://api.github.com/repos/iq-agent-lab/iq-spiral-buddy/releases/latest | sed -n 's/.*"tag_name": "v\([^"]*\)".*/\1/p')
-curl -fL -o ~/SpiralBuddy.AppImage "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/download/v$V/Spiral.Buddy-$V.AppImage"
+curl -fL -o ~/SpiralBuddy.AppImage "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest.AppImage"
 chmod +x ~/SpiralBuddy.AppImage
 ~/SpiralBuddy.AppImage
 ```

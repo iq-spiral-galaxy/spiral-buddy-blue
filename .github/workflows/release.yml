@@ -106,6 +106,34 @@ jobs:
           echo "build failed after 3 attempts"
           exit 1
 
+      - name: Make latest-aliased copies (API-free install)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          mkdir -p release/latest-aliases
+          # macOS arm64
+          for f in release/*-arm64.dmg; do
+            [ -f "$f" ] || continue
+            cp "$f" "release/latest-aliases/Spiral-Buddy-latest-arm64.dmg"
+          done
+          # macOS Intel (버전만 들어간 dmg — arm64 가 아닌 것)
+          for f in release/*.dmg; do
+            case "$f" in *-arm64.dmg) continue;; esac
+            [ -f "$f" ] || continue
+            cp "$f" "release/latest-aliases/Spiral-Buddy-latest.dmg"
+          done
+          # Windows setup
+          for f in release/*Setup*.exe; do
+            [ -f "$f" ] || continue
+            cp "$f" "release/latest-aliases/Spiral-Buddy-latest-Setup.exe"
+          done
+          # Linux AppImage
+          for f in release/*.AppImage; do
+            [ -f "$f" ] || continue
+            cp "$f" "release/latest-aliases/Spiral-Buddy-latest.AppImage"
+          done
+          ls -la release/latest-aliases/ || true
+
       - name: Upload to GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
@@ -117,6 +145,7 @@ jobs:
             release/*.exe.blockmap
             release/*.AppImage
             release/latest*.yml
+            release/latest-aliases/*
           fail_on_unmatched_files: false
 
       - name: Upload artifacts (fallback)
