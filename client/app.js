@@ -1560,14 +1560,15 @@ function renderWorkspaceSelector() {
   });
 }
 
-// v0.5.32: 자동 업데이트 banner — settings modal 열릴 때마다 체크
-async function refreshUpdateBanner() {
+// v0.5.32+ — 업데이트 banner. v0.5.36: 실패 명시 + manual 진입점 항상 노출.
+async function refreshUpdateBanner({ force = false } = {}) {
   const banner = document.getElementById("update-banner");
   const text = document.getElementById("update-banner-text");
   const installBtn = document.getElementById("update-install-btn");
+  const recheckBtn = document.getElementById("update-recheck-btn");
+  const releasesLink = document.getElementById("update-releases-link");
   if (!banner || !text || !installBtn) return;
   if (!window.spiralUpdate) {
-    // Electron 모드가 아니면 숨김 (브라우저 dev에선 의미 없음)
     banner.classList.add("hidden");
     return;
   }
@@ -1576,25 +1577,48 @@ async function refreshUpdateBanner() {
   text.textContent = "업데이트 확인 중…";
   installBtn.classList.add("hidden");
   installBtn.disabled = true;
+  if (recheckBtn) recheckBtn.disabled = true;
+
+  // releases link 기본값
+  const RELEASES_URL =
+    "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest";
+  if (releasesLink) {
+    releasesLink.classList.remove("hidden");
+    releasesLink.onclick = (e) => {
+      e.preventDefault();
+      window.spiralUpdate.openExternal?.(RELEASES_URL);
+    };
+  }
+
   let info;
   try {
-    info = await window.spiralUpdate.check();
+    info = await window.spiralUpdate.check({ force });
   } catch (err) {
     banner.classList.add("errored");
-    text.textContent = `업데이트 확인 실패: ${err?.message ?? err}`;
+    text.innerHTML = `⚠ 확인 실패: ${escapeHtml(err?.message ?? String(err))} — 우측 <strong>Releases</strong>에서 수동으로 받기`;
+    if (recheckBtn) recheckBtn.disabled = false;
     return;
   }
+
+  if (recheckBtn) recheckBtn.disabled = false;
+
   if (info?.error) {
     banner.classList.add("errored");
-    text.textContent = `업데이트 확인 실패: ${info.error}`;
+    const hint =
+      info?.httpStatus === 403
+        ? " (GitHub API 시간당 제한 — 잠시 후 다시 확인하거나 우측 Releases에서 수동으로 받기)"
+        : " — 우측 Releases에서 수동으로 받기";
+    text.innerHTML = `⚠ 확인 실패: ${escapeHtml(info.error)}${hint}`;
     return;
   }
+
   if (info?.updateAvailable) {
     banner.classList.add("has-update");
     text.innerHTML = `✨ <strong>새 버전 v${escapeHtml(info.latest)}</strong> 사용 가능 — 현재 v${escapeHtml(info.current)}`;
     installBtn.dataset.version = info.latest;
     installBtn.classList.remove("hidden");
     installBtn.disabled = false;
+    installBtn.textContent = "받기";
     installBtn.onclick = async () => {
       if (
         !confirm(
@@ -1613,9 +1637,17 @@ async function refreshUpdateBanner() {
       }
     };
   } else {
-    text.innerHTML = `✓ 최신 버전 v${escapeHtml(info?.current ?? "")}`;
+    const cacheTag = info?.cached ? " (캐시)" : "";
+    text.innerHTML = `✓ 최신 버전 v${escapeHtml(info?.current ?? "")}${cacheTag}`;
   }
 }
+
+// 다시 확인 버튼 wire — DOMContentLoaded에서 한 번만
+document.addEventListener("DOMContentLoaded", () => {
+  document
+    .getElementById("update-recheck-btn")
+    ?.addEventListener("click", () => refreshUpdateBanner({ force: true }));
+});
 
 function openSettingsModal() {
   if (!_settingsCache) return;

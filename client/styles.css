@@ -6310,3 +6310,853 @@ body.light-mode .brand-title {
 body.light-mode .logo-spiral svg {
   filter: drop-shadow(0 0 8px rgba(37, 99, 235, 0.25));
 }
+
+/* ═══════════════════════════════════════════════════════════
+ *   v0.5.36 — Light 모드 v2 (가독성 + 눈 편안함 위주)
+ *
+ *   v0.5.35의 light-mode 위에 덮어쓰기.
+ *   - 텍스트 위계 3단계 모두 충분한 contrast (WCAG AA+)
+ *   - 배경은 살짝 푸른 톤 off-white로 눈부심 줄임
+ *   - 사이드바 텍스트가 묻히지 않도록 전부 점검
+ * ═══════════════════════════════════════════════════════════ */
+
+body.light-mode {
+  /* 표면 — 페이지는 살짝 푸르스름한 paper, 카드는 순백 */
+  --bg: #f4f7fb;
+  --bg-elev: #ffffff;
+  --bg-elev-2: #eef2f8;
+
+  /* 경계선 — 부드럽지만 보이게 */
+  --border: #cdd5e0;
+  --border-soft: #e1e6ee;
+
+  /* 텍스트 — 슬레이트 계열, 점진적 contrast */
+  --text: #0f172a;        /* slate-900: 본문 */
+  --text-dim: #475569;    /* slate-600: 보조 (still WCAG AA) */
+  --text-faint: #8693a8;  /* slate-400+: placeholder/메타 */
+
+  /* 액센트 — 너무 밝지 않게 */
+  --accent: #2563eb;      /* blue-600 */
+  --accent-2: #7c3aed;    /* violet-600 */
+  --accent-green: #16a34a;
+  --user: #dbeafe;        /* 사용자 메시지: light blue */
+  --assistant: #ffffff;
+  --success: #16a34a;
+  --error: #dc2626;
+}
+
+/* ─── Brand title — gradient text는 light에서 안 보임 → 솔리드로 ─── */
+
+body.light-mode .brand-title {
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  color: var(--text) !important;
+  text-shadow: none !important;
+}
+
+body.light-mode .brand {
+  background: #ffffff !important;
+}
+
+body.light-mode #sidebar > .brand {
+  background: #ffffff !important;
+  border-bottom: 1px solid var(--border-soft) !important;
+}
+
+/* ─── 사이드바 전반 ─── */
+
+body.light-mode #sidebar {
+  background: #fafbfd !important;
+  border-right: 1px solid var(--border) !important;
+  color: var(--text);
+}
+
+body.light-mode #sidebar section {
+  border-bottom: 1px solid var(--border-soft);
+}
+
+body.light-mode #sidebar h2 {
+  color: var(--text-dim) !important;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* ─── Workspace / Roadmap 선택 박스 ─── */
+
+body.light-mode .workspace-current,
+body.light-mode .roadmap-current {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.02);
+}
+
+body.light-mode .workspace-current:hover,
+body.light-mode .roadmap-current:hover {
+  background: #f5f8fd !important;
+  border-color: var(--accent) !important;
+}
+
+body.light-mode .workspace-icon,
+body.light-mode .roadmap-current .roadmap-name {
+  color: var(--text) !important;
+}
+
+body.light-mode .workspace-name {
+  color: var(--text) !important;
+  font-weight: 600;
+}
+
+body.light-mode .roadmap-current .roadmap-name {
+  font-weight: 600;
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+}
+
+body.light-mode .roadmap-current .caret,
+body.light-mode .workspace-current .caret {
+  color: var(--text-dim) !important;
+}
+
+/* ─── Roadmap 목록 (Local · 9 CATEGORIES …) ─── */
+
+body.light-mode .roadmap-list {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px;
+}
+
+body.light-mode .roadmap-group-title {
+  background: #eef2f8 !important;
+  color: var(--text-dim) !important;
+  border-bottom: 1px solid var(--border-soft);
+  font-weight: 700;
+}
+
+body.light-mode .category-header {
+  background: #f4f7fb !important;
+  border-bottom: 1px solid var(--border-soft) !important;
+  color: var(--text) !important;
+}
+
+body.light-mode .category-header::before {
+  display: none; /* 다크용 그라데이션 오버레이 제거 */
+}
+
+body.light-mode .category-header:hover {
+  background: #e8eef6 !important;
+}
+
+body.light-mode .cat-name {
+  color: var(--text) !important;
+  font-weight: 600;
+  -webkit-text-fill-color: initial !important;
+}
+
+body.light-mode .cat-count {
+  color: var(--text-dim) !important;
+  background: rgba(15, 23, 42, 0.05) !important;
+  border-color: transparent !important;
+  font-weight: 600;
+}
+
+body.light-mode .cat-caret {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .cat-icon {
+  /* 다크에선 흰 stroke. light에선 카테고리 컬러 그대로 */
+  filter: none !important;
+}
+
+body.light-mode .category-body {
+  background: #fbfcfe !important;
+}
+
+/* ─── 로드맵 item (sub-roadmap, e.g., database-internals) ─── */
+
+body.light-mode .roadmap-item {
+  background: #ffffff !important;
+  color: var(--text) !important;
+  border-color: var(--border-soft) !important;
+}
+
+body.light-mode .roadmap-item:hover {
+  background: #f0f5ff !important;
+}
+
+body.light-mode .roadmap-item.active {
+  background: rgba(37, 99, 235, 0.08) !important;
+  color: var(--accent) !important;
+  border-color: rgba(37, 99, 235, 0.3) !important;
+}
+
+body.light-mode .roadmap-item .depth-pill {
+  background: rgba(124, 58, 237, 0.12);
+  color: #6d28d9;
+  border-color: rgba(124, 58, 237, 0.3);
+}
+
+/* ─── Chapters 리스트 ─── */
+
+body.light-mode .chapter-list .chapter-item-number,
+body.light-mode .chapter-list ol > li::before,
+body.light-mode .chapter-list li > .num,
+body.light-mode .chapter-list li > span:first-child {
+  color: var(--text-dim) !important;
+  font-weight: 600;
+  -webkit-text-fill-color: initial !important;
+}
+
+body.light-mode .chapter-btn {
+  color: var(--text) !important;
+  background: transparent;
+}
+
+body.light-mode .chapter-btn:hover {
+  background: #eef4ff !important;
+}
+
+body.light-mode .chapter-btn.active {
+  background: rgba(37, 99, 235, 0.10) !important;
+  color: var(--accent) !important;
+  font-weight: 600;
+}
+
+body.light-mode .chapter-btn .depth-pill {
+  background: rgba(124, 58, 237, 0.12);
+  color: #6d28d9;
+}
+
+/* ─── Past sessions / history 영역 ─── */
+
+body.light-mode .history-list,
+body.light-mode .history-item {
+  background: transparent;
+  color: var(--text);
+}
+
+body.light-mode .history-item {
+  border-bottom: 1px solid var(--border-soft);
+}
+
+body.light-mode .history-item:hover {
+  background: #f5f8fd !important;
+}
+
+body.light-mode .history-item .topic,
+body.light-mode .history-item strong {
+  color: var(--text) !important;
+}
+
+body.light-mode .history-item .summary,
+body.light-mode .history-item .meta {
+  color: var(--text-dim) !important;
+}
+
+/* ─── 활동 / 휴지통 미니 버튼 (사이드바 하단) ─── */
+
+body.light-mode .activity-open-btn,
+body.light-mode .trash-open-btn {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+}
+
+body.light-mode .activity-open-btn:hover,
+body.light-mode .trash-open-btn:hover {
+  background: #f0f5ff !important;
+  border-color: var(--accent) !important;
+}
+
+/* ─── 모델 selector ─── */
+
+body.light-mode .model-select {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+}
+
+body.light-mode .model-select:hover {
+  border-color: var(--accent) !important;
+}
+
+/* ─── 상단 topbar ─── */
+
+body.light-mode #topbar {
+  background: #ffffff !important;
+  border-bottom: 1px solid var(--border) !important;
+  box-shadow: none !important;
+}
+
+body.light-mode .topbar-chapter-title {
+  color: var(--text) !important;
+  text-shadow: none !important;
+}
+
+body.light-mode .topbar-chapter-icon {
+  color: var(--accent-2) !important;
+}
+
+body.light-mode #current-chapter .depth {
+  color: #6d28d9 !important;
+  border-color: rgba(124, 58, 237, 0.35) !important;
+  background: rgba(124, 58, 237, 0.06) !important;
+}
+
+/* ─── 메시지 영역 / Claude 응답 ─── */
+
+body.light-mode #main,
+body.light-mode .messages {
+  background: var(--bg) !important;
+}
+
+body.light-mode .message.assistant {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+body.light-mode .message.assistant .role,
+body.light-mode .message.user .role {
+  color: var(--text-dim) !important;
+  font-weight: 700;
+}
+
+body.light-mode .message.user {
+  background: var(--user) !important;
+  color: var(--text) !important;
+}
+
+body.light-mode .message.assistant code:not(pre code) {
+  background: rgba(37, 99, 235, 0.08) !important;
+  color: #1e3a8a !important;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+body.light-mode .message.assistant pre {
+  background: #f6f8fb !important;
+  border: 1px solid var(--border-soft) !important;
+  color: #0f172a !important;
+}
+
+body.light-mode .message.assistant strong {
+  color: var(--text) !important;
+}
+
+/* ─── 입력 영역 ─── */
+
+body.light-mode .composer {
+  background: #ffffff !important;
+  border-top: 1px solid var(--border) !important;
+}
+
+body.light-mode #input,
+body.light-mode textarea.lookup-direct-input,
+body.light-mode .lookup-direct-context,
+body.light-mode .lookup-question-text,
+body.light-mode .lookup-direct-input::placeholder,
+body.light-mode #input::placeholder {
+  background-color: #ffffff !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+
+body.light-mode #input::placeholder,
+body.light-mode textarea.lookup-direct-input::placeholder,
+body.light-mode .lookup-direct-context::placeholder {
+  color: var(--text-faint) !important;
+}
+
+body.light-mode #input:focus,
+body.light-mode textarea.lookup-direct-input:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+}
+
+/* ─── Look-up 패널 ─── */
+
+body.light-mode .lookup-panel {
+  background: #fafbfd !important;
+  border-left: 1px solid var(--border) !important;
+}
+
+body.light-mode .lookup-panel-header {
+  background: #ffffff !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+
+body.light-mode .lookup-panel-header h3 {
+  color: var(--text) !important;
+}
+
+body.light-mode .lookup-card {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+body.light-mode .lookup-card-head {
+  color: var(--text) !important;
+}
+
+body.light-mode .lookup-card-head:hover {
+  background: #f5f8fd !important;
+}
+
+body.light-mode .lookup-card-query {
+  color: var(--text) !important;
+}
+
+body.light-mode .lookup-card-body {
+  color: var(--text) !important;
+}
+
+body.light-mode .lookup-card-userq {
+  color: var(--text-dim) !important;
+  border-top-color: var(--border-soft);
+}
+
+body.light-mode .lookup-direct-form {
+  background: #ffffff !important;
+  border-top: 1px solid var(--border) !important;
+}
+
+/* ─── 사이드바 토글 (좌·우) ─── */
+
+body.light-mode .sidebar-toggle {
+  background: #ffffff !important;
+  border-color: var(--border) !important;
+  color: var(--text-dim) !important;
+}
+
+body.light-mode:not(.sidebar-collapsed) .sidebar-toggle {
+  background: rgba(37, 99, 235, 0.06) !important;
+  border-color: rgba(37, 99, 235, 0.35) !important;
+  color: var(--accent) !important;
+}
+
+body.light-mode .sidebar-toggle:hover {
+  background: rgba(37, 99, 235, 0.10) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  box-shadow: 0 0 14px rgba(37, 99, 235, 0.16) !important;
+}
+
+body.light-mode .icon-action-btn {
+  background: #ffffff !important;
+  border-color: var(--border) !important;
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .icon-action-btn:hover:not(:disabled) {
+  background: rgba(37, 99, 235, 0.06) !important;
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+  box-shadow: 0 0 14px rgba(37, 99, 235, 0.16) !important;
+}
+
+body.light-mode .lookup-toggle-btn:hover:not(:disabled),
+body.light-mode body.lookup-open .lookup-toggle-btn {
+  background: rgba(124, 58, 237, 0.08) !important;
+  border-color: rgba(124, 58, 237, 0.4) !important;
+  color: var(--accent-2) !important;
+  box-shadow: 0 0 14px rgba(124, 58, 237, 0.18) !important;
+}
+
+/* ─── 모달 / 팝오버 / 검색 ─── */
+
+body.light-mode .modal-overlay {
+  background: rgba(15, 23, 42, 0.42) !important;
+}
+
+body.light-mode .modal,
+body.light-mode .settings-modal,
+body.light-mode .search-modal,
+body.light-mode .activity-modal,
+body.light-mode .trash-modal,
+body.light-mode .add-workspace-modal {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: 0 18px 50px rgba(15, 23, 42, 0.18) !important;
+}
+
+body.light-mode .modal h3,
+body.light-mode .modal label,
+body.light-mode .modal strong {
+  color: var(--text) !important;
+}
+
+body.light-mode .settings-tabs {
+  border-bottom: 1px solid var(--border) !important;
+}
+
+body.light-mode .settings-tab {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .settings-tab.active {
+  color: var(--accent) !important;
+  border-bottom: 2px solid var(--accent);
+}
+
+body.light-mode .settings-hint {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .settings-field input,
+body.light-mode .settings-field select {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+}
+
+body.light-mode .settings-save-btn {
+  background: var(--accent) !important;
+  color: #ffffff !important;
+}
+
+body.light-mode .modal-close {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .modal-close:hover {
+  color: var(--text) !important;
+  background: rgba(15, 23, 42, 0.06) !important;
+}
+
+/* ─── Update banner ─── */
+
+body.light-mode .update-banner {
+  background: #f4f7fb !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+body.light-mode .update-banner.has-update {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(37, 99, 235, 0.06)) !important;
+  border-color: rgba(124, 58, 237, 0.35) !important;
+  color: var(--text) !important;
+}
+
+body.light-mode .update-banner.errored {
+  background: rgba(220, 38, 38, 0.06) !important;
+  border-color: rgba(220, 38, 38, 0.35) !important;
+  color: #991b1b !important;
+}
+
+body.light-mode .update-banner-text strong {
+  color: inherit !important;
+}
+
+body.light-mode .update-install-btn {
+  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+}
+
+/* update banner 보조 버튼 (다시 확인, Releases) */
+
+.update-mini-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px 9px;
+  background: transparent;
+  border: 1px solid var(--border, rgba(148, 169, 190, 0.3));
+  border-radius: 6px;
+  color: var(--text-dim, #a6b2bb);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: all 0.12s ease;
+}
+
+.update-mini-btn:hover {
+  color: var(--accent-2, #c5a7ff);
+  border-color: var(--accent-2, #c5a7ff);
+  background: rgba(197, 167, 255, 0.08);
+}
+
+.update-mini-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+body.light-mode .update-mini-btn {
+  background: #ffffff;
+  border-color: var(--border);
+  color: var(--text-dim);
+}
+
+body.light-mode .update-mini-btn:hover {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+  background: rgba(124, 58, 237, 0.06);
+}
+
+/* ─── Quiz / End&Save / 액션 버튼 light ─── */
+
+body.light-mode .action-btn.quiz {
+  background: rgba(124, 58, 237, 0.08) !important;
+  color: #6d28d9 !important;
+  border-color: rgba(124, 58, 237, 0.3) !important;
+}
+
+body.light-mode .action-btn.quiz:hover:not(:disabled) {
+  background: rgba(124, 58, 237, 0.16) !important;
+  border-color: var(--accent-2) !important;
+}
+
+body.light-mode .action-btn.end,
+body.light-mode .send-btn {
+  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+  border-color: transparent !important;
+}
+
+body.light-mode .refine-btn {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.08) 0%, rgba(37, 99, 235, 0.06) 100%) !important;
+  color: #6d28d9 !important;
+  border-color: rgba(124, 58, 237, 0.35) !important;
+}
+
+body.light-mode .refine-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(124, 58, 237, 0.16) 0%, rgba(37, 99, 235, 0.12) 100%) !important;
+}
+
+/* ─── Look-up toolbar (floating) ─── */
+
+body.light-mode .lookup-toolbar {
+  background: rgba(255, 255, 255, 0.96) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.16) !important;
+}
+
+body.light-mode .lookup-tool-btn {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .lookup-tool-btn:hover {
+  background: rgba(37, 99, 235, 0.08) !important;
+  color: var(--accent) !important;
+}
+
+body.light-mode .lookup-toolbar-divider {
+  background: var(--border) !important;
+}
+
+/* ─── 활동 캘린더 light 적응 ─── */
+
+body.light-mode .activity-cell[data-level="0"] {
+  background: #e8eef6 !important;
+}
+
+body.light-mode .activity-cell[data-level="1"] {
+  background: rgba(37, 99, 235, 0.20) !important;
+}
+
+body.light-mode .activity-cell[data-level="2"] {
+  background: rgba(37, 99, 235, 0.42) !important;
+}
+
+body.light-mode .activity-cell[data-level="3"] {
+  background: rgba(37, 99, 235, 0.62) !important;
+}
+
+body.light-mode .activity-cell[data-level="4"] {
+  background: rgba(124, 58, 237, 0.78) !important;
+}
+
+body.light-mode .activity-cell[data-level="5"] {
+  background: linear-gradient(135deg, #f59e0b 0%, #ef6e3a 100%) !important;
+}
+
+body.light-mode .activity-summary,
+body.light-mode .activity-stat,
+body.light-mode .activity-month-labels {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .activity-stat strong {
+  color: var(--text) !important;
+}
+
+body.light-mode .stat-ic-spiral {
+  color: #6d28d9 !important;
+}
+
+body.light-mode .stat-ic-flame {
+  color: #ef6e3a !important;
+}
+
+body.light-mode .activity-streak.on-fire .streak-flame {
+  color: #ef6e3a !important;
+}
+
+body.light-mode .activity-streak .streak-num {
+  color: var(--text) !important;
+}
+
+/* ─── End progress 카드 / 다음 챕터 ─── */
+
+body.light-mode .end-progress-card {
+  background: #ffffff !important;
+  border: 1px solid rgba(37, 99, 235, 0.32) !important;
+  color: var(--text) !important;
+  box-shadow: 0 4px 20px rgba(37, 99, 235, 0.10) !important;
+}
+
+body.light-mode .end-progress-card-title {
+  color: var(--text) !important;
+}
+
+body.light-mode .end-progress-summary .summary-topic strong {
+  color: var(--text) !important;
+}
+
+body.light-mode .end-progress-summary .summary-text,
+body.light-mode .end-progress-summary .summary-stats {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .end-action-btn.obsidian-action {
+  background: rgba(37, 99, 235, 0.06) !important;
+  border-color: rgba(37, 99, 235, 0.4) !important;
+  color: var(--accent) !important;
+}
+
+body.light-mode .end-action-btn.next-chapter-btn {
+  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%) !important;
+  color: #ffffff !important;
+}
+
+body.light-mode .end-action-btn.deeper-btn {
+  background: rgba(124, 58, 237, 0.08) !important;
+  border-color: rgba(124, 58, 237, 0.4) !important;
+  color: #6d28d9 !important;
+}
+
+/* ─── 따봉 / Refine 배너 light ─── */
+
+body.light-mode .feedback-btn {
+  color: var(--text-faint) !important;
+}
+
+body.light-mode .feedback-btn:hover {
+  background: rgba(15, 23, 42, 0.05) !important;
+  color: var(--text) !important;
+}
+
+body.light-mode .feedback-btn.active[data-vote="up"] {
+  color: var(--success) !important;
+  background: rgba(22, 163, 74, 0.10) !important;
+  border-color: rgba(22, 163, 74, 0.35) !important;
+}
+
+body.light-mode .feedback-btn.active[data-vote="down"] {
+  color: var(--error) !important;
+  background: rgba(220, 38, 38, 0.08) !important;
+  border-color: rgba(220, 38, 38, 0.3) !important;
+}
+
+body.light-mode .refine-bar {
+  background: linear-gradient(90deg, rgba(124, 58, 237, 0.08), rgba(37, 99, 235, 0.06)) !important;
+  border-color: rgba(124, 58, 237, 0.3) !important;
+  color: #4c1d95 !important;
+}
+
+body.light-mode .refine-bar-undo {
+  background: rgba(124, 58, 237, 0.10) !important;
+  color: #6d28d9 !important;
+  border-color: rgba(124, 58, 237, 0.32) !important;
+}
+
+/* ─── 스크롤바 light ─── */
+
+body.light-mode ::-webkit-scrollbar-thumb {
+  background: #c3cad6 !important;
+}
+
+body.light-mode ::-webkit-scrollbar-thumb:hover {
+  background: #a0a9b7 !important;
+}
+
+body.light-mode ::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+/* ─── 로고 (spiral SVG) light 그림자 ─── */
+
+body.light-mode .logo-spiral svg {
+  filter: drop-shadow(0 0 6px rgba(37, 99, 235, 0.18)) !important;
+}
+
+/* ─── Setup wizard link ─── */
+
+body.light-mode .settings-wizard-link {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .settings-wizard-link:hover {
+  color: var(--text) !important;
+  background: rgba(15, 23, 42, 0.04) !important;
+}
+
+body.light-mode .wizard-link-icon {
+  color: var(--accent-2) !important;
+}
+
+/* ─── 검색 모달 light 추가 ─── */
+
+body.light-mode .search-input-wrap {
+  background: #ffffff !important;
+  border-color: var(--border) !important;
+}
+
+body.light-mode #search-input {
+  background: #ffffff !important;
+  color: var(--text) !important;
+}
+
+body.light-mode #search-input::placeholder {
+  color: var(--text-faint) !important;
+}
+
+body.light-mode .search-result {
+  color: var(--text) !important;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+body.light-mode .search-result:hover,
+body.light-mode .search-result.active {
+  background: rgba(37, 99, 235, 0.08) !important;
+}
+
+body.light-mode .search-hint {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .search-result mark {
+  background: rgba(245, 158, 11, 0.25) !important;
+  color: var(--text) !important;
+}
+
+/* ─── 카드 / 박스 그림자 부드럽게 (다크에서 글로우였던 자리) ─── */
+
+body.light-mode .lookup-card,
+body.light-mode .end-progress-card,
+body.light-mode .modal,
+body.light-mode #sidebar > .brand,
+body.light-mode #topbar {
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════ */

@@ -452,21 +452,42 @@ function fetchJson(url) {
         url,
         {
           headers: {
-            "User-Agent": "spiral-buddy-update-checker",
+            "User-Agent": `spiral-buddy/${require("../package.json").version}`,
             Accept: "application/vnd.github+json",
           },
         },
         (res) => {
-          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          // 리다이렉트 처리 — 응답 종료 안 기다리고 새 URL로
+          if (
+            res.statusCode &&
+            res.statusCode >= 300 &&
+            res.statusCode < 400 &&
+            res.headers.location
+          ) {
+            res.resume(); // drain
             return fetchJson(res.headers.location).then(resolve, reject);
           }
           let body = "";
           res.on("data", (d) => (body += d));
           res.on("end", () => {
             try {
-              resolve(JSON.parse(body));
+              const data = JSON.parse(body);
+              // GitHub의 rate-limit/오류 응답은 200/403 둘 다 가능 — JSON에 message 있고 tag_name 없음
+              if (res.statusCode && res.statusCode >= 400) {
+                resolve({
+                  _httpError: true,
+                  status: res.statusCode,
+                  ...data,
+                });
+              } else {
+                resolve(data);
+              }
             } catch (e) {
-              reject(e);
+              reject(
+                new Error(
+                  `Bad JSON from ${url} (HTTP ${res.statusCode}): ${e.message}`,
+                ),
+              );
             }
           });
           res.on("error", reject);
@@ -475,6 +496,10 @@ function fetchJson(url) {
       .on("error", reject);
   });
 }
+
+// 업데이트 결과 캐시 (5분) — repeated 설정 모달 열기로 rate-limit 피해 방지
+let _updateCache = null;
+const UPDATE_CACHE_TTL = 5 * 60 * 1000;
 
 /** semver-ish 비교: "0.5.32" > "0.5.31" → 1 */
 function cmpVersion(a, b) {
@@ -488,30 +513,68 @@ function cmpVersion(a, b) {
   return 0;
 }
 
-ipcMain.handle("app:check-update", async () => {
+ipcMain.handle("app:check-update", async (_e, { force } = {}) => {
+  const releasesPageUrl = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/latest`;
+  // 캐시 — 5분 안 지났으면 그대로 반환 (단, force=true면 무시)
+  if (
+    !force &&
+    _updateCache &&
+    Date.now() - _updateCache.at < UPDATE_CACHE_TTL
+  ) {
+    return { ...(_updateCache.data ?? {}), cached: true };
+  }
   try {
     const data = await fetchJson(
       `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/releases/latest`,
     );
+    // rate-limit / 4xx 응답 — message 같이 보여줌
+    if (data?._httpError) {
+      const result = {
+        current: APP_VERSION,
+        latest: null,
+        updateAvailable: false,
+        error:
+          data?.message ?? `GitHub API HTTP ${data.status}`,
+        httpStatus: data.status,
+        releasesPageUrl,
+      };
+      _updateCache = { at: Date.now(), data: result };
+      return result;
+    }
     const tag = (data?.tag_name ?? "").replace(/^v/, "");
     if (!tag) {
-      return { current: APP_VERSION, latest: null, updateAvailable: false };
+      const result = {
+        current: APP_VERSION,
+        latest: null,
+        updateAvailable: false,
+        error: "버전 정보를 받지 못했습니다 (응답에 tag_name 없음).",
+        releasesPageUrl,
+      };
+      _updateCache = { at: Date.now(), data: result };
+      return result;
     }
     const updateAvailable = cmpVersion(tag, APP_VERSION) > 0;
-    return {
+    const result = {
       current: APP_VERSION,
       latest: tag,
       updateAvailable,
       releaseUrl: data?.html_url ?? null,
       publishedAt: data?.published_at ?? null,
+      releasesPageUrl,
     };
+    _updateCache = { at: Date.now(), data: result };
+    return result;
   } catch (err) {
-    return {
+    const result = {
       current: APP_VERSION,
       latest: null,
       updateAvailable: false,
       error: err instanceof Error ? err.message : String(err),
+      releasesPageUrl,
     };
+    // 에러도 짧게 캐시 (1분) — 네트워크 죽었을 때 폭주 방지
+    _updateCache = { at: Date.now() - (UPDATE_CACHE_TTL - 60 * 1000), data: result };
+    return result;
   }
 });
 
