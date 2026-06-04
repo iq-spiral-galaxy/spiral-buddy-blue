@@ -11,8 +11,9 @@
 
 ---
 
-## ⚡ 30초 설치 (macOS Apple Silicon)
+## ⚡ 30초 설치 (한 줄 명령)
 
+### 🍎 macOS (Apple Silicon)
 터미널에 그대로 붙여넣기 — 실행 중이면 자동 종료 → 최신 버전 받기 → 설치 → 재실행까지 한 번에:
 
 ```bash
@@ -30,10 +31,35 @@ open '/Applications/Spiral Buddy.app'
 ```
 
 > **Intel Mac**: 위 명령에서 `-arm64`를 빼고 `Spiral.Buddy-$V.dmg`로 변경.
->
-> **Windows / Linux**: [Releases 페이지](https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest)에서 `.exe` 또는 `.AppImage` 다운로드.
->
-> ⚙️ 앱 안에서도 **설정 > 일반 > "새 버전 사용 가능"** 배너에서 한 번 클릭으로 업데이트 가능 (macOS).
+
+### 🪟 Windows (PowerShell)
+**PowerShell**(시작 메뉴에서 "PowerShell" 검색) 열고 그대로 붙여넣기 — 실행 중이면 자동 종료 → 최신 버전 받기 → silent install → 재실행:
+
+```powershell
+$ErrorActionPreference = "Stop"
+Get-Process "Spiral Buddy" -EA SilentlyContinue | Stop-Process -Force
+$r = Invoke-RestMethod "https://api.github.com/repos/iq-agent-lab/iq-spiral-buddy/releases/latest"
+$V = $r.tag_name -replace '^v'
+Write-Host "-> installing v$V"
+$exe = "$env:TEMP\spiral-buddy-setup.exe"
+Invoke-WebRequest -Uri "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/download/v$V/Spiral.Buddy.Setup.$V.exe" -OutFile $exe
+Start-Process -FilePath $exe -ArgumentList "/S" -Wait
+Remove-Item $exe -Force
+$app = "$env:LOCALAPPDATA\Programs\spiral-buddy\Spiral Buddy.exe"
+if (Test-Path $app) { Start-Process $app }
+```
+
+### 🐧 Linux
+[Releases 페이지](https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest)에서 `.AppImage` 다운로드 → 실행권한 부여 후 실행.
+
+```bash
+V=$(curl -fsSL https://api.github.com/repos/iq-agent-lab/iq-spiral-buddy/releases/latest | sed -n 's/.*"tag_name": "v\([^"]*\)".*/\1/p')
+curl -fL -o ~/SpiralBuddy.AppImage "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/download/v$V/Spiral.Buddy-$V.AppImage"
+chmod +x ~/SpiralBuddy.AppImage
+~/SpiralBuddy.AppImage
+```
+
+> ⚙️ 앱 안에서도 **설정 > 일반 > "새 버전 사용 가능"** 배너에서 한 번 클릭으로 업데이트 가능 (macOS / Windows).
 >
 > 첫 실행 시 macOS Gatekeeper 경고("'손상되었기 때문에 열 수 없습니다") — 위 명령의 `xattr -cr`이 해결. 노트·설정·워크스페이스는 vault 또는 `~/Library/Application Support/Spiral Buddy/`에 저장돼서 재설치해도 안 사라집니다.
 

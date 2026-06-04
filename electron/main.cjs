@@ -578,8 +578,8 @@ ipcMain.handle("app:check-update", async (_e, { force } = {}) => {
   }
 });
 
-/** 플랫폼별 install 스크립트 생성 (macOS만 자동, 나머지는 release 페이지 open). */
-function buildInstallScript(version) {
+/** 플랫폼별 install 스크립트 생성. macOS + Windows 자동 install 지원. */
+function buildInstallScript(version, logPath) {
   const platform = process.platform;
   const arch = process.arch;
   if (platform === "darwin") {
@@ -588,49 +588,122 @@ function buildInstallScript(version) {
         ? `Spiral.Buddy-${version}-arm64.dmg`
         : `Spiral.Buddy-${version}.dmg`;
     const url = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/v${version}/${dmgName}`;
-    // 1. Spiral Buddy 종료 (osascript) → 2초 대기
-    // 2. dmg 다운로드 / 마운트 → 기존 앱 제거 → 새 앱 복사 → unmount → xattr 정리 → open
+    // 모든 출력을 logPath로 — 디버깅 가능.
+    // set -e는 사용 X (한 단계 실패해도 다음 시도하고 마지막에 open). 단계마다 echo로 진행 로깅.
     return `#!/bin/bash
-set -e
+exec > "${logPath}" 2>&1
+echo "=== Spiral Buddy update start (v${version}) ==="
+date
+
+echo "-- step 1: quitting current app"
 osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null || true
-sleep 2
-cd /tmp
-curl -fL --retry 3 -o /tmp/spiral.dmg "${url}"
-hdiutil attach -nobrowse -quiet /tmp/spiral.dmg
+sleep 2.5
+
+echo "-- step 2: downloading dmg from ${url}"
+cd /tmp || exit 1
+if ! curl -fL --retry 3 -o /tmp/spiral.dmg "${url}"; then
+  echo "ERROR: download failed"
+  exit 1
+fi
+
+echo "-- step 3: mounting dmg"
+if ! hdiutil attach -nobrowse -quiet /tmp/spiral.dmg; then
+  echo "ERROR: mount failed"
+  exit 1
+fi
+
+echo "-- step 4: replacing app in /Applications"
 rm -rf '/Applications/Spiral Buddy.app'
-cp -R "/Volumes/Spiral Buddy ${version}/Spiral Buddy.app" /Applications/
-hdiutil detach -quiet "/Volumes/Spiral Buddy ${version}"
-xattr -cr '/Applications/Spiral Buddy.app'
+if ! cp -R "/Volumes/Spiral Buddy ${version}/Spiral Buddy.app" /Applications/; then
+  echo "ERROR: copy failed — /Applications 권한이 부족할 수 있음"
+  hdiutil detach -quiet "/Volumes/Spiral Buddy ${version}" 2>/dev/null || true
+  exit 1
+fi
+
+echo "-- step 5: unmount + cleanup"
+hdiutil detach -quiet "/Volumes/Spiral Buddy ${version}" 2>/dev/null || true
+xattr -cr '/Applications/Spiral Buddy.app' 2>/dev/null || true
 rm -f /tmp/spiral.dmg
+
+echo "-- step 6: opening updated app"
 open '/Applications/Spiral Buddy.app'
+echo "=== done ==="
 `;
   }
-  return null; // 다른 OS는 자동 install 미지원
+  if (platform === "win32") {
+    const exeName = `Spiral.Buddy.Setup.${version}.exe`;
+    const url = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/v${version}/${exeName}`;
+    // PowerShell 스크립트: 종료 → 다운로드 → 사일런트 install (/S) → 재실행
+    return `# Spiral Buddy update v${version}
+$ErrorActionPreference = "SilentlyContinue"
+Start-Transcript -Path "${logPath.replace(/\\/g, "\\\\")}"
+Write-Host "=== Spiral Buddy update v${version} ==="
+Get-Process "Spiral Buddy" | Stop-Process -Force
+Start-Sleep -Seconds 2
+$exe = "$env:TEMP\\spiral-buddy-setup.exe"
+Invoke-WebRequest -Uri "${url}" -OutFile $exe
+if (-not (Test-Path $exe)) {
+  Write-Host "ERROR: download failed"
+  Stop-Transcript
+  exit 1
+}
+Start-Process -FilePath $exe -ArgumentList "/S" -Wait
+Remove-Item $exe -Force
+# 새로 설치된 앱 실행 (NSIS가 보통 자동 실행하지만 안전망)
+$installed = "$env:LOCALAPPDATA\\Programs\\spiral-buddy\\Spiral Buddy.exe"
+if (Test-Path $installed) {
+  Start-Process $installed
+}
+Stop-Transcript
+`;
+  }
+  return null;
 }
 
 ipcMain.handle("app:install-update", async (_e, { version }) => {
   if (!version) return { ok: false, reason: "no version" };
-  const script = buildInstallScript(version);
+  const logPath = path.join(
+    os.tmpdir(),
+    `spiral-buddy-update-${Date.now()}.log`,
+  );
+  const script = buildInstallScript(version, logPath);
   if (!script) {
-    // 자동 install 불가 → 그냥 release 페이지 열기
     shell.openExternal(
       `https://github.com/${GH_OWNER}/${GH_REPO}/releases/latest`,
     );
     return { ok: true, mode: "browser" };
   }
   try {
-    // 임시 스크립트 파일로 떨어뜨림 → detached bash로 실행 → 앱 종료
-    const tmpPath = path.join(os.tmpdir(), `spiral-buddy-update-${Date.now()}.sh`);
+    if (process.platform === "win32") {
+      const ps1Path = path.join(
+        os.tmpdir(),
+        `spiral-buddy-update-${Date.now()}.ps1`,
+      );
+      fs.writeFileSync(ps1Path, script, "utf8");
+      const proc = spawn(
+        "powershell.exe",
+        ["-ExecutionPolicy", "Bypass", "-File", ps1Path],
+        { detached: true, stdio: "ignore" },
+      );
+      proc.unref();
+      setTimeout(() => app.quit(), 500);
+      return { ok: true, mode: "windows-installer", logPath };
+    }
+    // macOS
+    const tmpPath = path.join(
+      os.tmpdir(),
+      `spiral-buddy-update-${Date.now()}.sh`,
+    );
     fs.writeFileSync(tmpPath, script, { mode: 0o755 });
+    // log 파일 미리 만들어 두기
+    fs.writeFileSync(logPath, "", "utf8");
     const proc = spawn("/bin/bash", [tmpPath], {
       detached: true,
       stdio: "ignore",
     });
     proc.unref();
-    setTimeout(() => {
-      app.quit();
-    }, 500);
-    return { ok: true, mode: "macos-installer" };
+    setTimeout(() => app.quit(), 500);
+    return { ok: true, mode: "macos-installer", logPath };
   } catch (err) {
     return {
       ok: false,

@@ -7160,3 +7160,209 @@ body.light-mode #topbar {
 }
 
 /* ═══════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════
+ *   v0.5.37 — 라이트 모드 추가 정리
+ *   카테고리 안 sub-roadmap, 챕터 번호, depth-pill 등 어두운 hardcoded
+ *   색상이 흰 배경에서 보이지 않던 부분 전부 override.
+ * ═══════════════════════════════════════════════════════════ */
+
+/* sub-roadmap 본문 행 (spring-core-deep-dive 등) — 보이게 */
+
+body.light-mode .roadmap-item-name {
+  color: var(--text) !important;
+  font-weight: 500;
+}
+
+body.light-mode .roadmap-current .roadmap-name {
+  color: var(--text) !important;
+}
+
+body.light-mode .repo-name {
+  color: var(--text) !important;
+}
+
+body.light-mode .sub-roadmap-item {
+  background: #ffffff !important;
+}
+
+body.light-mode .sub-roadmap-item:hover {
+  background: #eef4ff !important;
+}
+
+body.light-mode .sub-roadmap-item.active {
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.10), rgba(124, 58, 237, 0.06)),
+    rgba(37, 99, 235, 0.04) !important;
+  box-shadow: inset 2px 0 0 var(--accent) !important;
+}
+
+body.light-mode .sub-roadmap-item .roadmap-item-name {
+  color: var(--text) !important;
+  font-weight: 500;
+}
+
+body.light-mode .sub-roadmap-item.active .roadmap-item-name {
+  color: var(--accent) !important;
+  font-weight: 600;
+}
+
+body.light-mode .sub-roadmap-index {
+  color: var(--text-dim) !important;
+  font-weight: 600;
+}
+
+body.light-mode .roadmap-item-meta {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .roadmap-item-progress,
+body.light-mode .roadmap-item-date,
+body.light-mode .roadmap-item-id {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .category-body {
+  background: #f8fafd !important;
+}
+
+/* d1 / depth-pill 통일된 light 디자인 — 보랏빛 알약 */
+
+body.light-mode .depth-pill,
+body.light-mode .chapter-depth-pill,
+body.light-mode .search-esc-hint,
+body.light-mode .search-footer kbd,
+body.light-mode #current-chapter .depth,
+body.light-mode #current-chapter .roadmap-badge {
+  background: rgba(124, 58, 237, 0.10) !important;
+  border: 1px solid rgba(124, 58, 237, 0.32) !important;
+  color: #6d28d9 !important;
+}
+
+body.light-mode .depth-pill.deletable:hover,
+body.light-mode .chapter-depth-pill.deletable:hover {
+  background: rgba(220, 38, 38, 0.10) !important;
+  border-color: rgba(220, 38, 38, 0.4) !important;
+  color: #991b1b !important;
+}
+
+body.light-mode .chapter-depth-pill.empty {
+  background: rgba(15, 23, 42, 0.04) !important;
+  border-color: var(--border-soft) !important;
+  color: var(--text-faint) !important;
+}
+
+body.light-mode .cat-count {
+  background: rgba(15, 23, 42, 0.05) !important;
+  color: var(--text-dim) !important;
+  border-color: transparent !important;
+}
+
+/* category-header (Java Core 등) 안의 cat-icon, cat-caret 가독성 */
+
+body.light-mode .cat-caret {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .cat-icon svg {
+  /* 카테고리 컬러를 그대로 보존 (이미 인라인 color 적용된 SVG) */
+}
+
+/* CHAPTERS 리스트 — 번호와 제목 모두 진하게 */
+
+body.light-mode .chapter-list {
+  color: var(--text);
+}
+
+body.light-mode .chapter-list ol li {
+  color: var(--text) !important;
+}
+
+body.light-mode .chapter-list ol li::marker {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .chapter-btn {
+  color: var(--text) !important;
+}
+
+body.light-mode .chapter-btn .chapter-name {
+  color: var(--text) !important;
+}
+
+body.light-mode .chapter-btn:hover {
+  background: rgba(37, 99, 235, 0.06) !important;
+}
+
+body.light-mode .chapter-btn.active {
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.10), rgba(124, 58, 237, 0.06)) !important;
+  box-shadow: inset 2px 0 0 var(--accent);
+  color: var(--accent) !important;
+}
+
+body.light-mode .chapter-btn .chapter-meta,
+body.light-mode .chapter-btn .chapter-date,
+body.light-mode .chapter-btn .chapter-id {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .chapter-btn .chapter-depth-pill {
+  background: rgba(124, 58, 237, 0.10) !important;
+  color: #6d28d9 !important;
+  border-color: rgba(124, 58, 237, 0.32) !important;
+}
+
+/* roadmap-list 하단 헤더 (LOCAL · 9 CATEGORIES · 37 REPOS …) */
+
+body.light-mode .roadmap-group-title,
+body.light-mode .curated-available-header {
+  background: #eef2f8 !important;
+  color: var(--text-dim) !important;
+  font-weight: 700;
+}
+
+/* 채팅(메시지) 카드 — 풀화이트 대신 살짝 따뜻한 톤 + 부드러운 border */
+
+body.light-mode .message.assistant {
+  background: #ffffff !important;
+  border: 1px solid #dce4ee !important;
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.04),
+    0 8px 24px rgba(15, 23, 42, 0.03) !important;
+}
+
+body.light-mode .message.assistant .role {
+  color: #7c3aed !important;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+body.light-mode .message.assistant pre {
+  background: #f4f7fb !important;
+  border: 1px solid #dce4ee !important;
+  color: #0f172a !important;
+}
+
+body.light-mode .message.assistant pre code {
+  color: inherit !important;
+}
+
+body.light-mode .messages {
+  background: var(--bg) !important;
+}
+
+/* 따봉 아래 살짝 여백 */
+
+body.light-mode .message.assistant + .feedback-bar {
+  margin-top: 4px;
+}
+
+/* 페이지 자체에 살짝 따뜻한 그라데이션 — 균일한 회청색의 지루함 완화 */
+
+body.light-mode {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(124, 58, 237, 0.03), transparent),
+    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(37, 99, 235, 0.03), transparent),
+    var(--bg) !important;
+}
