@@ -7366,3 +7366,182 @@ body.light-mode {
     radial-gradient(ellipse 70% 50% at 100% 100%, rgba(37, 99, 235, 0.03), transparent),
     var(--bg) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════
+ *   v0.5.38 — 라이트 모드 fine-tuning
+ *
+ *   - 챕터 visited/unvisited 로직 다크 모드와 같은 방향으로
+ *   - 다크 hardcoded 아이콘 배경(workspace-icon, settings-curated-icon,
+ *     logo-spiral 등) light에 맞게
+ *   - CLAUDE 라벨 — 카드 바깥 떠 있는 느낌 정리
+ *   - 따봉 위치 — 카드 우측 정렬 + 더 자연스러운 inline
+ * ═══════════════════════════════════════════════════════════ */
+
+/* ─── 챕터: 방문한 챕터가 primary, 미방문이 dim (다크 모드와 같은 방향) ─── */
+
+body.light-mode .chapter-btn {
+  color: var(--text-dim) !important;
+}
+
+body.light-mode .chapter-btn .title,
+body.light-mode .chapter-btn .chapter-name {
+  color: var(--text-dim) !important;
+  font-weight: 500;
+}
+
+body.light-mode .chapter-btn.visited {
+  color: var(--text) !important;
+}
+
+body.light-mode .chapter-btn.visited .title,
+body.light-mode .chapter-btn.visited .chapter-name {
+  color: var(--text) !important;
+  font-weight: 600;
+}
+
+/* 미방문 챕터의 ::marker 번호도 살짝만 dim — 너무 옅지 X */
+body.light-mode .chapter-list ol > li::marker {
+  color: var(--text-faint) !important;
+}
+
+body.light-mode .chapter-list ol > li:has(.chapter-btn.visited)::marker {
+  color: #b45309 !important; /* warm amber — done indicator */
+  font-weight: 700;
+}
+
+/* ─── 다크 hardcoded 아이콘 배경들 light로 ─── */
+
+body.light-mode .workspace-icon {
+  background: #ffffff !important;
+  border-color: var(--border) !important;
+  color: var(--text-dim) !important;
+  box-shadow:
+    0 1px 0 rgba(15, 23, 42, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
+}
+
+body.light-mode .settings-curated-icon {
+  background: rgba(37, 99, 235, 0.08) !important;
+  border-color: rgba(37, 99, 235, 0.32) !important;
+  color: var(--accent) !important;
+}
+
+body.light-mode .logo-spiral svg circle[fill="url(#spiral-glow)"] {
+  opacity: 0.4 !important;
+}
+
+body.light-mode .logo-spiral {
+  filter: none !important;
+}
+
+body.light-mode .logo-spiral svg {
+  filter: drop-shadow(0 1px 3px rgba(37, 99, 235, 0.18)) !important;
+}
+
+body.light-mode #sidebar > .brand .logo-spiral {
+  /* 다크 원형 배경 효과 약화 */
+}
+
+/* ─── CLAUDE 라벨 — 카드 바깥 떠 있는 느낌 줄이기 ─── */
+
+body.light-mode .message.assistant {
+  position: relative;
+  padding-top: 28px !important;
+}
+
+body.light-mode .message.assistant .role {
+  position: absolute;
+  top: 10px;
+  left: 22px;
+  font-size: 10px !important;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #94a3b8 !important;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+}
+
+body.light-mode .message.user .role {
+  font-size: 10px !important;
+  color: #475569 !important;
+  letter-spacing: 0.1em;
+}
+
+/* 다크 모드도 살짝 정리 — 라벨 좀 더 들어가게 */
+.message.assistant .role,
+.message.user .role {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  opacity: 0.72;
+}
+
+/* ─── 따봉 — 카드 우측 정렬 + 호버 시만 진하게 ─── */
+
+.message.assistant .feedback-bar {
+  display: inline-flex;
+  margin-left: auto;
+  margin-top: 4px;
+  padding: 0;
+  justify-content: flex-end;
+  align-self: flex-end;
+  opacity: 0.4;
+  transition: opacity 0.18s ease;
+}
+
+.message.assistant {
+  display: flex;
+  flex-direction: column;
+}
+
+.message.assistant > .content {
+  flex: 1;
+}
+
+.message.assistant:hover .feedback-bar,
+.message.assistant .feedback-bar:focus-within {
+  opacity: 1;
+}
+
+body.light-mode .message.assistant .feedback-bar {
+  margin-top: 6px;
+  padding-right: 4px;
+}
+
+body.light-mode .message.assistant .feedback-btn {
+  color: #94a3b8 !important;
+  border-radius: 6px;
+}
+
+body.light-mode .message.assistant .feedback-btn:hover {
+  background: rgba(37, 99, 235, 0.08) !important;
+  color: var(--accent) !important;
+}
+
+/* ─── 휴지통/활동 사이드바 미니버튼: 너무 무거운 다크 BG 부드럽게 ─── */
+
+body.light-mode .activity-open-btn,
+body.light-mode .trash-open-btn {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text-dim) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+}
+
+body.light-mode .activity-open-btn .activity-streak {
+  color: var(--text) !important;
+}
+
+/* 활동 streak flame 도 light에 맞게 */
+body.light-mode .activity-streak .streak-flame {
+  color: #ef6e3a !important;
+}
+
+/* ─── 모델 선택 박스 light ─── */
+
+body.light-mode .model-tier-badge {
+  background: rgba(37, 99, 235, 0.08) !important;
+  color: var(--accent) !important;
+  border-color: rgba(37, 99, 235, 0.3) !important;
+}
