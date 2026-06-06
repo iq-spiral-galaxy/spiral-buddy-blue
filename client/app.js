@@ -3774,18 +3774,14 @@ async function resumePausedSession() {
       content: m.content,
     }));
 
-    // 메시지 다시 렌더
+    // 메시지 다시 렌더 — appendUserMessage(skipPush) / appendAssistantMessage
+    // 둘 다 state.messages를 건드리지 않게 한다 (state.messages는 위에서 미리 populate)
     els.messages.innerHTML = "";
     for (const m of data.messages ?? []) {
       if (m.role === "user") {
         appendUserMessage(m.content, { skipPush: true });
       } else if (m.role === "assistant") {
-        const el = appendAssistantMessage(m.content);
-        // appendAssistantMessage pushes to state.messages — already pushed above; pop duplicate
-        state.messages.pop();
-        // 원래 content 그대로 두기 위해 마지막 messages 항목 다시 추가
-        state.messages.push({ role: "assistant", content: m.content });
-        void el;
+        appendAssistantMessage(m.content);
       }
     }
 

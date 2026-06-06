@@ -1104,9 +1104,13 @@ export function createApi(config: Config) {
   });
 
   // v0.5.41: pause/resume용 — 세션 전체 상태 반환
+  // v0.5.42 fix: index 0은 buildInitialContext()로 만든 "내부 부트스트랩 user 메시지" —
+  //   사용자가 친 게 아니라 챕터 본문/이전 노트를 모델에 주입한 시스템 prompt.
+  //   resume 시 채팅창에 노출되면 안 되므로 1번부터 반환.
   app.get("/session/:id", (c) => {
     const session = getSession(c.req.param("id"));
     if (!session) return c.json({ error: "Session not found" }, 404);
+    const userVisible = session.messages.slice(1);
     return c.json({
       id: session.id,
       chapter: {
@@ -1116,7 +1120,7 @@ export function createApi(config: Config) {
         roadmapName: session.chapter.roadmapName,
       },
       depth: session.depth,
-      messages: session.messages.map((m) => ({
+      messages: userVisible.map((m) => ({
         role: m.role,
         content:
           typeof m.content === "string"
