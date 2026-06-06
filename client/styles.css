@@ -352,7 +352,7 @@ body.light-mode mark.sidebar-search-hit {
   background: rgba(245, 158, 11, 0.30);
 }
 
-/* v0.5.51 — 사이드바 검색 입력 */
+/* v0.5.51 + v0.5.55 — 사이드바 검색 입력 (강조 추가) */
 .sidebar-search-section {
   padding: 8px 14px 4px;
 }
@@ -366,30 +366,88 @@ body.light-mode mark.sidebar-search-hit {
   left: 9px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--text-faint);
+  color: var(--accent, #7ee2ff);
   pointer-events: none;
+  transition: color 0.15s, transform 0.2s ease-out;
+}
+/* v0.5.55 — 검색 input idle 상태에서도 살짝 두근거리는 효과로 존재감 강조 */
+@keyframes sidebar-search-breath {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px var(--border-soft),
+      0 0 0 0 rgba(126, 226, 255, 0.0);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(126, 226, 255, 0.42),
+      0 0 14px 0 rgba(126, 226, 255, 0.14);
+  }
 }
 .sidebar-search-input {
   width: 100%;
-  background: var(--bg-elev-2);
+  background: linear-gradient(
+    180deg,
+    rgba(126, 226, 255, 0.04) 0%,
+    var(--bg-elev-2) 100%
+  );
   border: 1px solid var(--border-soft);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 12.5px;
-  padding: 7px 28px 7px 30px;
+  padding: 7px 56px 7px 30px;  /* right padding 늘려서 kbd hint 공간 */
   border-radius: 8px;
   outline: none;
-  transition: border-color 0.12s, box-shadow 0.12s;
+  transition: border-color 0.12s, box-shadow 0.12s, background 0.2s;
+  animation: sidebar-search-breath 3.6s ease-in-out infinite;
 }
 .sidebar-search-input::placeholder {
-  color: var(--text-faint);
+  color: var(--text-dim, #a6b2bb);
+  font-style: italic;
+}
+.sidebar-search-input:hover {
+  border-color: rgba(126, 226, 255, 0.4);
+  background: linear-gradient(
+    180deg,
+    rgba(126, 226, 255, 0.07) 0%,
+    var(--bg-elev-2) 100%
+  );
 }
 .sidebar-search-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(126, 226, 255, 0.18);
+  box-shadow: 0 0 0 3px rgba(126, 226, 255, 0.22);
+  background: var(--bg-elev-2);
+  animation: none;  /* 포커스 중엔 breathing 멈춤 */
+}
+.sidebar-search-input:focus ~ .sidebar-search-icon,
+.sidebar-search-wrap:hover .sidebar-search-icon {
+  color: var(--accent);
+  transform: translateY(-50%) scale(1.08);
 }
 .sidebar-search-input::-webkit-search-cancel-button {
   display: none;
+}
+
+/* v0.5.55 — Cmd+F 단축키 힌트 */
+.sidebar-search-kbd {
+  position: absolute;
+  right: 30px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono, monospace);
+  font-size: 9.5px;
+  color: var(--text-faint);
+  background: var(--bg-elev);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 2px 5px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+}
+.sidebar-search-input:focus ~ .sidebar-search-kbd,
+.sidebar-search-input:not(:placeholder-shown) ~ .sidebar-search-kbd {
+  opacity: 0;
 }
 .sidebar-search-clear {
   position: absolute;
@@ -6305,6 +6363,20 @@ body.light-mode .roadmap-item:hover {
   background: #f0f5ff;
 }
 
+/* v0.5.55 — 라이트 모드에서 챕터 번호(1. 2. 3.)가 흐려서 안 보이던 문제.
+ * 다크 모드는 amber 톤이라 잘 보이지만 라이트는 amber × white 대비 부족.
+ * → 진한 누드/구리 톤으로 진하게.
+ */
+body.light-mode .chapter-btn .num {
+  color: #a16207;
+  font-weight: 700;
+  opacity: 0.92;
+}
+body.light-mode .sub-roadmap-index {
+  color: #a16207;
+  font-weight: 700;
+}
+
 body.light-mode .chapter-btn.active,
 body.light-mode .roadmap-item.active {
   background: rgba(37, 99, 235, 0.12);
@@ -8262,6 +8334,80 @@ body.light-mode .paused-item-depth {
 
 .curated-target-pick:hover {
   background: rgba(126, 226, 255, 0.18);
+}
+
+/* v0.5.55 — "현재 워크스페이스" 빠른 복귀 버튼 (accent 색 다르게 — 의도 분리) */
+.curated-target-use-ws {
+  background: rgba(167, 139, 250, 0.10);
+  color: #c5a7ff;
+  border: 1px solid rgba(167, 139, 250, 0.42);
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.curated-target-use-ws:hover {
+  background: rgba(167, 139, 250, 0.22);
+  border-color: #b794f6;
+}
+
+/* v0.5.55 — 위치 경고/안내 카드 */
+.curated-target-warning,
+.curated-target-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+.curated-target-warning {
+  background: rgba(255, 197, 122, 0.10);
+  border: 1px solid rgba(255, 197, 122, 0.36);
+  color: #ffd58a;
+}
+.curated-target-warning strong {
+  color: #ffe1a6;
+}
+.curated-target-warning-icon {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.curated-target-hint {
+  background: rgba(126, 226, 255, 0.08);
+  border: 1px solid rgba(126, 226, 255, 0.32);
+  color: var(--accent, #7ee2ff);
+}
+.curated-target-hint-icon {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+body.light-mode .curated-target-warning {
+  background: rgba(245, 158, 11, 0.10);
+  border-color: rgba(245, 158, 11, 0.42);
+  color: #92400e;
+}
+body.light-mode .curated-target-warning strong {
+  color: #78350f;
+}
+body.light-mode .curated-target-hint {
+  background: rgba(8, 145, 178, 0.08);
+  border-color: rgba(8, 145, 178, 0.32);
+  color: #155e75;
+}
+body.light-mode .curated-target-use-ws {
+  background: rgba(124, 58, 237, 0.10);
+  color: #6d28d9;
+  border-color: rgba(124, 58, 237, 0.42);
+}
+body.light-mode .curated-target-use-ws:hover {
+  background: rgba(124, 58, 237, 0.18);
+  border-color: #7c3aed;
 }
 
 /* ─── 역할 프리셋 그리드 ─── */

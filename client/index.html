@@ -87,6 +87,7 @@
             spellcheck="false"
             aria-label="사이드바 검색"
           />
+          <kbd class="sidebar-search-kbd" aria-hidden="true">⌘F</kbd>
           <button id="sidebar-search-clear" class="sidebar-search-clear hidden" type="button" aria-label="검색어 지우기" title="검색어 지우기 (Esc)">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/>
@@ -509,7 +510,17 @@
             <div class="curated-target-row" id="curated-target-row">
               <span class="curated-target-label">받을 위치:</span>
               <code class="curated-target-path" id="curated-target-path">선택되지 않음</code>
+              <button type="button" class="curated-target-use-ws" id="curated-target-use-ws" title="현재 워크스페이스 폴더에 추가 받기 — 기존 진행이 그대로 이어집니다">📍 현재 워크스페이스</button>
               <button type="button" class="curated-target-pick" id="curated-target-pick">선택…</button>
+            </div>
+            <!-- v0.5.55 — 위치가 현재 워크스페이스와 다를 때만 경고 표시 -->
+            <div id="curated-target-warning" class="curated-target-warning hidden" role="alert">
+              <span class="curated-target-warning-icon" aria-hidden="true">⚠️</span>
+              <span>이 위치는 현재 워크스페이스와 달라요. 새로 받는 자료는 <strong>이 폴더에만</strong> 설치되며, 기존 워크스페이스에 자동으로 합쳐지지 않습니다. 진행도(d1/d2)는 옵시디언 vault에 있어 안전하지만, 새 워크스페이스를 만들어야 정상 표시됩니다.</span>
+            </div>
+            <div id="curated-target-hint" class="curated-target-hint hidden">
+              <span class="curated-target-hint-icon" aria-hidden="true">✓</span>
+              <span>현재 워크스페이스 폴더에 받습니다 — 기존 백엔드 자료/진행도 그대로 두고 누락된 도메인만 추가됩니다.</span>
             </div>
 
             <!-- v0.5.52 — 진행 상태 카드를 grid 위로 이동. 활성화될 때만 보임. -->

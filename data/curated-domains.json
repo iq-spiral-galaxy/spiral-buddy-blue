@@ -22,7 +22,7 @@
         "id": "mobile",
         "name": "모바일 개발자",
         "emoji": "📱",
-        "subtitle": "Foundations · Languages · Android · iOS · Cross-Platform",
+        "subtitle": "Foundations · Languages · Android · iOS · Cross Platform",
         "domains": ["foundations", "languages", "android", "ios", "cross-platform"],
         "color": "#16a34a"
       },
@@ -214,7 +214,7 @@
       },
       {
         "id": "frontend",
-        "name": "Frontend / Web",
+        "name": "Frontend",
         "emoji": "🌐",
         "subtitle": "클라이언트의 본질",
         "color": "#0891b2",
@@ -251,14 +251,14 @@
       },
       {
         "id": "android",
-        "name": "Mobile — Android",
+        "name": "Android",
         "emoji": "🤖",
         "subtitle": "온디바이스의 본질",
         "color": "#3ddc84",
         "order": 4,
         "categories": [
           {
-            "name": "Mobile — Android",
+            "name": "Android",
             "emoji": "🤖",
             "color": "#3ddc84",
             "repos": [
@@ -276,14 +276,14 @@
       },
       {
         "id": "ios",
-        "name": "Mobile — iOS",
+        "name": "iOS",
         "emoji": "🍎",
         "subtitle": "Apple 플랫폼의 본질",
         "color": "#9ca3af",
         "order": 5,
         "categories": [
           {
-            "name": "Mobile — iOS",
+            "name": "iOS",
             "emoji": "🍎",
             "color": "#9ca3af",
             "repos": [
@@ -300,14 +300,14 @@
       },
       {
         "id": "cross-platform",
-        "name": "Cross-Platform",
+        "name": "Cross Platform",
         "emoji": "🔀",
         "subtitle": "한 코드, 여러 플랫폼",
         "color": "#02569b",
         "order": 6,
         "categories": [
           {
-            "name": "Cross-Platform",
+            "name": "Cross Platform",
             "emoji": "🔀",
             "color": "#02569b",
             "repos": [

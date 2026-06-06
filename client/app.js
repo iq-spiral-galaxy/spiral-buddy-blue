@@ -62,7 +62,7 @@ const state = {
 const LS_KEY = "spiral-buddy:lastRoadmapId";
 
 const CATEGORY_ICON_BY_NAME = {
-  // Backend
+  // Backend categories
   "java core": "coffee",
   "spring ecosystem": "leaf",
   "architecture & design": "temple",
@@ -72,14 +72,19 @@ const CATEGORY_ICON_BY_NAME = {
   "api & communication": "plug",
   "security engineering": "lock",
   "performance & quality": "bolt",
-  // v0.5.52 — 새 도메인 카테고리들
+  // v0.5.52~55 — 도메인 자체 + 자식 카테고리 둘 다 들어갈 수 있음.
+  // 도메인 헤더에서도 같은 lookup을 사용하므로 도메인 이름들도 포함.
   foundations: "rock",
+  languages: "brick",
   "languages & runtimes": "brick",
+  backend: "wrench",
   "data engineering": "chart",
+  frontend: "globe",
   "web platform & engine": "globe",
   "web language & framework": "atom",
-  "mobile — android": "android",
-  "mobile — ios": "apple",
+  android: "android",
+  ios: "apple",
+  "cross platform": "shuffle",
   "cross-platform": "shuffle",
   synthesis: "dna",
   uncategorized: "folder",
@@ -107,6 +112,8 @@ const ICON_SVG = {
   apple: `<path d="M16 11c0 -2 1.5 -3 1.5 -3s-1.5 -1 -3 0c-0.7 -2.5 -3 -2.5 -4 -2 -1 -0.5 -3.3 -0.5 -4 2 -1.5 -1 -3 0 -3 0s1.5 1 1.5 3c-1 1 -1.5 3 0 6 1 2 3 3 5.5 2 2.5 1 4.5 0 5.5 -2 1.5 -3 1 -5 0 -6Z"/><path d="M12 6c0 -1.5 1 -3 2.5 -3"/>`,
   shuffle: `<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>`,
   dna: `<path d="M5 4c14 4 0 12 14 16"/><path d="M19 4c-14 4 0 12 -14 16"/><line x1="7" y1="8" x2="14" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="17" y2="16"/>`,
+  // v0.5.55 — Backend 도메인용 wrench
+  wrench: `<path d="M14.7 6.3a4.5 4.5 0 0 1 5.6 5.6L18 14l-4-4 0.7-2.1z"/><path d="M14 10l-9 9a2 2 0 0 1-3-3l9-9"/>`,
 };
 
 function svgIcon(name, className = "inline-icon") {
@@ -2283,19 +2290,59 @@ const _curatedState = {
 
 const CURATED_PARENT_KEY = "spiral-buddy:curated-parent";
 
+// v0.5.55 — 활성 워크스페이스의 roadmapRoot 부모 디렉토리 반환.
+// roadmapRoot가 "/Users/x/spiral/iq-dev-lab"이면 부모는 "/Users/x/spiral".
+// curated install은 parentDir 안에 <org>/<repo> 형태로 설치됨.
+function _activeWorkspaceParentDir() {
+  if (!_settingsCache?.workspaces) return null;
+  const active = _settingsCache.workspaces.find(
+    (w) => w.id === _settingsCache.activeWorkspaceId,
+  );
+  const root = active?.roadmapRoot;
+  if (!root) return null;
+  // 부모 경로 추출 (path.dirname 동등 — 마지막 슬래시 이전까지)
+  const idx = Math.max(root.lastIndexOf("/"), root.lastIndexOf("\\"));
+  if (idx < 1) return null;
+  return root.slice(0, idx);
+}
+
 async function initCuratedZone() {
   if (!window.spiralCurated) return;
   const targetRow = document.getElementById("curated-target-row");
   if (!targetRow) return;
-  // 저장된 parent 복원
+  // v0.5.55 — 우선 활성 워크스페이스 부모 디렉토리로 자동 채움.
+  // 사용자가 명시적으로 다른 위치를 골랐었으면 그게 우선.
+  const wsParent = _activeWorkspaceParentDir();
   const saved = localStorage.getItem(CURATED_PARENT_KEY);
-  if (saved) _curatedState.parentDir = saved;
+  if (saved) {
+    _curatedState.parentDir = saved;
+  } else if (wsParent) {
+    _curatedState.parentDir = wsParent;
+  }
 
   document
     .getElementById("curated-target-pick")
     ?.addEventListener("click", async () => {
       const p = await window.spiralCurated.pickParentDir();
       if (!p) return;
+      _curatedState.parentDir = p;
+      try {
+        localStorage.setItem(CURATED_PARENT_KEY, p);
+      } catch {}
+      await refreshCuratedZone();
+    });
+
+  // v0.5.55 — "현재 워크스페이스 폴더로" 빠른 복귀 버튼
+  document
+    .getElementById("curated-target-use-ws")
+    ?.addEventListener("click", async () => {
+      const p = _activeWorkspaceParentDir();
+      if (!p) {
+        alert(
+          "활성 워크스페이스에 학습 자료 폴더(roadmapRoot)가 설정되지 않아 자동으로 못 잡았어요. '선택…'으로 직접 골라주세요.",
+        );
+        return;
+      }
       _curatedState.parentDir = p;
       try {
         localStorage.setItem(CURATED_PARENT_KEY, p);
@@ -2315,6 +2362,26 @@ async function refreshCuratedZone() {
   if (pathEl) {
     pathEl.textContent = _curatedState.parentDir ?? "선택되지 않음";
     pathEl.classList.toggle("empty", !_curatedState.parentDir);
+  }
+  // v0.5.55 — 현재 위치 vs 활성 워크스페이스 비교 → 경고/안내 표시
+  const warnEl = document.getElementById("curated-target-warning");
+  const hintEl = document.getElementById("curated-target-hint");
+  const wsParent = _activeWorkspaceParentDir();
+  const isUsingWs =
+    wsParent &&
+    _curatedState.parentDir &&
+    wsParent.toLowerCase() === _curatedState.parentDir.toLowerCase();
+  if (warnEl && hintEl) {
+    if (!_curatedState.parentDir || !wsParent) {
+      warnEl.classList.add("hidden");
+      hintEl.classList.add("hidden");
+    } else if (isUsingWs) {
+      warnEl.classList.add("hidden");
+      hintEl.classList.remove("hidden");
+    } else {
+      warnEl.classList.remove("hidden");
+      hintEl.classList.add("hidden");
+    }
   }
   if (_curatedState.parentDir) {
     const res = await window.spiralCurated.getInstalled({
