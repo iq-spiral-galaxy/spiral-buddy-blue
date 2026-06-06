@@ -298,6 +298,138 @@ body.sidebar-collapsed #sidebar-resizer {
   color: var(--text);
 }
 
+/* v0.5.51 — 가장 최근 학습 챕터: 재진입 시 한눈에 보이도록 강한 시각 표식.
+ * 단순 visited보다 한 단계 위 강조 — 좌측 accent bar + 살짝 빛남.
+ */
+.chapter-item--recent .chapter-btn {
+  position: relative;
+  background: linear-gradient(
+    90deg,
+    rgba(126, 226, 255, 0.10) 0%,
+    rgba(183, 148, 246, 0.07) 30%,
+    transparent 75%
+  );
+  border-left: 3px solid var(--accent, #7ee2ff);
+  padding-left: calc(var(--chapter-pad-left, 10px) - 3px);
+}
+.chapter-item--recent .chapter-btn::after {
+  content: "마지막";
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: var(--accent, #7ee2ff);
+  opacity: 0.75;
+  pointer-events: none;
+}
+.chapter-item--recent .chapter-btn:hover::after {
+  opacity: 0; /* hover 시 액션 아이콘과 안 겹치게 사라짐 */
+}
+body.light-mode .chapter-item--recent .chapter-btn {
+  background: linear-gradient(
+    90deg,
+    rgba(8, 145, 178, 0.10) 0%,
+    rgba(124, 58, 237, 0.07) 30%,
+    transparent 75%
+  );
+  border-left-color: #0e7490;
+}
+body.light-mode .chapter-item--recent .chapter-btn::after {
+  color: #0e7490;
+}
+
+/* v0.5.51 — 검색 매칭 강조 */
+mark.sidebar-search-hit {
+  background: rgba(255, 213, 138, 0.30);
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 3px;
+}
+body.light-mode mark.sidebar-search-hit {
+  background: rgba(245, 158, 11, 0.30);
+}
+
+/* v0.5.51 — 사이드바 검색 입력 */
+.sidebar-search-section {
+  padding: 8px 14px 4px;
+}
+.sidebar-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.sidebar-search-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  pointer-events: none;
+}
+.sidebar-search-input {
+  width: 100%;
+  background: var(--bg-elev-2);
+  border: 1px solid var(--border-soft);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 12.5px;
+  padding: 7px 28px 7px 30px;
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.sidebar-search-input::placeholder {
+  color: var(--text-faint);
+}
+.sidebar-search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(126, 226, 255, 0.18);
+}
+.sidebar-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+.sidebar-search-clear {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 0;
+  color: var(--text-faint);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sidebar-search-clear:hover {
+  background: var(--bg-elev);
+  color: var(--text);
+}
+.sidebar-search-meta {
+  margin-top: 4px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  padding: 0 2px;
+}
+.sidebar-search-meta strong {
+  color: var(--accent-2, #c5a7ff);
+  font-weight: 600;
+}
+body.light-mode .sidebar-search-input {
+  background: var(--bg-elev-2);
+  border-color: var(--border);
+}
+body.light-mode .sidebar-search-input:focus {
+  border-color: #0e7490;
+  box-shadow: 0 0 0 2px rgba(14, 116, 144, 0.18);
+}
+
 .chapter-btn .num {
   color: var(--text-faint);
   font-family: var(--font-mono);
@@ -4190,6 +4322,16 @@ button.primary:hover:not(:disabled),
   font-size: 11px;
   color: var(--text-faint, #74818b);
   line-height: 1.5;
+}
+
+/* v0.5.51 — 중복 lookup 시도 시 기존 카드 플래시 */
+@keyframes lookup-card-flash {
+  0% { box-shadow: 0 0 0 0 rgba(197, 167, 255, 0.0); border-color: var(--border-soft, rgba(148, 169, 190, 0.12)); }
+  25% { box-shadow: 0 0 0 6px rgba(197, 167, 255, 0.32); border-color: rgba(197, 167, 255, 0.7); }
+  100% { box-shadow: 0 0 0 0 rgba(197, 167, 255, 0.0); border-color: var(--border-soft, rgba(148, 169, 190, 0.12)); }
+}
+.lookup-card.lookup-card-flash {
+  animation: lookup-card-flash 1.4s ease-out;
 }
 
 .lookup-card {

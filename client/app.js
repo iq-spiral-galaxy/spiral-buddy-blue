@@ -53,6 +53,8 @@ const state = {
   refineApplied: null, // 다듬어서 입력란에 들어간 텍스트 (입력 비교용)
   // Quiz 단계 (v0.5.31) — 매 클릭마다 1→2→3→4→1 순환
   quizLevel: 1,
+  // 사이드바 검색 (v0.5.51)
+  sidebarQuery: "",
 };
 
 // localStorage에 마지막 로드맵 저장
@@ -132,6 +134,10 @@ function cacheEls() {
   els.sidebarToggle = $("sidebar-toggle");
   els.roadmapCurrent = $("roadmap-current");
   els.roadmapList = $("roadmap-list");
+  // v0.5.51 사이드바 검색
+  els.sidebarSearch = $("sidebar-search");
+  els.sidebarSearchClear = $("sidebar-search-clear");
+  els.sidebarSearchMeta = $("sidebar-search-meta");
   els.suggestion = $("suggestion-box");
   els.chapterList = $("chapter-list");
   els.historyList = $("history-list");
@@ -400,6 +406,9 @@ function wireEvents() {
 
   // Look-up 기능 (사이드 학습)
   initLookup();
+
+  // v0.5.51 — 사이드바 검색
+  initSidebarSearch();
 
   // 휴지통
   if (els.trashOpenBtn) {
@@ -703,8 +712,28 @@ function renderRoadmapSelector() {
     <span class="caret">▼</span>
   `;
 
-  const local = state.roadmaps.filter((r) => r.source !== "curated");
-  const curated = state.roadmaps.filter((r) => r.source === "curated");
+  // v0.5.51 — 사이드바 검색어가 있으면 매칭되는 로드맵만 남김.
+  // 매칭 대상: roadmap.name, category.name, repo 이름, sub-roadmap 이름.
+  // 대소문자 무시 + 공백 정규화.
+  const searchQuery = (state.sidebarQuery ?? "").trim().toLowerCase();
+  const matchesQuery = (r) => {
+    if (!searchQuery) return true;
+    const fields = [
+      r.name ?? "",
+      r.category?.name ?? "",
+      r.hierarchy?.repo ?? "",
+      r.hierarchy?.sub ?? "",
+    ]
+      .join(" ")
+      .toLowerCase();
+    return fields.includes(searchQuery);
+  };
+  const local = state.roadmaps
+    .filter((r) => r.source !== "curated")
+    .filter(matchesQuery);
+  const curated = state.roadmaps
+    .filter((r) => r.source === "curated")
+    .filter(matchesQuery);
   const installedNames = new Set(
     curated.map((r) => {
       // curated:org/repo[/sub] → repo 이름만
@@ -781,6 +810,30 @@ function renderRoadmapSelector() {
       state.lastAutoExpandedRoadmapId = state.activeRoadmapId;
     }
 
+    // v0.5.51 — 검색 활성 시 매칭된 항목들이 모두 보이도록 전체 카테고리/레포 임시 펼침.
+    // state.expandedLocalCategories/Repos를 직접 수정하면 검색 해제 후에도
+    // 펼친 상태가 남아서 사용자가 직접 정리한 상태를 잃음.
+    // → 검색 중에는 임시 셋(_searchExpandedCats/Repos)을 union해서 쓰고,
+    //    체크 시점에 state.expandedLocalCategories.has(...)를 둘 다 봄.
+    let _searchExpandedCats = null;
+    let _searchExpandedRepos = null;
+    if (searchQuery) {
+      _searchExpandedCats = new Set();
+      _searchExpandedRepos = new Set();
+      for (const [catName, repoMap] of tree) {
+        _searchExpandedCats.add(catName);
+        for (const repoName of repoMap.keys()) {
+          _searchExpandedRepos.add(`${catName}::${repoName}`);
+        }
+      }
+    }
+    const isCatExpanded = (n) =>
+      state.expandedLocalCategories.has(n) ||
+      (_searchExpandedCats?.has(n) ?? false);
+    const isRepoExpanded = (k) =>
+      state.expandedLocalRepos.has(k) ||
+      (_searchExpandedRepos?.has(k) ?? false);
+
     const totalRepos = Array.from(tree.values()).reduce(
       (sum, m) => sum + m.size,
       0,
@@ -791,14 +844,14 @@ function renderRoadmapSelector() {
 
     for (const [catName, repoMap] of tree) {
       const cat = catMeta.get(catName);
-      const catExpanded = state.expandedLocalCategories.has(catName);
+      const catExpanded = isCatExpanded(catName);
       const catCaret = catExpanded ? "▼" : "▶";
 
       let catBody = "";
       if (catExpanded) {
         for (const [repoName, roadmaps] of repoMap) {
           const repoKey = `${catName}::${repoName}`;
-          const repoExpanded = state.expandedLocalRepos.has(repoKey);
+          const repoExpanded = isRepoExpanded(repoKey);
           const repoCaret = repoExpanded ? "▼" : "▶";
 
           // 레포의 누적 진도
@@ -1333,6 +1386,10 @@ async function switchRoadmap(roadmapId) {
 /**
  * 가장 최근 학습한 챕터(lastDate 기준)를 viewport 중앙으로 스크롤.
  * 없으면 아무것도 하지 않음.
+ *
+ * v0.5.51 — DOM commit 타이밍 안정화. 단일 rAF은 정적 파일 로드 직후처럼
+ * 레이아웃이 아직 안 잡힌 순간에 sidebar scroll이 안 먹힐 수 있어서,
+ * 2회 rAF + 짧은 setTimeout 보강으로 더 확실하게.
  */
 function scrollToRecentChapter() {
   if (!Array.isArray(state.chapters) || state.chapters.length === 0) return;
@@ -1341,14 +1398,117 @@ function scrollToRecentChapter() {
     .sort((a, b) => (b.lastDate ?? "").localeCompare(a.lastDate ?? ""));
   const target = visited[0];
   if (!target) return;
-  requestAnimationFrame(() => {
-    const el = els.chapterList.querySelector(
+  const tryScroll = () => {
+    const el = els.chapterList?.querySelector(
       `button[data-id="${CSS.escape(target.id)}"]`,
     );
     if (el && typeof el.scrollIntoView === "function") {
       el.scrollIntoView({ block: "center", behavior: "smooth" });
+      return true;
+    }
+    return false;
+  };
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      // 챕터 list 자체에 scroll, 그리고 sidebar 컨테이너도 따라 움직이도록.
+      if (!tryScroll()) setTimeout(tryScroll, 80);
+    });
+  });
+}
+
+// v0.5.51 — 사이드바 검색 wire-up.
+// 디바운스로 input 부담 줄이고, 변경 시 로드맵 셀렉터 + 챕터 리스트 둘 다 갱신.
+function initSidebarSearch() {
+  if (!els.sidebarSearch) return;
+  let timer = null;
+  const apply = (raw) => {
+    const q = (raw ?? "").trim();
+    const prev = state.sidebarQuery ?? "";
+    if (prev === q) return;
+    state.sidebarQuery = q;
+    els.sidebarSearchClear?.classList.toggle("hidden", q.length === 0);
+    // 검색 시작 시 roadmap-list 자동 노출 → 결과를 바로 볼 수 있게
+    if (q) {
+      els.roadmapList?.classList.remove("hidden");
+    }
+    renderRoadmapSelector();
+    renderChapters();
+    // 매칭 수 카운트 표시
+    if (els.sidebarSearchMeta) {
+      if (!q) {
+        els.sidebarSearchMeta.classList.add("hidden");
+        els.sidebarSearchMeta.textContent = "";
+      } else {
+        const ql = q.toLowerCase();
+        const roadmapHits = state.roadmaps.filter((r) => {
+          const fields = [
+            r.name ?? "",
+            r.category?.name ?? "",
+            r.hierarchy?.repo ?? "",
+            r.hierarchy?.sub ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
+          return fields.includes(ql);
+        }).length;
+        const chapterHits = (state.chapters ?? []).filter((c) =>
+          (c.title ?? "").toLowerCase().includes(ql),
+        ).length;
+        els.sidebarSearchMeta.innerHTML = `로드맵 <strong>${roadmapHits}</strong> · 챕터 <strong>${chapterHits}</strong>`;
+        els.sidebarSearchMeta.classList.remove("hidden");
+      }
+    }
+  };
+  els.sidebarSearch.addEventListener("input", (e) => {
+    if (timer) clearTimeout(timer);
+    const val = e.target.value;
+    timer = setTimeout(() => apply(val), 100);
+  });
+  // Esc → 검색어 비우기 + 포커스 해제
+  els.sidebarSearch.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      els.sidebarSearch.value = "";
+      apply("");
+      els.sidebarSearch.blur();
     }
   });
+  // X 버튼
+  els.sidebarSearchClear?.addEventListener("click", () => {
+    els.sidebarSearch.value = "";
+    apply("");
+    els.sidebarSearch.focus();
+  });
+  // 글로벌 단축키: Cmd+F (or Ctrl+F)로 사이드바 검색 포커스
+  // (브라우저 기본 검색 막고 사이드바 search 사용)
+  document.addEventListener("keydown", (e) => {
+    if (
+      (e.metaKey || e.ctrlKey) &&
+      e.key.toLowerCase() === "f" &&
+      !e.shiftKey
+    ) {
+      // 입력 필드에서는 default 허용
+      const tag = (document.activeElement?.tagName ?? "").toLowerCase();
+      if (tag === "input" || tag === "textarea") return;
+      e.preventDefault();
+      els.sidebarSearch?.focus();
+      els.sidebarSearch?.select();
+    }
+  });
+}
+
+// v0.5.51 — 검색어 하이라이트 (case-insensitive). HTML 안전.
+function _highlightMatch(text, query) {
+  const t = String(text ?? "");
+  const q = String(query ?? "").trim();
+  if (!q) return escapeHtml(t);
+  const lower = t.toLowerCase();
+  const ql = q.toLowerCase();
+  const idx = lower.indexOf(ql);
+  if (idx < 0) return escapeHtml(t);
+  const before = escapeHtml(t.slice(0, idx));
+  const match = escapeHtml(t.slice(idx, idx + q.length));
+  const after = escapeHtml(t.slice(idx + q.length));
+  return `${before}<mark class="sidebar-search-hit">${match}</mark>${after}`;
 }
 
 function renderChapters() {
@@ -1357,10 +1517,31 @@ function renderChapters() {
     els.chapterList.innerHTML = `<li class="empty">챕터 없음</li>`;
     return;
   }
-  state.chapters.forEach((ch, i) => {
+  // v0.5.51 — 가장 최근 학습한 챕터 id를 미리 뽑아두기.
+  // 재진입 시 사용자가 "어디까지 했더라" 바로 찾을 수 있게 강한 시각 표식.
+  const recentChapterId = (() => {
+    const visited = state.chapters
+      .filter((c) => c.lastDate)
+      .sort((a, b) => (b.lastDate ?? "").localeCompare(a.lastDate ?? ""));
+    return visited[0]?.id ?? null;
+  })();
+  // 검색어가 있으면 필터링 (v0.5.51)
+  const q = (state.sidebarQuery ?? "").trim().toLowerCase();
+  const filtered = q
+    ? state.chapters.filter((c) =>
+        (c.title ?? "").toLowerCase().includes(q),
+      )
+    : state.chapters;
+  if (filtered.length === 0) {
+    els.chapterList.innerHTML = `<li class="empty">"${escapeHtml(q)}" 일치 없음</li>`;
+    return;
+  }
+  filtered.forEach((ch, i) => {
     const li = document.createElement("li");
     li.className = "chapter-item";
     const visited = (ch.maxDepth ?? 0) > 0;
+    const isRecent = ch.id === recentChapterId;
+    if (isRecent) li.classList.add("chapter-item--recent");
     const badge = visited
       ? `<span class="chapter-depth-pill deletable" data-chapter-delete="${escapeAttr(ch.id)}" title="클릭하여 노트 삭제 · 마지막 학습: ${escapeAttr(ch.lastDate ?? "")} · 총 ${ch.visitCount}회">d${ch.maxDepth}</span>`
       : `<span class="chapter-depth-pill empty"></span>`;
@@ -1383,10 +1564,13 @@ function renderChapters() {
           </svg>
         </span>`
       : "";
+    // v0.5.51 — 검색 중일 땐 원본 인덱스를 보여줘서 "전체 중 N번째" 알 수 있게
+    const originalIdx = q ? state.chapters.indexOf(ch) : i;
+    const titleHtml = q ? _highlightMatch(ch.title, q) : escapeHtml(ch.title);
     li.innerHTML = `
       <button class="chapter-btn ${visited ? "visited" : ""}" data-id="${escapeAttr(ch.id)}">
-        <span class="num">${i + 1}.</span>
-        <span class="title">${escapeHtml(ch.title)}</span>
+        <span class="num">${originalIdx + 1}.</span>
+        <span class="title">${titleHtml}</span>
         ${badge}
         ${openBtn}
         ${trashBtn}
@@ -2706,6 +2890,19 @@ const DEPTH_LABEL_TEXT = {
 };
 
 /**
+ * 같은 (query, depth, userQuestion) 조합을 fingerprint로 만들어 중복 카드 막기.
+ * v0.5.51 — 토큰 절약 + 카드 중복 방지.
+ */
+function _lookupFingerprint(query, depth, userQuestion) {
+  const norm = (s) =>
+    String(s ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ");
+  return `${norm(query)}::${depth}::${norm(userQuestion)}`;
+}
+
+/**
  * @param query 키워드/표현
  * @param depth concise|medium|deep
  * @param opts.userQuestion 키워드 옆에 같이 던질 추가 질문
@@ -2715,6 +2912,28 @@ async function runLookup(query, depth, opts = {}) {
   if (!els.lookupPanelBody) return;
   const userQuestion = (opts.userQuestion ?? "").trim() || undefined;
 
+  // v0.5.51 — 동일한 (query, depth, userQuestion) 조합이 이미 있으면
+  // 기존 카드로 이동 + 플래시 + 토스트. 새 API 호출/카드 생성 안 함.
+  const fingerprint = _lookupFingerprint(query, depth, userQuestion);
+  const existing = els.lookupPanelBody.querySelector(
+    `.lookup-card[data-lookup-key="${CSS.escape(fingerprint)}"]`,
+  );
+  if (existing) {
+    existing.classList.remove("collapsed");
+    existing.classList.add("lookup-card-flash");
+    existing.scrollIntoView({ block: "center", behavior: "smooth" });
+    setTimeout(() => existing.classList.remove("lookup-card-flash"), 1500);
+    setStatus(
+      depth === "concise"
+        ? `"${query}" 간결 답변은 이미 받은 게 있어요 — 위에 표시했어요`
+        : depth === "medium"
+          ? `"${query}" 중간 답변은 이미 받은 게 있어요 — 위에 표시했어요`
+          : `"${query}" 깊이 답변은 이미 받은 게 있어요 — 위에 표시했어요`,
+      "info",
+    );
+    return;
+  }
+
   // 기존 카드는 모두 접기 (v0.5.31: 새 질문만 펼침)
   els.lookupPanelBody.querySelectorAll(".lookup-card").forEach((c) => {
     c.classList.add("collapsed");
@@ -2723,6 +2942,7 @@ async function runLookup(query, depth, opts = {}) {
   // 카드 생성 (펼친 상태로)
   const card = document.createElement("article");
   card.className = "lookup-card";
+  card.dataset.lookupKey = fingerprint; // v0.5.51 — 중복 차단용
   const questionLine = userQuestion
     ? `<div class="lookup-card-userq" title="${escapeAttr(userQuestion)}">Q. ${escapeHtml(userQuestion)}</div>`
     : "";
