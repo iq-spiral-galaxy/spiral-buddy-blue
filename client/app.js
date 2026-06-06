@@ -2490,6 +2490,10 @@ function closeLookupPanel() {
   els.lookupResizer?.classList.add("hidden");
   els.lookupPanel?.setAttribute("aria-hidden", "true");
   _lookupState.open = false;
+  // v0.5.50 — inline --lookup-w를 제거해야 grid track이 0으로 돌아감.
+  // 안 지우면 panel은 hidden인데 grid column은 400px(또는 saved)로 남아
+  // 채팅 우측에 빈 검은 영역이 발생함. saved 값은 별도(--lookup-w-saved)에 보존 → 재오픈 시 복원.
+  document.body.style.removeProperty("--lookup-w");
 }
 
 // ──────────────────────────────────────────────────────────

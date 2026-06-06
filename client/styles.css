@@ -5679,8 +5679,10 @@ textarea.lookup-direct-input:focus {
   flex-direction: column;
   gap: 6px;
   align-items: stretch;
+  justify-content: flex-start;
   flex-shrink: 0;
   width: 44px;
+  /* v0.5.50 — col 자체가 textarea를 따라 늘어나도 buttons는 위로 정렬 */
 }
 
 .lookup-direct-col .lookup-direct-mini,
@@ -5689,11 +5691,15 @@ textarea.lookup-direct-input:focus {
   height: 30px;
   padding: 0;
   min-width: 0;
+  flex-shrink: 0;
 }
 
+/* v0.5.50 — Send 버튼이 텍스트 영역 따라 늘어나지 않도록 고정 높이 */
 .lookup-direct-col .lookup-direct-send {
-  flex: 1;
-  min-height: 38px;
+  flex: 0 0 36px;
+  height: 36px;
+  min-height: 36px;
+  max-height: 36px;
 }
 
 .lookup-direct-form {
@@ -5722,11 +5728,19 @@ body.sidebar-collapsed:not(.lookup-open) .messages .message {
   height: 28px; /* was 30 */
 }
 
-.lookup-direct-col .lookup-direct-send {
-  min-height: 36px; /* was 38 */
-}
-
 /* col 합계: 28 + 6(gap) + 28 + 6(gap) + 36 = 104px → 좌측 btn-col과 일치 */
+
+/* ─── v0.5.50: 두 composer 디폴트 높이를 픽셀 단위로 강제 매칭 ─── */
+/* 좌측은 btn-col 자연 높이 + textarea min-height(88)로 계산되고,
+ * 우측은 3개 버튼 스택(104)으로 계산돼 ~16px 차이가 났음.
+ * → 둘 다 form 자체에 min-height: 138px 부여 → 어떤 내부 자식이든
+ *   form 높이가 정확히 같아짐. (textarea는 늘어난 공간 채우거나 그대로)
+ */
+.composer,
+.lookup-direct-form {
+  min-height: 138px;
+  box-sizing: border-box;
+}
 
 /* ═══════════════════════════════════════════════════════════
  *   v0.5.35 — Light 모드
@@ -7740,7 +7754,7 @@ body.light-mode .paused-resume-btn {
   color: #ffffff;
 }
 
-/* ─── Pause 버튼 (topbar) — End&Save 옆 ─── */
+/* ─── Pause 버튼 (topbar) — Quiz와 End&Save 사이, icon-only ─── */
 
 .action-btn.pause {
   background: rgba(255, 197, 122, 0.10);
@@ -7753,6 +7767,16 @@ body.light-mode .paused-resume-btn {
   border-color: #ffb347;
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(255, 197, 122, 0.25);
+}
+
+/* v0.5.50 — icon-only Pause: End&Save와 시각 위계 분리 + mis-click 방지 */
+.action-btn.pause.pause-icon-only {
+  padding: 9px 11px;
+  min-width: 0;
+  gap: 0;
+}
+.action-btn.pause.pause-icon-only svg {
+  display: block;
 }
 
 body.light-mode .action-btn.pause {
