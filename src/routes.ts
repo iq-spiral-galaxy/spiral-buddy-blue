@@ -47,6 +47,7 @@ import {
   categorizeLocalRoadmap,
   getOrgCategories,
   normalizeRepoName,
+  findDomainForCategory,
 } from "./categories.js";
 
 export function createApi(config: Config) {
@@ -229,6 +230,11 @@ export function createApi(config: Config) {
             r.source === "local"
               ? await categorizeLocalRoadmap(config.curatedOrg, r.id)
               : null;
+          // v0.5.53 — 카테고리가 속한 도메인 정보 (사이드바 그룹핑용).
+          const domain =
+            category && config.curatedOrg
+              ? await findDomainForCategory(config.curatedOrg, category.name)
+              : null;
 
           // 사이드바 트리(category → repo → sub-roadmap)에 쓸 hierarchy 정보.
           // 두 가지 구조를 모두 지원:
@@ -273,6 +279,15 @@ export function createApi(config: Config) {
                   name: category.name,
                   emoji: category.emoji,
                   color: category.color,
+                }
+              : null,
+            domain: domain
+              ? {
+                  id: domain.id,
+                  name: domain.name,
+                  emoji: domain.emoji,
+                  color: domain.color,
+                  order: domain.order ?? 99,
                 }
               : null,
             hierarchy,

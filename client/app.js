@@ -32,8 +32,9 @@ const state = {
   curatedAvailable: [],
   curatedGroups: [],
   expandedCategories: new Set(), // Curated 받기 가능 카테고리
-  expandedLocalCategories: new Set(), // Local 카테고리
-  expandedLocalRepos: new Set(), // Local 레포 (key: "category::repo")
+  expandedLocalDomains: new Set(), // Local 도메인 (v0.5.53)
+  expandedLocalCategories: new Set(), // Local 카테고리 (key: "domain::category")
+  expandedLocalRepos: new Set(), // Local 레포 (key: "domain::category::repo")
   // active 로드맵이 바뀌었을 때만 자동 펼침하기 위해 마지막으로 자동 펼침한 id 기록.
   // null이면 다음 렌더에서 active 로드맵의 cat/repo를 한 번 펼침.
   lastAutoExpandedRoadmapId: null,
@@ -801,9 +802,11 @@ function renderRoadmapSelector() {
       return { repo: segments[0] ?? r.name, sub: null, isFlat: true };
     }
 
-    // 카테고리 → 레포 → 로드맵 트리 구조
-    const tree = new Map(); // catName → Map<repoName, Roadmap[]>
-    const catMeta = new Map(); // catName → category meta
+    // v0.5.53 — 도메인 → 카테고리 → 레포 → 로드맵 4단 계층.
+    // domName → { meta, order, cats: Map<catName, Map<repoName, Roadmap[]>> }
+    const domainTree = new Map();
+    const catMeta = new Map(); // catName → category meta (도메인 무관 메타)
+    const UNCAT_DOMAIN = { id: "_uncategorized", name: "기타", emoji: null, color: "#888888", order: 999 };
 
     for (const r of local) {
       const catName = r.category?.name ?? "Uncategorized";
@@ -811,69 +814,121 @@ function renderRoadmapSelector() {
         catName,
         r.category ?? { name: "Uncategorized", emoji: "📁", color: "#888888" },
       );
+      const dom = r.domain ?? UNCAT_DOMAIN;
+      const domKey = dom.name;
+      if (!domainTree.has(domKey)) {
+        domainTree.set(domKey, { meta: dom, cats: new Map() });
+      }
+      const domEntry = domainTree.get(domKey);
+      if (!domEntry.cats.has(catName)) domEntry.cats.set(catName, new Map());
+      const repoMap = domEntry.cats.get(catName);
       const { repo } = parseHierarchy(r);
-      if (!tree.has(catName)) tree.set(catName, new Map());
-      const repoMap = tree.get(catName);
       if (!repoMap.has(repo)) repoMap.set(repo, []);
       repoMap.get(repo).push(r);
     }
 
-    // active 로드맵의 카테고리 + 레포는 처음 한 번만 자동 펼침
-    // (사용자가 직접 토글을 닫으면 그 의도를 존중)
+    // 도메인 정렬: order 오름차순 (foundations 1 → backend 3 → ... → synthesis 99 → _uncategorized 999)
+    const sortedDomains = Array.from(domainTree.entries()).sort(
+      (a, b) => (a[1].meta.order ?? 99) - (b[1].meta.order ?? 99),
+    );
+
+    // active 로드맵 자동 펼침 (처음 한 번)
     const activeRoadmap = local.find((r) => r.id === state.activeRoadmapId);
     if (
       activeRoadmap?.category?.name &&
       state.lastAutoExpandedRoadmapId !== state.activeRoadmapId
     ) {
-      state.expandedLocalCategories.add(activeRoadmap.category.name);
+      const activeDomName = activeRoadmap.domain?.name ?? UNCAT_DOMAIN.name;
+      const activeCatName = activeRoadmap.category.name;
+      state.expandedLocalDomains.add(activeDomName);
+      state.expandedLocalCategories.add(`${activeDomName}::${activeCatName}`);
       const { repo: activeRepo } = parseHierarchy(activeRoadmap);
-      state.expandedLocalRepos.add(`${activeRoadmap.category.name}::${activeRepo}`);
+      state.expandedLocalRepos.add(
+        `${activeDomName}::${activeCatName}::${activeRepo}`,
+      );
       state.lastAutoExpandedRoadmapId = state.activeRoadmapId;
     }
 
-    // v0.5.51 — 검색 활성 시 매칭된 항목들이 모두 보이도록 전체 카테고리/레포 임시 펼침.
-    // state.expandedLocalCategories/Repos를 직접 수정하면 검색 해제 후에도
-    // 펼친 상태가 남아서 사용자가 직접 정리한 상태를 잃음.
-    // → 검색 중에는 임시 셋(_searchExpandedCats/Repos)을 union해서 쓰고,
-    //    체크 시점에 state.expandedLocalCategories.has(...)를 둘 다 봄.
+    // 검색 활성 시 매칭 전체 임시 펼침 (state는 안 건드림)
+    let _searchExpandedDoms = null;
     let _searchExpandedCats = null;
     let _searchExpandedRepos = null;
     if (searchQuery) {
+      _searchExpandedDoms = new Set();
       _searchExpandedCats = new Set();
       _searchExpandedRepos = new Set();
-      for (const [catName, repoMap] of tree) {
-        _searchExpandedCats.add(catName);
-        for (const repoName of repoMap.keys()) {
-          _searchExpandedRepos.add(`${catName}::${repoName}`);
+      for (const [domName, domEntry] of domainTree) {
+        _searchExpandedDoms.add(domName);
+        for (const [catName, repoMap] of domEntry.cats) {
+          _searchExpandedCats.add(`${domName}::${catName}`);
+          for (const repoName of repoMap.keys()) {
+            _searchExpandedRepos.add(`${domName}::${catName}::${repoName}`);
+          }
         }
       }
     }
-    const isCatExpanded = (n) =>
-      state.expandedLocalCategories.has(n) ||
-      (_searchExpandedCats?.has(n) ?? false);
+    const isDomExpanded = (n) =>
+      state.expandedLocalDomains.has(n) ||
+      (_searchExpandedDoms?.has(n) ?? false);
+    const isCatExpanded = (k) =>
+      state.expandedLocalCategories.has(k) ||
+      (_searchExpandedCats?.has(k) ?? false);
     const isRepoExpanded = (k) =>
       state.expandedLocalRepos.has(k) ||
       (_searchExpandedRepos?.has(k) ?? false);
 
-    const totalRepos = Array.from(tree.values()).reduce(
-      (sum, m) => sum + m.size,
+    const totalCats = sortedDomains.reduce(
+      (sum, [, e]) => sum + e.cats.size,
+      0,
+    );
+    const totalRepos = sortedDomains.reduce(
+      (sum, [, e]) =>
+        sum +
+        Array.from(e.cats.values()).reduce((s2, m) => s2 + m.size, 0),
       0,
     );
     parts.push(
-      `<div class="roadmap-group-title">${groupIconHtml("folder")}<span>Local · ${tree.size} categories · ${totalRepos} repos · ${local.length} roadmaps</span></div>`,
+      `<div class="roadmap-group-title">${groupIconHtml("folder")}<span>Local · ${sortedDomains.length} domains · ${totalCats} categories · ${totalRepos} repos · ${local.length} roadmaps</span></div>`,
     );
 
-    for (const [catName, repoMap] of tree) {
-      const cat = catMeta.get(catName);
-      const catExpanded = isCatExpanded(catName);
-      const catCaret = catExpanded ? "▼" : "▶";
+    for (const [domName, domEntry] of sortedDomains) {
+      const dom = domEntry.meta;
+      const domExpanded = isDomExpanded(domName);
+      const domCaret = domExpanded ? "▼" : "▶";
 
-      let catBody = "";
-      if (catExpanded) {
-        for (const [repoName, roadmaps] of repoMap) {
-          const repoKey = `${catName}::${repoName}`;
-          const repoExpanded = isRepoExpanded(repoKey);
-          const repoCaret = repoExpanded ? "▼" : "▶";
+      // 도메인 누적 통계
+      const domCats = domEntry.cats;
+      let domRoadmaps = 0;
+      let domVisitedRoadmaps = 0;
+      let domMaxDepth = 0;
+      for (const repoMap of domCats.values()) {
+        for (const rs of repoMap.values()) {
+          for (const r of rs) {
+            domRoadmaps++;
+            if ((r.maxDepth ?? 0) > 0) domVisitedRoadmaps++;
+            domMaxDepth = Math.max(domMaxDepth, r.maxDepth ?? 0);
+          }
+        }
+      }
+      const domDepthBadge =
+        domMaxDepth > 0
+          ? `<span class="depth-pill">d${domMaxDepth}</span>`
+          : "";
+
+      let domBody = "";
+      if (domExpanded) {
+        for (const [catName, repoMap] of domCats) {
+          const cat = catMeta.get(catName);
+          const catKey = `${domName}::${catName}`;
+          const catExpanded = isCatExpanded(catKey);
+          const catCaret = catExpanded ? "▼" : "▶";
+
+          let catBody = "";
+          if (catExpanded) {
+            for (const [repoName, roadmaps] of repoMap) {
+              const repoKey = `${domName}::${catName}::${repoName}`;
+              const repoExpanded = isRepoExpanded(repoKey);
+              const repoCaret = repoExpanded ? "▼" : "▶";
 
           // 레포의 누적 진도
           const repoTotalChapters = roadmaps.reduce(
@@ -967,23 +1022,42 @@ function renderRoadmapSelector() {
         }
       }
 
-      const totalRoadmapsInCat = Array.from(repoMap.values()).reduce(
-        (sum, arr) => sum + arr.length,
-        0,
-      );
+          const totalRoadmapsInCat = Array.from(repoMap.values()).reduce(
+            (sum, arr) => sum + arr.length,
+            0,
+          );
 
+          domBody += `
+            <div class="curated-category local-category">
+              <button class="category-header" data-local-cat="${escapeAttr(catKey)}" style="--cat-color: ${escapeAttr(cat.color)}">
+                <span class="cat-caret">${catCaret}</span>
+                ${categoryIconHtml(cat)}
+                <span class="cat-name">${escapeHtml(catName)}</span>
+                <span class="cat-count">${repoMap.size}r · ${totalRoadmapsInCat}</span>
+              </button>
+              <div class="category-body ${catExpanded ? "" : "hidden"}">${catBody}</div>
+            </div>
+          `;
+        }  // end category loop
+      }  // end if domExpanded
+
+      // 도메인 헤더 자체 push
+      const domStyle = dom.color
+        ? `style="--dom-color: ${escapeAttr(dom.color)}"`
+        : "";
       parts.push(`
-        <div class="curated-category local-category">
-          <button class="category-header" data-local-cat="${escapeAttr(catName)}" style="--cat-color: ${escapeAttr(cat.color)}">
-            <span class="cat-caret">${catCaret}</span>
-            ${categoryIconHtml(cat)}
-            <span class="cat-name">${escapeHtml(catName)}</span>
-            <span class="cat-count">${repoMap.size}r · ${totalRoadmapsInCat}</span>
+        <div class="local-domain">
+          <button class="domain-header" data-local-dom="${escapeAttr(domName)}" ${domStyle}>
+            <span class="cat-caret">${domCaret}</span>
+            ${categoryIconHtml({ name: dom.name })}
+            <span class="dom-name">${escapeHtml(dom.name)}</span>
+            ${domDepthBadge}
+            <span class="dom-count">${domCats.size}c · ${domRoadmaps}</span>
           </button>
-          <div class="category-body ${catExpanded ? "" : "hidden"}">${catBody}</div>
+          <div class="domain-body ${domExpanded ? "" : "hidden"}">${domBody}</div>
         </div>
       `);
-    }
+    }  // end domain loop
   }
 
   if (curated.length > 0) {
@@ -1165,15 +1239,29 @@ function renderRoadmapSelector() {
     });
   });
 
-  // wire local category headers
+  // wire local domain headers (v0.5.53)
+  els.roadmapList.querySelectorAll(".domain-header[data-local-dom]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const domName = btn.dataset.localDom;
+      if (state.expandedLocalDomains.has(domName)) {
+        state.expandedLocalDomains.delete(domName);
+      } else {
+        state.expandedLocalDomains.add(domName);
+      }
+      renderRoadmapSelector();
+    });
+  });
+
+  // wire local category headers (key는 v0.5.53부터 "domain::category")
   els.roadmapList.querySelectorAll(".category-header[data-local-cat]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      const catName = btn.dataset.localCat;
-      if (state.expandedLocalCategories.has(catName)) {
-        state.expandedLocalCategories.delete(catName);
+      const catKey = btn.dataset.localCat;
+      if (state.expandedLocalCategories.has(catKey)) {
+        state.expandedLocalCategories.delete(catKey);
       } else {
-        state.expandedLocalCategories.add(catName);
+        state.expandedLocalCategories.add(catKey);
       }
       renderRoadmapSelector();
     });

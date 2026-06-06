@@ -1186,6 +1186,92 @@ button.ghost {
   border-bottom: none;
 }
 
+/* v0.5.53 — 도메인 레벨 (사이드바 최상위 그룹핑) */
+.local-domain {
+  border-bottom: 1px solid var(--border);
+}
+.local-domain:last-child {
+  border-bottom: none;
+}
+.domain-header {
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-left: 4px solid var(--dom-color, transparent);
+  padding: 9px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.025) 0%,
+    transparent 100%
+  );
+  transition: background 0.12s;
+}
+.domain-header:hover {
+  background: linear-gradient(
+    90deg,
+    rgba(126, 226, 255, 0.07) 0%,
+    transparent 100%
+  );
+}
+.dom-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dom-count {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-soft);
+  flex-shrink: 0;
+}
+.domain-body {
+  display: flex;
+  flex-direction: column;
+}
+.domain-body.hidden {
+  display: none;
+}
+/* 도메인 안의 category-header는 한 단계 더 들여쓰기 */
+.domain-body .category-header {
+  padding-left: 22px;
+}
+.domain-body .repo-header {
+  padding-left: 36px;
+}
+.domain-body .repo-body .sub-roadmap-item,
+.domain-body .repo-body .roadmap-item {
+  padding-left: 50px;
+}
+body.light-mode .domain-header {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.03) 0%,
+    transparent 100%
+  );
+}
+body.light-mode .domain-header:hover {
+  background: linear-gradient(
+    90deg,
+    rgba(8, 145, 178, 0.07) 0%,
+    transparent 100%
+  );
+}
+
 .category-header {
   width: 100%;
   background: transparent;

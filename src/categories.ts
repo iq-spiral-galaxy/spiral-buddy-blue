@@ -159,6 +159,25 @@ export function reposInDomain(domain: DomainDef): string[] {
 }
 
 /**
+ * v0.5.53 — 카테고리 이름으로 그 카테고리가 속한 도메인 찾기.
+ * 사이드바에서 category → domain 그룹핑할 때 사용.
+ */
+export async function findDomainForCategory(
+  org: string,
+  categoryName: string,
+): Promise<DomainDef | null> {
+  const domains = await getOrgDomains(org);
+  if (!domains) return null;
+  const normalized = normalizeCategoryName(categoryName);
+  for (const d of domains) {
+    if (d.categories.some((c) => normalizeCategoryName(c.name) === normalized)) {
+      return d;
+    }
+  }
+  return null;
+}
+
+/**
  * 여러 도메인의 합집합 레포 이름 (중복 제거).
  */
 export function reposInDomains(domains: DomainDef[]): string[] {
