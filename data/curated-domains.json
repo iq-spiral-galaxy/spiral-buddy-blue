@@ -1,0 +1,339 @@
+{
+  "iq-dev-lab": {
+    "rolePresets": [
+      {
+        "id": "backend",
+        "name": "백엔드 개발자",
+        "emoji": "🔧",
+        "subtitle": "Foundations · Languages · Backend",
+        "domains": ["foundations", "languages", "backend"],
+        "color": "#2563eb",
+        "recommended": true
+      },
+      {
+        "id": "frontend",
+        "name": "프론트엔드 개발자",
+        "emoji": "🌐",
+        "subtitle": "Foundations · Languages · Frontend",
+        "domains": ["foundations", "languages", "frontend"],
+        "color": "#0891b2"
+      },
+      {
+        "id": "mobile",
+        "name": "모바일 개발자",
+        "emoji": "📱",
+        "subtitle": "Foundations · Languages · Android · iOS · Cross-Platform",
+        "domains": ["foundations", "languages", "android", "ios", "cross-platform"],
+        "color": "#16a34a"
+      },
+      {
+        "id": "fullstack",
+        "name": "풀스택 · CS 깊게",
+        "emoji": "🧬",
+        "subtitle": "모든 도메인 · Synthesis까지",
+        "domains": ["foundations", "languages", "backend", "frontend", "android", "ios", "cross-platform", "synthesis"],
+        "color": "#7c3aed",
+        "heavy": true
+      }
+    ],
+    "domains": [
+      {
+        "id": "foundations",
+        "name": "Foundations",
+        "emoji": "🪨",
+        "subtitle": "모든 것의 바닥",
+        "color": "#8d6e63",
+        "order": 1,
+        "recommended": true,
+        "categories": [
+          {
+            "name": "Foundations",
+            "emoji": "🪨",
+            "color": "#8d6e63",
+            "repos": [
+              "computer-architecture-deep-dive",
+              "compiler-deep-dive",
+              "cryptography-deep-dive",
+              "distributed-systems-theory-deep-dive",
+              "gpu-graphics-deep-dive"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "languages",
+        "name": "Languages & Runtimes",
+        "emoji": "🧱",
+        "subtitle": "티어에 안 묶이는 언어",
+        "color": "#dea584",
+        "order": 2,
+        "recommended": true,
+        "categories": [
+          {
+            "name": "Languages & Runtimes",
+            "emoji": "🧱",
+            "color": "#dea584",
+            "repos": [
+              "rust-deep-dive",
+              "go-deep-dive"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "backend",
+        "name": "Backend",
+        "emoji": "🔧",
+        "subtitle": "서버 사이드의 본질",
+        "color": "#2563eb",
+        "order": 3,
+        "categories": [
+          {
+            "name": "Java Core",
+            "emoji": "☕",
+            "color": "#b8860b",
+            "repos": [
+              "object",
+              "modern-java-in-action",
+              "java-api-reference",
+              "java-design-patterns",
+              "unit-testing",
+              "java-concurrency-deep-dive",
+              "jvm-deep-dive"
+            ]
+          },
+          {
+            "name": "Spring Ecosystem",
+            "emoji": "🍃",
+            "color": "#6db33f",
+            "repos": [
+              "spring-core-deep-dive",
+              "spring-data-transaction",
+              "spring-boot-internals",
+              "spring-mvc-deep-dive",
+              "spring-security-deep-dive",
+              "spring-batch-deep-dive",
+              "spring-cloud-deep-dive",
+              "spring-webflux-deep-dive"
+            ]
+          },
+          {
+            "name": "Architecture & Design",
+            "emoji": "🏛️",
+            "color": "#7b68ee",
+            "repos": [
+              "architecture-patterns-deep-dive",
+              "ddd-deep-dive",
+              "cqrs-event-sourcing-deep-dive",
+              "msa-deep-dive",
+              "system-design-deep-dive"
+            ]
+          },
+          {
+            "name": "Infrastructure & DevOps",
+            "emoji": "🖥️",
+            "color": "#2496ed",
+            "repos": [
+              "linux-for-backend-deep-dive",
+              "network-deep-dive",
+              "git-in-depth",
+              "docker-deep-dive",
+              "kubernetes-deep-dive",
+              "observability-deep-dive",
+              "cicd-deep-dive",
+              "iac-deep-dive",
+              "service-mesh-deep-dive"
+            ]
+          },
+          {
+            "name": "Database",
+            "emoji": "🗄️",
+            "color": "#336791",
+            "repos": [
+              "database-internals",
+              "mysql-deep-dive",
+              "postgresql-deep-dive",
+              "redis-deep-dive",
+              "elasticsearch-deep-dive",
+              "db-migration-deep-dive"
+            ]
+          },
+          {
+            "name": "Messaging & Streaming",
+            "emoji": "📨",
+            "color": "#ff6600",
+            "repos": [
+              "kafka-deep-dive",
+              "rabbitmq-deep-dive"
+            ]
+          },
+          {
+            "name": "API & Communication",
+            "emoji": "🔌",
+            "color": "#244c5a",
+            "repos": [
+              "grpc-deep-dive"
+            ]
+          },
+          {
+            "name": "Security Engineering",
+            "emoji": "🔐",
+            "color": "#c0392b",
+            "repos": [
+              "security-engineering-deep-dive"
+            ]
+          },
+          {
+            "name": "Performance & Quality",
+            "emoji": "⚡",
+            "color": "#e67e22",
+            "repos": [
+              "performance-testing-deep-dive"
+            ]
+          },
+          {
+            "name": "Data Engineering",
+            "emoji": "📊",
+            "color": "#e25a1c",
+            "repos": [
+              "spark-internals-deep-dive",
+              "stream-processing-deep-dive",
+              "columnar-storage-format-deep-dive"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "frontend",
+        "name": "Frontend / Web",
+        "emoji": "🌐",
+        "subtitle": "클라이언트의 본질",
+        "color": "#0891b2",
+        "order": 4,
+        "categories": [
+          {
+            "name": "Web Platform & Engine",
+            "emoji": "🌐",
+            "color": "#f7df1e",
+            "repos": [
+              "browser-rendering-deep-dive",
+              "v8-engine-deep-dive",
+              "event-loop-async-deep-dive",
+              "web-apis-wasm-deep-dive"
+            ]
+          },
+          {
+            "name": "Web Language & Framework",
+            "emoji": "⚛️",
+            "color": "#61dafb",
+            "repos": [
+              "javascript-deep-dive",
+              "typescript-type-system-deep-dive",
+              "react-internals-deep-dive",
+              "frontend-state-management-deep-dive",
+              "rendering-strategy-deep-dive",
+              "css-engine-layout-deep-dive",
+              "frontend-build-tools-deep-dive",
+              "web-performance-deep-dive",
+              "realtime-client-networking-deep-dive"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "android",
+        "name": "Mobile — Android",
+        "emoji": "🤖",
+        "subtitle": "온디바이스의 본질",
+        "color": "#3ddc84",
+        "order": 5,
+        "categories": [
+          {
+            "name": "Mobile — Android",
+            "emoji": "🤖",
+            "color": "#3ddc84",
+            "repos": [
+              "android-runtime-deep-dive",
+              "android-framework-internals-deep-dive",
+              "kotlin-deep-dive",
+              "jetpack-compose-internals-deep-dive",
+              "android-architecture-deep-dive",
+              "android-performance-deep-dive",
+              "local-first-sync-deep-dive",
+              "android-build-system-deep-dive"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ios",
+        "name": "Mobile — iOS",
+        "emoji": "🍎",
+        "subtitle": "Apple 플랫폼의 본질",
+        "color": "#9ca3af",
+        "order": 6,
+        "categories": [
+          {
+            "name": "Mobile — iOS",
+            "emoji": "🍎",
+            "color": "#9ca3af",
+            "repos": [
+              "swift-deep-dive",
+              "objc-runtime-deep-dive",
+              "ios-lifecycle-runloop-deep-dive",
+              "swiftui-internals-deep-dive",
+              "uikit-core-animation-deep-dive",
+              "swift-concurrency-deep-dive",
+              "ios-performance-deep-dive"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cross-platform",
+        "name": "Cross-Platform",
+        "emoji": "🔀",
+        "subtitle": "한 코드, 여러 플랫폼",
+        "color": "#02569b",
+        "order": 7,
+        "categories": [
+          {
+            "name": "Cross-Platform",
+            "emoji": "🔀",
+            "color": "#02569b",
+            "repos": [
+              "react-native-deep-dive",
+              "flutter-deep-dive",
+              "kotlin-multiplatform-deep-dive"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "synthesis",
+        "name": "Synthesis",
+        "emoji": "🧬",
+        "subtitle": "플랫폼을 가로지르는 본질",
+        "hint": "다른 도메인을 받은 후에 의미가 큽니다 — 이 연구소의 핵심 무기",
+        "color": "#7b1fa2",
+        "order": 99,
+        "lastRecommended": true,
+        "categories": [
+          {
+            "name": "Synthesis",
+            "emoji": "🧬",
+            "color": "#7b1fa2",
+            "repos": [
+              "concurrency-models-compared",
+              "memory-management-compared",
+              "compilation-strategies-compared",
+              "rendering-pipelines-compared",
+              "reactivity-state-compared",
+              "caching-memory-hierarchy-compared"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,6 +1,15 @@
 /**
- * Curated 레포의 카테고리 매핑.
- * data/curated-categories.json에서 조직별 분류 정보를 읽는다.
+ * Curated 레포의 분류 구조.
+ *
+ * 데이터 source: data/curated-domains.json
+ *   - domains (v0.5.44~): 도메인 단위 hierarchy (Foundations, Backend, Frontend, …)
+ *   - rolePresets: 역할 추천 (백엔드/프론트/모바일/풀스택)
+ *   - 각 domain은 categories[]를 가짐 (구버전 호환)
+ *
+ * Backward compat:
+ *   - getOrgCategories()는 모든 domain의 categories[]를 평탄화해서 반환.
+ *     사이드바 그룹화나 기존 코드는 그대로 동작.
+ *
  * 매핑 안 된 레포는 'Other' 카테고리로 묶임.
  */
 
@@ -10,6 +19,13 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = path.resolve(
+  __dirname,
+  "..",
+  "data",
+  "curated-domains.json",
+);
+// 이전 파일 — 마이그레이션 미완료 환경에서 fallback
+const LEGACY_FILE = path.resolve(
   __dirname,
   "..",
   "data",
@@ -23,31 +39,140 @@ export interface CategoryDef {
   repos: string[];
 }
 
-interface OrgCategoriesEntry {
+export interface DomainDef {
+  id: string;
+  name: string;
+  emoji: string;
+  subtitle?: string;
+  hint?: string;
+  color: string;
+  order: number;
+  recommended?: boolean;
+  lastRecommended?: boolean;
   categories: CategoryDef[];
 }
 
-let _cache: Record<string, OrgCategoriesEntry> | null = null;
+export interface RolePresetDef {
+  id: string;
+  name: string;
+  emoji: string;
+  subtitle?: string;
+  /** 이 프리셋이 추천하는 domain id 목록 */
+  domains: string[];
+  color: string;
+  /** 전체 도메인 포함 등 무거운 옵션 표시용 */
+  heavy?: boolean;
+  recommended?: boolean;
+}
 
-async function load(): Promise<Record<string, OrgCategoriesEntry>> {
+interface OrgEntry {
+  /** v0.5.44+ 도메인 hierarchy */
+  domains?: DomainDef[];
+  /** v0.5.44+ 역할 프리셋 */
+  rolePresets?: RolePresetDef[];
+  /** 이전 단순 categories — backward compat */
+  categories?: CategoryDef[];
+}
+
+let _cache: Record<string, OrgEntry> | null = null;
+
+async function load(): Promise<Record<string, OrgEntry>> {
   if (_cache) return _cache;
+  // 1순위: curated-domains.json (v0.5.44+)
   try {
     const raw = await fs.readFile(DATA_FILE, "utf-8");
     _cache = JSON.parse(raw);
-  } catch {
-    _cache = {};
-  }
+    return _cache!;
+  } catch {}
+  // 2순위: curated-categories.json (구 파일, 패키지 안 업데이트 환경)
+  try {
+    const raw = await fs.readFile(LEGACY_FILE, "utf-8");
+    _cache = JSON.parse(raw);
+    return _cache!;
+  } catch {}
+  _cache = {};
   return _cache!;
 }
 
 /**
  * 특정 org에 정의된 카테고리들. 정의 안 됐으면 null.
+ *
+ * domains가 있으면 모든 domain.categories를 평탄화해서 반환 (사이드바 등 호환).
+ * 카테고리 순서는 domain.order → category 정의 순.
  */
 export async function getOrgCategories(
   org: string,
 ): Promise<CategoryDef[] | null> {
   const all = await load();
-  return all[org]?.categories ?? null;
+  const entry = all[org];
+  if (!entry) return null;
+  if (entry.domains?.length) {
+    const sortedDomains = [...entry.domains].sort(
+      (a, b) => (a.order ?? 99) - (b.order ?? 99),
+    );
+    return sortedDomains.flatMap((d) => d.categories);
+  }
+  return entry.categories ?? null;
+}
+
+/**
+ * 특정 org의 도메인 hierarchy (v0.5.44+). 도메인 정의가 없으면 null.
+ */
+export async function getOrgDomains(
+  org: string,
+): Promise<DomainDef[] | null> {
+  const all = await load();
+  const entry = all[org];
+  if (!entry?.domains?.length) return null;
+  return [...entry.domains].sort(
+    (a, b) => (a.order ?? 99) - (b.order ?? 99),
+  );
+}
+
+/**
+ * 특정 org의 역할 프리셋 (v0.5.44+).
+ */
+export async function getOrgRolePresets(
+  org: string,
+): Promise<RolePresetDef[] | null> {
+  const all = await load();
+  const entry = all[org];
+  return entry?.rolePresets ?? null;
+}
+
+/**
+ * 도메인 id로 도메인 정의 조회.
+ */
+export async function getDomainById(
+  org: string,
+  domainId: string,
+): Promise<DomainDef | null> {
+  const domains = await getOrgDomains(org);
+  return domains?.find((d) => d.id === domainId) ?? null;
+}
+
+/**
+ * 한 도메인에 속한 모든 레포 이름 평탄화.
+ */
+export function reposInDomain(domain: DomainDef): string[] {
+  return domain.categories.flatMap((c) => c.repos);
+}
+
+/**
+ * 여러 도메인의 합집합 레포 이름 (중복 제거).
+ */
+export function reposInDomains(domains: DomainDef[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const d of domains) {
+    for (const r of reposInDomain(d)) {
+      if (!seen.has(r)) {
+        seen.add(r);
+        out.push(r);
+      }
+    }
+  }
+  return out;
 }
 
 /**
