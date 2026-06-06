@@ -70,10 +70,44 @@ function ensureSonnetDefault(cfg) {
   return cfg;
 }
 
+// v0.5.52 — 같은 roadmapRoot를 가리키는 워크스페이스 중복 제거.
+// 활성 워크스페이스 우선, 같은 path의 나머지는 제거. 데이터 손실 없음 (같은 파일 시스템 path).
+function dedupeWorkspaces(cfg) {
+  if (!Array.isArray(cfg.workspaces) || cfg.workspaces.length <= 1) return cfg;
+  const seen = new Map(); // normalizedPath → keptWorkspace
+  const kept = [];
+  const activeId = cfg.activeWorkspaceId;
+  // active 먼저 처리
+  const ordered = [...cfg.workspaces].sort((a, b) =>
+    a.id === activeId ? -1 : b.id === activeId ? 1 : 0,
+  );
+  for (const w of ordered) {
+    const key =
+      (w.roadmapRoot ?? "").trim() ||
+      `__no-root__::${w.id}`;
+    if (seen.has(key)) {
+      // 중복 — 버림
+      continue;
+    }
+    seen.set(key, w);
+    kept.push(w);
+  }
+  // 원래 순서대로 정렬 (active 강제 이동 취소)
+  const idOrder = new Map(cfg.workspaces.map((w, i) => [w.id, i]));
+  kept.sort((a, b) => (idOrder.get(a.id) ?? 0) - (idOrder.get(b.id) ?? 0));
+  if (kept.length !== cfg.workspaces.length) {
+    console.log(
+      `[workspaces] 중복 ${cfg.workspaces.length - kept.length}개 제거 (같은 roadmapRoot)`,
+    );
+    cfg.workspaces = kept;
+  }
+  return cfg;
+}
+
 function migrateConfig(raw) {
   if (!raw) return null;
   // 이미 새 스키마
-  if (Array.isArray(raw.workspaces)) return ensureSonnetDefault(raw);
+  if (Array.isArray(raw.workspaces)) return ensureSonnetDefault(dedupeWorkspaces(raw));
   // 옛 스키마 → workspaces 배열로 변환
   const ws = {
     id: "default",
@@ -109,7 +143,10 @@ function loadConfig() {
     if (
       migrated &&
       (migrated.model !== original.model ||
-        migrated.modelDefaultBaseline !== original.modelDefaultBaseline)
+        migrated.modelDefaultBaseline !== original.modelDefaultBaseline ||
+        (Array.isArray(migrated.workspaces) &&
+          Array.isArray(original.workspaces) &&
+          migrated.workspaces.length !== original.workspaces.length))
     ) {
       try {
         saveConfig(migrated);
@@ -993,6 +1030,25 @@ ipcMain.handle("settings:add-workspace", async (event, args) => {
     return { ok: false, error: "sourceKind는 'git' 또는 'dir'이어야 합니다." };
   }
 
+  // v0.5.52 — 같은 roadmapRoot를 가리키는 워크스페이스가 이미 있으면 그걸 활성화하고 반환.
+  // 중복 생성 차단.
+  const existing = cfg.workspaces.find(
+    (w) =>
+      (w.roadmapRoot ?? "").trim().toLowerCase() ===
+      (roadmapRoot ?? "").trim().toLowerCase(),
+  );
+  if (existing) {
+    cfg.activeWorkspaceId = existing.id;
+    saveConfig(cfg);
+    send("settings:workspace-progress", {
+      phase: "done",
+      id: existing.id,
+      name: existing.name,
+      reused: true,
+    });
+    return { ok: true, workspace: existing, reused: true };
+  }
+
   const ws = {
     id,
     name,
@@ -1054,9 +1110,12 @@ function fetchOrgRepos(org) {
   });
 }
 
-function shouldSkipRepo(repo) {
+function shouldSkipRepo(repo, opts = {}) {
+  // 명시 요청(JSON 정의에 들어있는) 레포는 fork여도 받기 — object 같은
+  // 학습 자료 fork를 silent skip하면 카운트가 한 개 적게 들어옴.
+  // v0.5.52 — `allowFork` true면 fork 통과.
   if (repo.archived) return true;
-  if (repo.fork) return true;
+  if (!opts.allowFork && repo.fork) return true;
   if (repo.private) return true;
   if (repo.size === 0) return true;
   if (repo.name.startsWith(".")) return true;
@@ -1157,19 +1216,34 @@ async function _downloadReposByName(send, targetDir, requestedRepoNames) {
     phase: "fetching",
     message: "GitHub에서 레포 목록 가져오는 중…",
   });
+  // v0.5.52 — 명시 요청이 있으면 그 레포 이름들은 fork 여도 받을 수 있게.
+  // 미명시(전체 받기)면 기존 정책(fork skip) 유지.
+  const wantSet = new Set(requestedRepoNames ?? []);
+  const wantList = wantSet.size > 0;
   let allRepos;
   try {
-    allRepos = (await fetchOrgRepos(CURATED_ORG)).filter(
-      (r) => !shouldSkipRepo(r),
+    allRepos = (await fetchOrgRepos(CURATED_ORG)).filter((r) =>
+      wantList
+        ? !shouldSkipRepo(r, { allowFork: wantSet.has(r.name) })
+        : !shouldSkipRepo(r),
     );
   } catch (err) {
     return { ok: false, error: err.message };
   }
-  const wantSet = new Set(requestedRepoNames ?? []);
-  const repos =
-    requestedRepoNames && requestedRepoNames.length > 0
-      ? allRepos.filter((r) => wantSet.has(r.name))
-      : allRepos;
+  const repos = wantList
+    ? allRepos.filter((r) => wantSet.has(r.name))
+    : allRepos;
+  // v0.5.52 — 요청했는데 GitHub에 매칭 없는 레포는 표시 (fork 외 다른 이유로 빠진 케이스)
+  if (requestedRepoNames && requestedRepoNames.length > 0) {
+    const fetchedNames = new Set(repos.map((r) => r.name));
+    const missing = requestedRepoNames.filter((n) => !fetchedNames.has(n));
+    if (missing.length > 0) {
+      console.warn(
+        `[curated:install] 요청 ${requestedRepoNames.length}개 중 GitHub fetch 결과에 ${missing.length}개 매칭 없음 — silent skip:`,
+        missing,
+      );
+    }
+  }
   if (repos.length === 0) {
     return { ok: false, error: "받을 레포가 없습니다." };
   }

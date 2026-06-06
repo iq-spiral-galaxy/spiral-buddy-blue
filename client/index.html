@@ -172,6 +172,13 @@
         </button>
         <div id="current-chapter"></div>
         <div id="actions">
+          <button id="pause-btn" class="action-btn pause" disabled title="세션 일시정지 — 나중에 이어서" aria-label="세션 일시정지">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="6" y="4" width="4" height="16"/>
+              <rect x="14" y="4" width="4" height="16"/>
+            </svg>
+            <span>Pause</span>
+          </button>
           <button id="quiz-btn" class="action-btn quiz" disabled title="짧은 자가확인 질문 받기">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
@@ -179,12 +186,6 @@
               <circle cx="12" cy="12" r="10"/>
             </svg>
             <span>Quiz</span>
-          </button>
-          <button id="pause-btn" class="action-btn pause pause-icon-only" disabled title="세션 일시정지 — 나중에 이어서" aria-label="세션 일시정지">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <rect x="6" y="4" width="4" height="16"/>
-              <rect x="14" y="4" width="4" height="16"/>
-            </svg>
           </button>
           <button id="end-btn" class="action-btn end" disabled title="세션 종료 + 노트 생성">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -511,6 +512,12 @@
               <button type="button" class="curated-target-pick" id="curated-target-pick">선택…</button>
             </div>
 
+            <!-- v0.5.52 — 진행 상태 카드를 grid 위로 이동. 활성화될 때만 보임. -->
+            <div id="curated-progress" class="curated-progress hidden">
+              <div class="curated-progress-text" id="curated-progress-text">진행 중…</div>
+              <div class="curated-progress-bar"><div class="curated-progress-fill" id="curated-progress-fill"></div></div>
+            </div>
+
             <div class="curated-presets">
               <div class="curated-presets-header">⚡ 빠른 시작 — 역할 프리셋</div>
               <div class="curated-presets-grid" id="curated-presets-grid"></div>
@@ -519,11 +526,6 @@
             <div class="curated-domains">
               <div class="curated-domains-header">📚 도메인 골라 받기</div>
               <div class="curated-domains-list" id="curated-domains-list"></div>
-            </div>
-
-            <div id="curated-progress" class="curated-progress hidden">
-              <div class="curated-progress-text" id="curated-progress-text">진행 중…</div>
-              <div class="curated-progress-bar"><div class="curated-progress-fill" id="curated-progress-fill"></div></div>
             </div>
           </div>
 

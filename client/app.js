@@ -61,6 +61,7 @@ const state = {
 const LS_KEY = "spiral-buddy:lastRoadmapId";
 
 const CATEGORY_ICON_BY_NAME = {
+  // Backend
   "java core": "coffee",
   "spring ecosystem": "leaf",
   "architecture & design": "temple",
@@ -70,6 +71,16 @@ const CATEGORY_ICON_BY_NAME = {
   "api & communication": "plug",
   "security engineering": "lock",
   "performance & quality": "bolt",
+  // v0.5.52 — 새 도메인 카테고리들
+  foundations: "rock",
+  "languages & runtimes": "brick",
+  "data engineering": "chart",
+  "web platform & engine": "globe",
+  "web language & framework": "atom",
+  "mobile — android": "android",
+  "mobile — ios": "apple",
+  "cross-platform": "shuffle",
+  synthesis: "dna",
   uncategorized: "folder",
 };
 
@@ -85,6 +96,16 @@ const ICON_SVG = {
   plug: `<path d="M8 6v5" /><path d="M12 6v5" /><path d="M6 11h8v2a4 4 0 0 1-8 0v-2Z" /><path d="M10 17v2" /><path d="M10 19h5a3 3 0 0 0 3-3v-1" />`,
   repo: `<path d="m12 3 7 4-7 4-7-4 7-4Z" /><path d="m5 7v8l7 4 7-4V7" /><path d="M12 11v8" />`,
   temple: `<path d="M4 9h16" /><path d="m5 8 7-5 7 5" /><path d="M6 10v7" /><path d="M10 10v7" /><path d="M14 10v7" /><path d="M18 10v7" /><path d="M4 19h16" />`,
+  // v0.5.52 — 새 카테고리/도메인 아이콘
+  rock: `<path d="M6 18 c-2.5 0 -3.5 -2 -2 -4 l1 -1 c0 -2 2 -3.5 4 -3 l1 -2 c1 -2 4 -2 5 0 l1 1 c2 -0.5 4 1 4 3 l0.5 1 c1.5 1.5 0.5 5 -2 5 z"/>`,
+  brick: `<rect x="3" y="6" width="18" height="4" rx="0.5"/><rect x="3" y="14" width="18" height="4" rx="0.5"/><line x1="9" y1="6" x2="9" y2="10"/><line x1="15" y1="6" x2="15" y2="10"/><line x1="6" y1="14" x2="6" y2="18"/><line x1="12" y1="14" x2="12" y2="18"/><line x1="18" y1="14" x2="18" y2="18"/>`,
+  chart: `<line x1="4" y1="20" x2="20" y2="20"/><rect x="5" y="13" width="3" height="7"/><rect x="10" y="9" width="3" height="11"/><rect x="15" y="5" width="3" height="15"/>`,
+  globe: `<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="12" x2="21" y2="12"/>`,
+  atom: `<circle cx="12" cy="12" r="1.5"/><ellipse cx="12" cy="12" rx="9" ry="3.5"/><ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(-60 12 12)"/>`,
+  android: `<path d="M6 12v6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-6"/><path d="M5 11.5a7 7 0 0 1 14 0v0.5H5z"/><line x1="8" y1="5" x2="9.5" y2="7"/><line x1="16" y1="5" x2="14.5" y2="7"/><circle cx="9.5" cy="9.5" r="0.6"/><circle cx="14.5" cy="9.5" r="0.6"/><line x1="4" y1="12" x2="4" y2="16"/><line x1="20" y1="12" x2="20" y2="16"/><line x1="9" y1="19" x2="9" y2="22"/><line x1="15" y1="19" x2="15" y2="22"/>`,
+  apple: `<path d="M16 11c0 -2 1.5 -3 1.5 -3s-1.5 -1 -3 0c-0.7 -2.5 -3 -2.5 -4 -2 -1 -0.5 -3.3 -0.5 -4 2 -1.5 -1 -3 0 -3 0s1.5 1 1.5 3c-1 1 -1.5 3 0 6 1 2 3 3 5.5 2 2.5 1 4.5 0 5.5 -2 1.5 -3 1 -5 0 -6Z"/><path d="M12 6c0 -1.5 1 -3 2.5 -3"/>`,
+  shuffle: `<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>`,
+  dna: `<path d="M5 4c14 4 0 12 14 16"/><path d="M19 4c-14 4 0 12 -14 16"/><line x1="7" y1="8" x2="14" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="17" y2="16"/>`,
 };
 
 function svgIcon(name, className = "inline-icon") {
@@ -2504,7 +2525,7 @@ function initLookup() {
   const LOOKUP_MAX = 760;
   // v0.5.49 — 채팅 컬럼이 너무 좁아져서 topbar 액션 버튼이 가려지는 걸 방지.
   // sidebar + lookup이 viewport를 다 먹지 않도록 chat에 최소 폭(520px) 확보.
-  const CHAT_MIN = 520;
+  const CHAT_MIN = 620; // v0.5.52 — Pause 라벨 복귀로 topbar 더 넓어짐
   function _sidebarPx() {
     const v = getComputedStyle(document.body)
       .getPropertyValue("--sidebar-w")
@@ -2644,7 +2665,7 @@ function openLookupPanel() {
       .getPropertyValue("--sidebar-w")
       .trim();
     const sidebarPx = parseInt(sidebarRaw, 10) || 0;
-    const cap = Math.min(760, Math.max(280, window.innerWidth - sidebarPx - 520));
+    const cap = Math.min(760, Math.max(280, window.innerWidth - sidebarPx - 620));
     const applied = Math.min(savedPx, cap);
     document.body.style.setProperty("--lookup-w", `${applied}px`);
   } else {
