@@ -199,7 +199,7 @@
         "emoji": "📊",
         "subtitle": "스트림 · 컬럼 · 분산 데이터",
         "color": "#e25a1c",
-        "order": 4,
+        "order": 8,
         "categories": [
           {
             "name": "Data Engineering",
@@ -219,7 +219,7 @@
         "emoji": "🌐",
         "subtitle": "클라이언트의 본질",
         "color": "#0891b2",
-        "order": 5,
+        "order": 4,
         "categories": [
           {
             "name": "Web Platform & Engine",
@@ -256,7 +256,7 @@
         "emoji": "🤖",
         "subtitle": "온디바이스의 본질",
         "color": "#3ddc84",
-        "order": 6,
+        "order": 5,
         "categories": [
           {
             "name": "Mobile — Android",
@@ -281,7 +281,7 @@
         "emoji": "🍎",
         "subtitle": "Apple 플랫폼의 본질",
         "color": "#9ca3af",
-        "order": 7,
+        "order": 6,
         "categories": [
           {
             "name": "Mobile — iOS",
@@ -305,7 +305,7 @@
         "emoji": "🔀",
         "subtitle": "한 코드, 여러 플랫폼",
         "color": "#02569b",
-        "order": 8,
+        "order": 7,
         "categories": [
           {
             "name": "Cross-Platform",

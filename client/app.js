@@ -2318,11 +2318,26 @@ function initLookup() {
   const LOOKUP_DEFAULT = 400;
   const LOOKUP_MIN = 280;
   const LOOKUP_MAX = 760;
+  // v0.5.49 — 채팅 컬럼이 너무 좁아져서 topbar 액션 버튼이 가려지는 걸 방지.
+  // sidebar + lookup이 viewport를 다 먹지 않도록 chat에 최소 폭(520px) 확보.
+  const CHAT_MIN = 520;
+  function _sidebarPx() {
+    const v = getComputedStyle(document.body)
+      .getPropertyValue("--sidebar-w")
+      .trim();
+    return parseInt(v, 10) || 0;
+  }
+  function _lookupMaxForViewport() {
+    // 사이드바와 채팅 최소 폭을 빼고 남는 만큼이 lookup의 진짜 최대.
+    // 그게 LOOKUP_MAX보다 작으면 그걸로 캡 — chat이 항상 ≥520px.
+    const headroom = window.innerWidth - _sidebarPx() - CHAT_MIN;
+    return Math.min(LOOKUP_MAX, Math.max(LOOKUP_MIN, headroom));
+  }
   const savedLookupW = localStorage.getItem(LOOKUP_WIDTH_KEY);
   if (savedLookupW) {
     const w = Math.max(
       LOOKUP_MIN,
-      Math.min(LOOKUP_MAX, parseInt(savedLookupW, 10) || LOOKUP_DEFAULT),
+      Math.min(_lookupMaxForViewport(), parseInt(savedLookupW, 10) || LOOKUP_DEFAULT),
     );
     // 패널이 열려 있을 때만 적용. 처음엔 width 0이므로 변수만 저장.
     document.body.style.setProperty("--lookup-w-saved", `${w}px`);
@@ -2339,7 +2354,7 @@ function initLookup() {
       // viewport 우측 끝에서 mouseX를 빼면 panel width
       const w = Math.max(
         LOOKUP_MIN,
-        Math.min(LOOKUP_MAX, window.innerWidth - e.clientX),
+        Math.min(_lookupMaxForViewport(), window.innerWidth - e.clientX),
       );
       document.body.style.setProperty("--lookup-w", `${w}px`);
       document.body.style.setProperty("--lookup-w-saved", `${w}px`);
@@ -2358,6 +2373,21 @@ function initLookup() {
       localStorage.setItem(LOOKUP_WIDTH_KEY, String(LOOKUP_DEFAULT));
     });
   }
+
+  // v0.5.49 — 창 축소 시 lookup 폭을 자동으로 줄여 chat 컬럼 최소 폭 유지
+  window.addEventListener("resize", () => {
+    if (!_lookupState.open) return;
+    const cur = parseInt(
+      (document.body.style.getPropertyValue("--lookup-w") || "").trim(),
+      10,
+    );
+    if (!cur) return;
+    const cap = _lookupMaxForViewport();
+    if (cur > cap) {
+      document.body.style.setProperty("--lookup-w", `${cap}px`);
+      // saved는 유지 — 창 다시 키우면 원래 폭으로 복원되도록
+    }
+  });
 
   // ESC로 panel 닫기
   document.addEventListener("keydown", (e) => {
@@ -2425,7 +2455,14 @@ function openLookupPanel() {
   const saved = (document.body.style.getPropertyValue("--lookup-w-saved") || "").trim();
   const savedPx = parseInt(saved, 10);
   if (Number.isFinite(savedPx) && savedPx >= 280) {
-    document.body.style.setProperty("--lookup-w", `${savedPx}px`);
+    // v0.5.49 — 현재 viewport에서 chat 컬럼 최소 520px가 남도록 cap
+    const sidebarRaw = getComputedStyle(document.body)
+      .getPropertyValue("--sidebar-w")
+      .trim();
+    const sidebarPx = parseInt(sidebarRaw, 10) || 0;
+    const cap = Math.min(760, Math.max(280, window.innerWidth - sidebarPx - 520));
+    const applied = Math.min(savedPx, cap);
+    document.body.style.setProperty("--lookup-w", `${applied}px`);
   } else {
     // inline --lookup-w 제거 → CSS의 body.lookup-open { --lookup-w: 400px } 적용
     document.body.style.removeProperty("--lookup-w");
