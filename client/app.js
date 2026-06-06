@@ -141,10 +141,9 @@ function cacheEls() {
   els.scrollBottomBtn = $("scroll-bottom-btn");
   els.lookupPanelBodyWrap = $("lookup-panel-body-wrap");
   els.lookupScrollBottomBtn = $("lookup-scroll-bottom-btn");
-  els.pausedBanner = $("paused-banner");
-  els.pausedBannerText = $("paused-banner-text");
-  els.pausedResumeBtn = $("paused-resume-btn");
-  els.pausedDiscardBtn = $("paused-discard-btn");
+  els.pausedSection = $("paused-section");
+  els.pausedList = $("paused-list");
+  els.pausedCountBadge = $("paused-count-badge");
   els.pauseBtn = $("pause-btn");
   els.input = $("input");
   els.sendBtn = $("send-btn");
@@ -312,13 +311,11 @@ function wireEvents() {
   }
   els.endBtn.addEventListener("click", endSession);
 
-  // v0.5.41: 세션 일시정지 + 맨 아래로 + 줄바꿈 보존
+  // v0.5.41+: 세션 일시정지 + 맨 아래로 + 줄바꿈 보존
   els.pauseBtn?.addEventListener("click", pauseSession);
-  els.pausedResumeBtn?.addEventListener("click", resumePausedSession);
-  els.pausedDiscardBtn?.addEventListener("click", discardPausedSession);
   initScrollControls();
-  // 페이지 로드 시 일시정지된 세션 있는지 확인
-  refreshPausedBanner();
+  // 페이지 로드 시 일시정지된 세션들 렌더
+  refreshPausedList();
 
   // v0.5.31 #4: 입력창 높이 조절 (드래그 핸들)
   initComposerResizer();
@@ -3412,7 +3409,7 @@ async function startSession(chapterId) {
       roadmapId: decodeURIComponent(roadmapIdEnc),
       roadmapName: decodeURIComponent(roadmapNameEnc),
     };
-    refreshPausedBanner(); // 일시정지 배너 숨김
+    refreshPausedList(); // 일시정지 목록 갱신
     updateTopbar();
     enableSessionUi(true);
 
@@ -3667,46 +3664,103 @@ async function sendMessage(text) {
 }
 
 // ──────────────────────────────────────────────────────────
-// v0.5.41 — Pause / Resume session
-// 클라이언트가 sessionId + 표시용 메타를 localStorage에 보관.
+// v0.5.41–v0.5.43 — Pause / Resume session (멀티)
+// localStorage에 paused 세션들의 배열을 보관 — 사이드바 PAUSED 섹션에서 관리.
 // 서버는 그대로 in-memory 세션 유지 → 이어가기 시 GET /api/session/:id로 복원.
 // ──────────────────────────────────────────────────────────
 
-const PAUSED_KEY = "spiral-buddy:paused-session";
+const PAUSED_KEY = "spiral-buddy:paused-sessions"; // 배열 (v0.5.43~)
+const PAUSED_LEGACY_KEY = "spiral-buddy:paused-session"; // 단일 (v0.5.41~v0.5.42)
+const PAUSED_MAX = 10;
 
-function readPaused() {
+function readPausedList() {
   try {
     const raw = localStorage.getItem(PAUSED_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+    if (raw) {
+      const arr = JSON.parse(raw);
+      return Array.isArray(arr) ? arr : [];
+    }
+    // 이전 단일 객체 형식 마이그레이션
+    const legacy = localStorage.getItem(PAUSED_LEGACY_KEY);
+    if (legacy) {
+      const obj = JSON.parse(legacy);
+      if (obj && obj.id) {
+        localStorage.setItem(PAUSED_KEY, JSON.stringify([obj]));
+        localStorage.removeItem(PAUSED_LEGACY_KEY);
+        return [obj];
+      }
+    }
+  } catch {}
+  return [];
 }
 
-function writePaused(info) {
+function writePausedList(list) {
   try {
-    if (info) localStorage.setItem(PAUSED_KEY, JSON.stringify(info));
-    else localStorage.removeItem(PAUSED_KEY);
+    localStorage.setItem(PAUSED_KEY, JSON.stringify(list));
   } catch {}
 }
 
-function refreshPausedBanner() {
-  if (!els.pausedBanner) return;
-  const info = readPaused();
-  if (!info || state.session) {
-    els.pausedBanner.classList.add("hidden");
+function _relTime(ts) {
+  const diff = Date.now() - ts;
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return "방금";
+  if (m < 60) return `${m}분 전`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}시간 전`;
+  const d = Math.floor(h / 24);
+  return `${d}일 전`;
+}
+
+function refreshPausedList() {
+  if (!els.pausedSection || !els.pausedList) return;
+  const list = readPausedList();
+  els.pausedCountBadge.textContent = String(list.length);
+  if (list.length === 0) {
+    els.pausedSection.classList.add("hidden");
+    els.pausedList.innerHTML = "";
     return;
   }
-  els.pausedBanner.classList.remove("hidden");
-  if (els.pausedBannerText) {
-    const label = `${info.chapterTitle ?? "세션"}${info.depth ? ` · depth ${info.depth}` : ""}`;
-    els.pausedBannerText.innerHTML = `⏸ 일시정지된 세션 — <strong>${escapeHtml(label)}</strong>`;
-  }
+  els.pausedSection.classList.remove("hidden");
+  // 최신순
+  const sorted = [...list].sort((a, b) => (b.pausedAt ?? 0) - (a.pausedAt ?? 0));
+  els.pausedList.innerHTML = sorted
+    .map(
+      (p) => `
+      <li class="paused-item" data-id="${escapeAttr(p.id)}">
+        <button class="paused-item-main" data-action="resume" data-id="${escapeAttr(p.id)}" type="button" title="이어가기">
+          <div class="paused-item-title">${escapeHtml(p.chapterTitle ?? "세션")}</div>
+          <div class="paused-item-meta">
+            ${p.depth ? `<span class="paused-item-depth">d${p.depth}</span>` : ""}
+            <span class="paused-item-roadmap">${escapeHtml(p.roadmapName ?? "")}</span>
+            <span class="paused-item-time">${_relTime(p.pausedAt ?? Date.now())}</span>
+          </div>
+        </button>
+        <button class="paused-item-discard" data-action="discard" data-id="${escapeAttr(p.id)}" type="button" title="폐기" aria-label="폐기">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"/>
+            <path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/>
+          </svg>
+        </button>
+      </li>`,
+    )
+    .join("");
+
+  // 이벤트 wire — 위임
+  els.pausedList.onclick = (e) => {
+    const btn = e.target.closest("[data-action]");
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const action = btn.dataset.action;
+    if (action === "resume") {
+      resumePausedSession(id);
+    } else if (action === "discard") {
+      discardPausedSession(id);
+    }
+  };
 }
 
 async function pauseSession() {
   if (!state.session || state.pending) return;
-  // 클라이언트 상태만 정리 + localStorage에 메타 저장 (서버 세션은 살려둠)
   const meta = {
     id: state.session.id,
     chapterId: state.session.chapterId,
@@ -3717,50 +3771,79 @@ async function pauseSession() {
     activeRoadmapId: state.activeRoadmapId,
     pausedAt: Date.now(),
   };
-  writePaused(meta);
+  const list = readPausedList();
+  // 같은 id가 이미 있으면 갱신
+  const filtered = list.filter((p) => p.id !== meta.id);
+  filtered.push(meta);
+  // 너무 많아지면 오래된 것부터 evict
+  while (filtered.length > PAUSED_MAX) {
+    filtered.sort((a, b) => (a.pausedAt ?? 0) - (b.pausedAt ?? 0));
+    const evicted = filtered.shift();
+    if (evicted) {
+      // 서버 세션도 정리
+      fetch(`/api/session/${evicted.id}/cancel`, { method: "POST" }).catch(
+        () => {},
+      );
+    }
+  }
+  writePausedList(filtered);
+
   state.session = null;
   state.messages = [];
   els.messages.innerHTML = "";
   enableSessionUi(false);
   updateTopbar();
-  setStatus("⏸ 세션 일시정지됨 — 언제든 [이어가기]로 돌아올 수 있어요");
+  setStatus(`⏸ "${meta.chapterTitle}" 일시정지됨 — 좌측 PAUSED에서 언제든 이어가기`);
   setTimeout(() => {
     if (els.statusBar?.textContent?.startsWith("⏸")) setStatus("");
   }, 3500);
-  refreshPausedBanner();
+  refreshPausedList();
 }
 
-async function resumePausedSession() {
-  const info = readPaused();
+async function resumePausedSession(id) {
+  if (!id) return;
+  const list = readPausedList();
+  const info = list.find((p) => p.id === id);
   if (!info) {
-    refreshPausedBanner();
+    refreshPausedList();
     return;
+  }
+  // 진행 중인 세션이 있다면 자동으로 그것도 pause
+  if (state.session) {
+    if (
+      !confirm(
+        "진행 중인 세션이 있습니다. 자동으로 일시정지하고 이 세션으로 이어갈까요?",
+      )
+    )
+      return;
+    await pauseSession();
   }
   setStatus("⏵ 세션 복원 중…");
   try {
     const res = await fetch(`/api/session/${info.id}`);
     if (res.status === 404) {
-      // 서버 재시작 등으로 세션 만료
       if (
         confirm(
-          "서버 세션이 만료되어 이어갈 수 없습니다. 일시정지 정보를 폐기할까요?",
+          "서버 세션이 만료되어 이어갈 수 없습니다. 일시정지 항목을 폐기할까요?",
         )
       ) {
-        writePaused(null);
+        writePausedList(list.filter((p) => p.id !== id));
+        refreshPausedList();
       }
-      refreshPausedBanner();
       setStatus("");
       return;
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
-    // 로드맵이 다른 곳에 가 있다면 원래 로드맵으로 돌아감
-    if (data.chapter?.roadmapId && data.chapter.roadmapId !== state.activeRoadmapId) {
+    // 로드맵이 다른 곳에 가 있다면 원래 로드맵으로 전환
+    if (
+      data.chapter?.roadmapId &&
+      data.chapter.roadmapId !== state.activeRoadmapId
+    ) {
       await switchRoadmap(data.chapter.roadmapId);
     }
 
-    // 클라이언트 상태 복원
     state.session = {
       id: data.id,
       chapterId: data.chapter.id,
@@ -3774,8 +3857,6 @@ async function resumePausedSession() {
       content: m.content,
     }));
 
-    // 메시지 다시 렌더 — appendUserMessage(skipPush) / appendAssistantMessage
-    // 둘 다 state.messages를 건드리지 않게 한다 (state.messages는 위에서 미리 populate)
     els.messages.innerHTML = "";
     for (const m of data.messages ?? []) {
       if (m.role === "user") {
@@ -3787,9 +3868,10 @@ async function resumePausedSession() {
 
     enableSessionUi(true);
     updateTopbar();
-    writePaused(null);
-    refreshPausedBanner();
-    setStatus("✓ 세션 이어가기 시작", "success");
+    // resumed 항목은 paused 목록에서 제거
+    writePausedList(readPausedList().filter((p) => p.id !== id));
+    refreshPausedList();
+    setStatus(`✓ "${info.chapterTitle}" 이어가기 시작`, "success");
     setTimeout(() => setStatus(""), 2000);
     scrollToBottom(true);
   } catch (err) {
@@ -3798,16 +3880,18 @@ async function resumePausedSession() {
   }
 }
 
-async function discardPausedSession() {
-  const info = readPaused();
+async function discardPausedSession(id) {
+  if (!id) return;
+  const list = readPausedList();
+  const info = list.find((p) => p.id === id);
   if (!info) return;
-  if (!confirm("일시정지된 세션을 폐기할까요? (서버에서도 제거됩니다)")) return;
-  // 서버 세션도 정리
+  if (!confirm(`"${info.chapterTitle}" 일시정지 세션을 폐기할까요?\n(서버에서도 제거됩니다)`))
+    return;
   try {
-    await fetch(`/api/session/${info.id}/cancel`, { method: "POST" });
+    await fetch(`/api/session/${id}/cancel`, { method: "POST" });
   } catch {}
-  writePaused(null);
-  refreshPausedBanner();
+  writePausedList(list.filter((p) => p.id !== id));
+  refreshPausedList();
   setStatus("일시정지 세션 폐기됨");
   setTimeout(() => setStatus(""), 1500);
 }
@@ -3869,9 +3953,8 @@ async function endSession() {
     enableSessionUi(false);
     updateTopbar();
     // 같은 세션이 일시정지 목록에 있었다면 정리
-    const paused = readPaused();
-    if (paused?.id === endingSessionId) writePaused(null);
-    refreshPausedBanner();
+    writePausedList(readPausedList().filter((p) => p.id !== endingSessionId));
+    refreshPausedList();
 
     // 진도 + 활동 streak 갱신
     const roadmaps = await fetch("/api/roadmaps").then((r) => r.json());

@@ -83,6 +83,20 @@
         <div class="loading">🧭 Analyzing trajectory…</div>
       </section>
 
+      <section class="paused-section hidden" id="paused-section">
+        <h2>
+          <span class="paused-section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6" y="4" width="4" height="16"/>
+              <rect x="14" y="4" width="4" height="16"/>
+            </svg>
+          </span>
+          Paused
+          <span class="paused-count-badge" id="paused-count-badge">0</span>
+        </h2>
+        <ul id="paused-list" class="paused-list" role="list"></ul>
+      </section>
+
       <section class="chapters">
         <h2>Chapters</h2>
         <ol id="chapter-list" class="list">
@@ -182,17 +196,6 @@
             <polyline points="19 12 12 19 5 12"/>
           </svg>
         </button>
-      </div>
-      <div id="paused-banner" class="paused-banner hidden" role="status">
-        <span class="paused-banner-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="6" y="4" width="4" height="16"/>
-            <rect x="14" y="4" width="4" height="16"/>
-          </svg>
-        </span>
-        <span class="paused-banner-text" id="paused-banner-text">일시정지된 세션이 있어요</span>
-        <button id="paused-resume-btn" class="paused-resume-btn" type="button">▶ 이어가기</button>
-        <button id="paused-discard-btn" class="paused-discard-btn" type="button" title="폐기" aria-label="폐기">✕</button>
       </div>
 
       <div id="composer-resizer" class="composer-resizer" role="separator" aria-orientation="horizontal" aria-label="입력창 높이 조절" title="드래그하여 입력창 높이 조절 (더블클릭=리셋)"></div>
