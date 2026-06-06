@@ -245,6 +245,62 @@
         border-color: rgba(169, 186, 197, 0.42);
         background: rgba(159, 179, 193, 0.055);
       }
+
+      /* v0.5.46 — Setup wizard 역할 프리셋 */
+      .setup-presets {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .setup-preset {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 12px 14px;
+        background: rgba(159, 179, 193, 0.04);
+        border: 1px solid rgba(169, 186, 197, 0.22);
+        border-radius: 10px;
+        color: var(--text, #edf3f5);
+        cursor: pointer;
+        text-align: left;
+        font-family: inherit;
+        transition: all 0.14s ease;
+      }
+      .setup-preset:hover:not(:disabled) {
+        background: rgba(126, 226, 255, 0.06);
+        border-color: rgba(126, 226, 255, 0.5);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 14px rgba(126, 226, 255, 0.16);
+      }
+      .setup-preset:disabled { opacity: 0.5; cursor: not-allowed; }
+      .setup-preset.recommended {
+        border-color: rgba(126, 226, 255, 0.5);
+        background: linear-gradient(135deg, rgba(126, 226, 255, 0.06), rgba(197, 167, 255, 0.04));
+      }
+      .setup-preset.heavy {
+        border-color: rgba(255, 138, 91, 0.4);
+      }
+      .setup-preset-head {
+        display: flex; align-items: center; gap: 6px;
+        font-size: 13px;
+      }
+      .setup-preset-emoji { font-size: 16px; }
+      .setup-preset-tag {
+        margin-left: auto;
+        font-size: 9px; font-weight: 700;
+        padding: 1px 6px; border-radius: 999px;
+        background: rgba(126, 226, 255, 0.16); color: #7ee2ff;
+      }
+      .setup-preset-tag.heavy { background: rgba(255, 138, 91, 0.16); color: #ff8a5b; }
+      .setup-preset-sub {
+        font-size: 11px; color: rgba(159, 179, 193, 0.8); line-height: 1.4;
+      }
+      .setup-presets-hint {
+        font-size: 11px; color: rgba(159, 179, 193, 0.65);
+        margin-top: 8px; padding: 6px 2px;
+      }
+      .setup-presets-hint strong { color: rgba(159, 179, 193, 0.95); }
     </style>
   </head>
   <body>
@@ -312,26 +368,33 @@
       </div>
       <div class="hint">이미 학습 자료가 있다면 그 경로를 지정. 비워두면 GitHub Curated (iq-dev-lab)만 사용.</div>
 
-      <div class="divider-text">또는 한 번에 받기</div>
+      <div class="divider-text">또는 역할 프리셋으로 한 번에 받기</div>
 
-      <div class="download-card" id="download-card" role="button" tabindex="0">
-        <div class="download-card-title">
-          <span class="download-card-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3.5 19 7.4v7.2l-7 3.9-7-3.9V7.4l7-3.9Z" />
-              <path d="m5 7.4 7 3.9 7-3.9" />
-              <path d="M12 11.3v7.2" />
-              <path d="M8.5 9.3v3.9l3.5 2 3.5-2V9.3" />
-            </svg>
-          </span>
-          <span>IQ Dev Lab 38개 deep-dive 레포 자동 다운로드</span>
-        </div>
-        <div class="download-card-sub" id="download-card-sub">
-          Java Core · Spring · DB · MSA · Architecture · 등 카테고리별 deep-dive 레포를 한 번에 <code>git clone --depth=1</code>. 약 200–500MB · 1–5분.
-        </div>
-        <div class="download-progress hidden" id="download-progress"></div>
-        <div class="progress-bar hidden" id="progress-bar-wrap"><div class="progress-fill" id="progress-fill"></div></div>
+      <div class="setup-presets" id="setup-presets">
+        <button type="button" class="setup-preset recommended" data-preset="backend">
+          <div class="setup-preset-head"><span class="setup-preset-emoji">🔧</span><strong>백엔드 개발자</strong><span class="setup-preset-tag">추천</span></div>
+          <div class="setup-preset-sub">Foundations · Languages · Backend (43)</div>
+        </button>
+        <button type="button" class="setup-preset" data-preset="frontend">
+          <div class="setup-preset-head"><span class="setup-preset-emoji">🌐</span><strong>프론트엔드 개발자</strong></div>
+          <div class="setup-preset-sub">Foundations · Languages · Frontend (13)</div>
+        </button>
+        <button type="button" class="setup-preset" data-preset="mobile">
+          <div class="setup-preset-head"><span class="setup-preset-emoji">📱</span><strong>모바일 개발자</strong></div>
+          <div class="setup-preset-sub">Android · iOS · Cross-Platform + 기본</div>
+        </button>
+        <button type="button" class="setup-preset heavy" data-preset="fullstack">
+          <div class="setup-preset-head"><span class="setup-preset-emoji">🧬</span><strong>풀스택 · CS 깊게</strong><span class="setup-preset-tag heavy">무거움</span></div>
+          <div class="setup-preset-sub">모든 도메인 · Synthesis까지 (87)</div>
+        </button>
       </div>
+
+      <div class="setup-presets-hint">
+        나중에 <strong>설정</strong>에서 도메인별로 더 받거나 빼실 수 있어요.
+      </div>
+
+      <div class="download-progress hidden" id="download-progress"></div>
+      <div class="progress-bar hidden" id="progress-bar-wrap"><div class="progress-fill" id="progress-fill"></div></div>
     </div>
 
     <div class="error" id="error-msg"></div>
