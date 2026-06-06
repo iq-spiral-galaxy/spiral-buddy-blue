@@ -476,22 +476,30 @@
             ＋ 새 워크스페이스 추가
           </button>
 
-          <div class="settings-divider"><span>또는 한 번에</span></div>
+          <div class="settings-divider"><span>iq-dev-lab 학습 자료</span></div>
 
-          <button id="settings-download-curated-card" class="settings-curated-card" type="button">
-            <span class="settings-curated-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-              </svg>
-            </span>
-            <span class="settings-curated-text">
-              <strong>iq-dev-lab 38개 deep-dive 받기</strong>
-              <span class="settings-curated-sub">Java Core · Spring · DB · MSA · Architecture · 등 카테고리별로 한 번에 git clone. 약 200–500MB</span>
-            </span>
-            <span class="settings-curated-progress hidden" id="settings-curated-progress"></span>
-          </button>
+          <div id="curated-zone" class="curated-zone">
+            <div class="curated-target-row" id="curated-target-row">
+              <span class="curated-target-label">받을 위치:</span>
+              <code class="curated-target-path" id="curated-target-path">선택되지 않음</code>
+              <button type="button" class="curated-target-pick" id="curated-target-pick">선택…</button>
+            </div>
+
+            <div class="curated-presets">
+              <div class="curated-presets-header">⚡ 빠른 시작 — 역할 프리셋</div>
+              <div class="curated-presets-grid" id="curated-presets-grid"></div>
+            </div>
+
+            <div class="curated-domains">
+              <div class="curated-domains-header">📚 도메인 골라 받기</div>
+              <div class="curated-domains-list" id="curated-domains-list"></div>
+            </div>
+
+            <div id="curated-progress" class="curated-progress hidden">
+              <div class="curated-progress-text" id="curated-progress-text">진행 중…</div>
+              <div class="curated-progress-bar"><div class="curated-progress-fill" id="curated-progress-fill"></div></div>
+            </div>
+          </div>
 
           <div class="settings-divider"><span>처음부터 다시</span></div>
 

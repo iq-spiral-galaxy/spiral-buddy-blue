@@ -1519,9 +1519,8 @@ async function initSettings() {
   document
     .getElementById("settings-add-workspace-btn")
     ?.addEventListener("click", openAddWorkspaceModal);
-  document
-    .getElementById("settings-download-curated-card")
-    ?.addEventListener("click", downloadCuratedFromSettings);
+  // v0.5.45: curated 도메인 그리드 init
+  initCuratedZone();
   document
     .getElementById("settings-open-wizard")
     ?.addEventListener("click", async () => {
@@ -1670,6 +1669,8 @@ function openSettingsModal() {
 
   // v0.5.32: 자동 업데이트 체크
   refreshUpdateBanner();
+  // v0.5.45: 도메인 그리드 상태 갱신
+  refreshCuratedZone().catch(() => {});
 
   // API 키: 입력은 비움(보안). 저장된 키는 별도 status 라인에 명확히 표시.
   const apiInput = document.getElementById("settings-api-key");
@@ -1976,64 +1977,249 @@ async function submitAddWorkspace() {
  * 설정 모달 안에서 iq-dev-lab 38개를 한 번에 받기 + 워크스페이스로 자동 등록.
  * setup wizard 흐름과 동일한 IPC를 재사용한다.
  */
-async function downloadCuratedFromSettings() {
-  if (!window.spiralSetup || !window.spiralSettings) return;
-  const card = document.getElementById("settings-download-curated-card");
-  const progress = document.getElementById("settings-curated-progress");
-  if (card.classList.contains("downloading") || card.classList.contains("done")) {
+// ──────────────────────────────────────────────────────────
+// v0.5.45 — Curated 도메인 그리드 (설정 모달)
+// ──────────────────────────────────────────────────────────
+
+const _curatedState = {
+  data: null, // { org, domains, rolePresets }
+  parentDir: null,
+  installed: new Set(),
+  busy: false,
+};
+
+const CURATED_PARENT_KEY = "spiral-buddy:curated-parent";
+
+async function initCuratedZone() {
+  if (!window.spiralCurated) return;
+  const targetRow = document.getElementById("curated-target-row");
+  if (!targetRow) return;
+  // 저장된 parent 복원
+  const saved = localStorage.getItem(CURATED_PARENT_KEY);
+  if (saved) _curatedState.parentDir = saved;
+
+  document
+    .getElementById("curated-target-pick")
+    ?.addEventListener("click", async () => {
+      const p = await window.spiralCurated.pickParentDir();
+      if (!p) return;
+      _curatedState.parentDir = p;
+      try {
+        localStorage.setItem(CURATED_PARENT_KEY, p);
+      } catch {}
+      await refreshCuratedZone();
+    });
+
+  await refreshCuratedZone();
+}
+
+async function refreshCuratedZone() {
+  if (!_curatedState.data) {
+    _curatedState.data = await window.spiralCurated.getDomains({});
+  }
+  const data = _curatedState.data;
+  const pathEl = document.getElementById("curated-target-path");
+  if (pathEl) {
+    pathEl.textContent = _curatedState.parentDir ?? "선택되지 않음";
+    pathEl.classList.toggle("empty", !_curatedState.parentDir);
+  }
+  if (_curatedState.parentDir) {
+    const res = await window.spiralCurated.getInstalled({
+      parentDir: _curatedState.parentDir,
+    });
+    _curatedState.installed = new Set(res?.installed ?? []);
+  } else {
+    _curatedState.installed = new Set();
+  }
+  renderCuratedPresets();
+  renderCuratedDomains();
+}
+
+function _domainReposByIds(domainIds) {
+  const set = new Set();
+  const domains = _curatedState.data?.domains ?? [];
+  for (const id of domainIds) {
+    const d = domains.find((x) => x.id === id);
+    if (d) for (const c of d.categories) for (const r of c.repos) set.add(r);
+  }
+  return Array.from(set);
+}
+
+function renderCuratedPresets() {
+  const grid = document.getElementById("curated-presets-grid");
+  if (!grid) return;
+  const presets = _curatedState.data?.rolePresets ?? [];
+  grid.innerHTML = presets
+    .map((p) => {
+      const repos = _domainReposByIds(p.domains);
+      const installedCount = repos.filter((r) =>
+        _curatedState.installed.has(r),
+      ).length;
+      const allDone = installedCount === repos.length;
+      return `
+        <button class="curated-preset-card${p.recommended ? " recommended" : ""}${p.heavy ? " heavy" : ""}" data-preset="${escapeAttr(p.id)}" type="button" ${!_curatedState.parentDir || _curatedState.busy ? "disabled" : ""}>
+          <div class="curated-preset-head">
+            <span class="curated-preset-emoji">${escapeHtml(p.emoji ?? "")}</span>
+            <span class="curated-preset-name">${escapeHtml(p.name)}</span>
+            ${p.recommended ? `<span class="curated-preset-tag">추천</span>` : ""}
+            ${p.heavy ? `<span class="curated-preset-tag heavy">무거움</span>` : ""}
+          </div>
+          <div class="curated-preset-sub">${escapeHtml(p.subtitle ?? "")}</div>
+          <div class="curated-preset-meta">${repos.length} repos · ${installedCount}/${repos.length} 받음 ${allDone ? "✓" : ""}</div>
+        </button>`;
+    })
+    .join("");
+  grid.querySelectorAll(".curated-preset-card").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.preset;
+      installCuratedPreset(id);
+    });
+  });
+}
+
+function renderCuratedDomains() {
+  const list = document.getElementById("curated-domains-list");
+  if (!list) return;
+  const domains = _curatedState.data?.domains ?? [];
+  list.innerHTML = domains
+    .map((d) => {
+      const repos = d.categories.flatMap((c) => c.repos);
+      const installedRepos = repos.filter((r) =>
+        _curatedState.installed.has(r),
+      );
+      const missing = repos.length - installedRepos.length;
+      const isAllDone = missing === 0;
+      const isPartial = installedRepos.length > 0 && missing > 0;
+      const btnLabel = isAllDone
+        ? "✓ 모두 받음"
+        : isPartial
+          ? `+${missing}개 추가`
+          : `받기 (${repos.length})`;
+      return `
+        <div class="curated-domain-row ${isAllDone ? "all-done" : ""} ${isPartial ? "partial" : ""}">
+          <div class="curated-domain-info">
+            <div class="curated-domain-head">
+              <span class="curated-domain-emoji">${escapeHtml(d.emoji ?? "")}</span>
+              <span class="curated-domain-name">${escapeHtml(d.name)}</span>
+              <span class="curated-domain-counts">${installedRepos.length}/${repos.length}</span>
+            </div>
+            <div class="curated-domain-sub">${escapeHtml(d.subtitle ?? "")}</div>
+            ${d.hint ? `<div class="curated-domain-hint">ⓘ ${escapeHtml(d.hint)}</div>` : ""}
+          </div>
+          <button class="curated-domain-btn ${isAllDone ? "done" : ""} ${isPartial ? "partial" : ""}" data-domain="${escapeAttr(d.id)}" type="button" ${!_curatedState.parentDir || _curatedState.busy || isAllDone ? "disabled" : ""}>${btnLabel}</button>
+        </div>`;
+    })
+    .join("");
+  list.querySelectorAll(".curated-domain-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.domain;
+      installCuratedDomain(id);
+    });
+  });
+}
+
+async function installCuratedPreset(presetId) {
+  const preset = _curatedState.data?.rolePresets?.find(
+    (p) => p.id === presetId,
+  );
+  if (!preset) return;
+  const repos = _domainReposByIds(preset.domains);
+  if (!_curatedState.parentDir) {
+    alert("먼저 받을 위치를 선택해주세요.");
     return;
   }
-  const parent = await window.spiralSetup.pickParentDir();
-  if (!parent) return;
+  const missing = repos.filter((r) => !_curatedState.installed.has(r));
+  if (missing.length === 0) {
+    alert(`${preset.name} — 이미 모두 받음 ✓`);
+    return;
+  }
+  const msg = `${preset.name} (${preset.subtitle ?? ""})\n\n받을 레포: ${missing.length}개 (이미 받은 ${repos.length - missing.length}개는 skip)\n위치: ${_curatedState.parentDir}\n\n진행할까요?`;
+  if (!confirm(msg)) return;
+  await runCuratedInstall(missing, preset.name);
+}
 
-  card.classList.add("downloading");
-  progress.classList.remove("hidden");
-  progress.textContent = "준비 중…";
+async function installCuratedDomain(domainId) {
+  const d = _curatedState.data?.domains?.find((x) => x.id === domainId);
+  if (!d) return;
+  const repos = d.categories.flatMap((c) => c.repos);
+  if (!_curatedState.parentDir) {
+    alert("먼저 받을 위치를 선택해주세요.");
+    return;
+  }
+  const missing = repos.filter((r) => !_curatedState.installed.has(r));
+  if (missing.length === 0) {
+    alert(`${d.name} — 이미 모두 받음 ✓`);
+    return;
+  }
+  const msg = `${d.emoji} ${d.name}\n${d.subtitle ?? ""}\n\n받을 레포: ${missing.length}개\n위치: ${_curatedState.parentDir}\n\n진행할까요?`;
+  if (!confirm(msg)) return;
+  await runCuratedInstall(missing, d.name);
+}
 
-  const off = window.spiralSetup.onDownloadProgress((p) => {
+async function runCuratedInstall(repoNames, label) {
+  if (_curatedState.busy) return;
+  _curatedState.busy = true;
+  const progress = document.getElementById("curated-progress");
+  const text = document.getElementById("curated-progress-text");
+  const fill = document.getElementById("curated-progress-fill");
+  progress?.classList.remove("hidden");
+  if (text) text.textContent = `${label} — 준비 중…`;
+  if (fill) fill.style.width = "0%";
+  // 버튼 disable 상태 반영
+  renderCuratedPresets();
+  renderCuratedDomains();
+
+  const off = window.spiralCurated.onProgress((p) => {
+    if (!text) return;
     if (p.phase === "fetching") {
-      progress.textContent = p.message ?? "레포 목록 가져오는 중…";
+      text.textContent = `${label} — ${p.message ?? "레포 목록 가져오는 중…"}`;
     } else if (p.phase === "cloning") {
-      progress.textContent = p.current
-        ? `[${p.done}/${p.total}] ${p.current}`
-        : `${p.total}개 클론 시작…`;
+      const pct =
+        p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
+      text.textContent = `${label} — [${p.done}/${p.total}] ${p.current ?? ""}${p.skipped ? ` · skip ${p.skipped}` : ""}`;
+      if (fill) fill.style.width = `${pct}%`;
     } else if (p.phase === "done") {
-      const failed = p.failed > 0 ? ` (${p.failed}개 실패)` : "";
-      progress.textContent = `✓ ${p.done - p.failed}/${p.total}개 완료${failed}`;
+      text.textContent = `${label} — ✓ 완료 (${p.done - (p.failed ?? 0)}/${p.total}, skip ${p.skipped ?? 0}, 실패 ${p.failed ?? 0})`;
+      if (fill) fill.style.width = `100%`;
     }
   });
 
-  const res = await window.spiralSetup.downloadCurated({ parentDir: parent });
+  const res = await window.spiralCurated.install({
+    parentDir: _curatedState.parentDir,
+    repoNames,
+  });
   off?.();
-  card.classList.remove("downloading");
+  _curatedState.busy = false;
 
   if (!res?.ok) {
-    progress.textContent = `✗ 실패: ${res?.error ?? "unknown"}`;
-    return;
+    if (text) text.textContent = `✗ ${label} 실패: ${res?.error ?? "unknown"}`;
+  } else {
+    if (text)
+      text.textContent = `✓ ${label} 완료 — 새로 받음 ${res.newlyInstalled}, skip ${res.skipped}, 실패 ${res.failed?.length ?? 0}`;
+    // 워크스페이스가 없으면 자동 등록 제안
+    const ws = _settingsCache?.workspaces ?? [];
+    const targetDir = res.targetDir;
+    const matches = ws.some((w) => w.roadmapRoot === targetDir);
+    if (!matches && window.spiralSettings) {
+      if (
+        confirm(
+          `iq-dev-lab을 워크스페이스로 등록할까요?\n${targetDir}\n(이미 등록되어 있다면 패스하세요)`,
+        )
+      ) {
+        const wsRes = await window.spiralSettings.addWorkspace({
+          name: "iq-dev-lab",
+          sourceKind: "dir",
+          localPath: targetDir,
+        });
+        if (wsRes?.ok) {
+          _settingsCache = await window.spiralSettings.get();
+          renderWorkspaceListInSettings?.();
+          renderWorkspaceSelector?.();
+        }
+      }
+    }
   }
-  card.classList.add("done");
-  progress.textContent = `✓ ${res.count}개 완료 — 워크스페이스 등록 중…`;
-
-  // 자동으로 워크스페이스 등록 (sourceKind: dir로 기존 디렉토리 지정)
-  const wsRes = await window.spiralSettings.addWorkspace({
-    name: "iq-dev-lab",
-    sourceKind: "dir",
-    localPath: res.targetDir,
-  });
-  if (!wsRes?.ok) {
-    progress.textContent = `✓ 다운로드 완료, 단 워크스페이스 등록 실패: ${wsRes?.error ?? ""}`;
-    return;
-  }
-  _settingsCache = await window.spiralSettings.get();
-  renderWorkspaceListInSettings();
-  renderWorkspaceSelector();
-  progress.textContent = `✓ 다운로드 + 워크스페이스 등록 완료`;
-  const switchOk = window.confirm(
-    `"iq-dev-lab" 워크스페이스로 지금 전환할까요? (앱 재시작)`,
-  );
-  if (switchOk) {
-    await window.spiralSettings.switchWorkspace(wsRes.workspace.id);
-  }
+  await refreshCuratedZone();
 }
 
 // ──────────────────────────────────────────────────────────

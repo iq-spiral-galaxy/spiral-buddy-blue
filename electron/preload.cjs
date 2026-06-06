@@ -24,6 +24,21 @@ contextBridge.exposeInMainWorld("spiralUpdate", {
   openExternal: (url) => ipcRenderer.invoke("app:open-external", url),
 });
 
+// v0.5.45 — 도메인 단위 curated 받기
+contextBridge.exposeInMainWorld("spiralCurated", {
+  getDomains: (args) => ipcRenderer.invoke("curated:get-domains", args ?? {}),
+  getInstalled: (args) =>
+    ipcRenderer.invoke("curated:get-installed", args ?? {}),
+  install: (args) => ipcRenderer.invoke("curated:install", args ?? {}),
+  pickParentDir: () => ipcRenderer.invoke("setup:pick-parent-dir"),
+  onProgress: (callback) => {
+    const wrapper = (_e, payload) => callback(payload);
+    ipcRenderer.on("curated:install-progress", wrapper);
+    return () =>
+      ipcRenderer.removeListener("curated:install-progress", wrapper);
+  },
+});
+
 // 메인 앱에서 설정 / 워크스페이스 관리에 사용
 contextBridge.exposeInMainWorld("spiralSettings", {
   get: () => ipcRenderer.invoke("settings:get"),

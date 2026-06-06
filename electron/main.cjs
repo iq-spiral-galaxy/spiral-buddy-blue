@@ -1107,6 +1107,139 @@ ipcMain.handle("setup:pick-parent-dir", async () => {
   return result.filePaths[0];
 });
 
+// v0.5.45 — 도메인 hierarchy 정보 제공
+const DOMAINS_DATA_FILE = path.resolve(
+  APP_ROOT,
+  "data",
+  "curated-domains.json",
+);
+
+function loadDomainsData() {
+  try {
+    return JSON.parse(fs.readFileSync(DOMAINS_DATA_FILE, "utf8"));
+  } catch {
+    return {};
+  }
+}
+
+ipcMain.handle("curated:get-domains", (_e, args) => {
+  const org = args?.org || CURATED_ORG;
+  const all = loadDomainsData();
+  return { org, ...(all[org] ?? {}) };
+});
+
+ipcMain.handle("curated:get-installed", (_e, args) => {
+  const org = args?.org || CURATED_ORG;
+  const parentDir = args?.parentDir;
+  if (!parentDir) return { installed: [] };
+  const target = path.join(parentDir, org);
+  if (!fs.existsSync(target)) return { installed: [], targetDir: target };
+  try {
+    const installed = fs
+      .readdirSync(target)
+      .filter((n) => {
+        try {
+          const stat = fs.statSync(path.join(target, n));
+          return stat.isDirectory() && !n.startsWith(".");
+        } catch {
+          return false;
+        }
+      });
+    return { installed, targetDir: target };
+  } catch {
+    return { installed: [], targetDir: target };
+  }
+});
+
+// 공유 helper — 주어진 repo 목록을 병렬 clone (이미 있는 건 skip)
+async function _downloadReposByName(send, targetDir, requestedRepoNames) {
+  send("curated:install-progress", {
+    phase: "fetching",
+    message: "GitHub에서 레포 목록 가져오는 중…",
+  });
+  let allRepos;
+  try {
+    allRepos = (await fetchOrgRepos(CURATED_ORG)).filter(
+      (r) => !shouldSkipRepo(r),
+    );
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+  const wantSet = new Set(requestedRepoNames ?? []);
+  const repos =
+    requestedRepoNames && requestedRepoNames.length > 0
+      ? allRepos.filter((r) => wantSet.has(r.name))
+      : allRepos;
+  if (repos.length === 0) {
+    return { ok: false, error: "받을 레포가 없습니다." };
+  }
+
+  send("curated:install-progress", {
+    phase: "cloning",
+    total: repos.length,
+    done: 0,
+    message: `${repos.length}개 레포 시도 시작 (이미 있는 건 skip)`,
+  });
+
+  const concurrency = 4;
+  let cursor = 0;
+  let completed = 0;
+  let skipped = 0;
+  const failed = [];
+
+  async function worker() {
+    while (true) {
+      const idx = cursor++;
+      if (idx >= repos.length) break;
+      const repo = repos[idx];
+      try {
+        const result = await cloneRepo(targetDir, repo);
+        if (result?.skipped) skipped++;
+      } catch (err) {
+        failed.push({ name: repo.name, error: err.message });
+      }
+      completed++;
+      send("curated:install-progress", {
+        phase: "cloning",
+        total: repos.length,
+        done: completed,
+        current: repo.name,
+        skipped,
+        failedCount: failed.length,
+      });
+    }
+  }
+  await Promise.all(Array.from({ length: concurrency }, worker));
+
+  send("curated:install-progress", {
+    phase: "done",
+    total: repos.length,
+    done: completed,
+    skipped,
+    failed: failed.length,
+  });
+  return {
+    ok: true,
+    targetDir,
+    requested: repos.length,
+    newlyInstalled: completed - skipped - failed.length,
+    skipped,
+    failed,
+  };
+}
+
+ipcMain.handle("curated:install", async (event, args) => {
+  const send = (channel, payload) => event.sender.send(channel, payload);
+  const parentDir = args?.parentDir;
+  const repoNames = Array.isArray(args?.repoNames) ? args.repoNames : null;
+  if (!parentDir || !fs.existsSync(parentDir)) {
+    return { ok: false, error: "부모 디렉토리가 존재하지 않습니다." };
+  }
+  const targetDir = path.join(parentDir, CURATED_ORG);
+  fs.mkdirSync(targetDir, { recursive: true });
+  return _downloadReposByName(send, targetDir, repoNames);
+});
+
 ipcMain.handle("setup:download-curated", async (event, args) => {
   const send = (channel, payload) => {
     event.sender.send(channel, payload);
