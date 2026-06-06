@@ -139,6 +139,13 @@
             </svg>
             <span>Quiz</span>
           </button>
+          <button id="pause-btn" class="action-btn pause" disabled title="세션 일시정지 — 나중에 이어서">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="6" y="4" width="4" height="16"/>
+              <rect x="14" y="4" width="4" height="16"/>
+            </svg>
+            <span>Pause</span>
+          </button>
           <button id="end-btn" class="action-btn end" disabled title="세션 종료 + 노트 생성">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
@@ -162,11 +169,30 @@
         </div>
       </header>
 
-      <div id="messages" class="messages">
-        <div class="placeholder">
-          <p>왼쪽에서 챕터를 골라 세션을 시작하거나,</p>
-          <p><strong>Start with suggestion</strong> 버튼으로 추천 챕터를 시작하세요.</p>
+      <div id="messages-wrap" class="messages-wrap">
+        <div id="messages" class="messages">
+          <div class="placeholder">
+            <p>왼쪽에서 챕터를 골라 세션을 시작하거나,</p>
+            <p><strong>Start with suggestion</strong> 버튼으로 추천 챕터를 시작하세요.</p>
+          </div>
         </div>
+        <button id="scroll-bottom-btn" class="scroll-bottom-btn hidden" type="button" title="맨 아래로" aria-label="맨 아래로 스크롤">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <polyline points="19 12 12 19 5 12"/>
+          </svg>
+        </button>
+      </div>
+      <div id="paused-banner" class="paused-banner hidden" role="status">
+        <span class="paused-banner-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="4" width="4" height="16"/>
+            <rect x="14" y="4" width="4" height="16"/>
+          </svg>
+        </span>
+        <span class="paused-banner-text" id="paused-banner-text">일시정지된 세션이 있어요</span>
+        <button id="paused-resume-btn" class="paused-resume-btn" type="button">▶ 이어가기</button>
+        <button id="paused-discard-btn" class="paused-discard-btn" type="button" title="폐기" aria-label="폐기">✕</button>
       </div>
 
       <div id="composer-resizer" class="composer-resizer" role="separator" aria-orientation="horizontal" aria-label="입력창 높이 조절" title="드래그하여 입력창 높이 조절 (더블클릭=리셋)"></div>
@@ -237,7 +263,15 @@
         </button>
         <button id="lookup-clear" class="lookup-panel-mini" type="button" title="모든 카드 지우기">전체 지우기</button>
       </header>
-      <div id="lookup-panel-body" class="lookup-panel-body"></div>
+      <div id="lookup-panel-body-wrap" class="lookup-panel-body-wrap">
+        <div id="lookup-panel-body" class="lookup-panel-body"></div>
+        <button id="lookup-scroll-bottom-btn" class="scroll-bottom-btn hidden" type="button" title="맨 아래로" aria-label="맨 아래로 스크롤">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <polyline points="19 12 12 19 5 12"/>
+          </svg>
+        </button>
+      </div>
       <div id="lookup-direct-resizer" class="lookup-direct-resizer" role="separator" aria-orientation="horizontal" aria-label="Look-up 입력 높이 조절" title="드래그하여 입력창 높이 조절 (더블클릭=리셋)"></div>
       <form id="lookup-direct-form" class="lookup-direct-form">
         <textarea id="lookup-direct-context" class="lookup-direct-context hidden" placeholder="이 키워드를 어떤 맥락에서 알고 싶은지 (선택)..." rows="2"></textarea>

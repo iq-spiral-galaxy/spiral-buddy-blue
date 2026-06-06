@@ -1103,5 +1103,36 @@ export function createApi(config: Config) {
     return c.json({ cancelled: ok });
   });
 
+  // v0.5.41: pause/resume용 — 세션 전체 상태 반환
+  app.get("/session/:id", (c) => {
+    const session = getSession(c.req.param("id"));
+    if (!session) return c.json({ error: "Session not found" }, 404);
+    return c.json({
+      id: session.id,
+      chapter: {
+        id: session.chapter.id,
+        title: session.chapter.title,
+        roadmapId: session.chapter.roadmapId,
+        roadmapName: session.chapter.roadmapName,
+      },
+      depth: session.depth,
+      messages: session.messages.map((m) => ({
+        role: m.role,
+        content:
+          typeof m.content === "string"
+            ? m.content
+            : m.content
+                .filter((b) => b.type === "text")
+                .map((b) => (b as { text: string }).text)
+                .join("\n"),
+      })),
+      lookupsCount: session.lookups.length,
+      totalInputTokens: session.totalInputTokens,
+      totalOutputTokens: session.totalOutputTokens,
+      startedAt: session.startedAt,
+      model: session.model ?? null,
+    });
+  });
+
   return app;
 }

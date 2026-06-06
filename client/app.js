@@ -137,6 +137,15 @@ function cacheEls() {
   els.historyList = $("history-list");
   els.topbar = $("current-chapter");
   els.messages = $("messages");
+  els.messagesWrap = $("messages-wrap");
+  els.scrollBottomBtn = $("scroll-bottom-btn");
+  els.lookupPanelBodyWrap = $("lookup-panel-body-wrap");
+  els.lookupScrollBottomBtn = $("lookup-scroll-bottom-btn");
+  els.pausedBanner = $("paused-banner");
+  els.pausedBannerText = $("paused-banner-text");
+  els.pausedResumeBtn = $("paused-resume-btn");
+  els.pausedDiscardBtn = $("paused-discard-btn");
+  els.pauseBtn = $("pause-btn");
   els.input = $("input");
   els.sendBtn = $("send-btn");
   els.refineBtn = $("refine-btn");
@@ -302,6 +311,14 @@ function wireEvents() {
     els.refineUndo.addEventListener("click", () => undoRefine());
   }
   els.endBtn.addEventListener("click", endSession);
+
+  // v0.5.41: 세션 일시정지 + 맨 아래로 + 줄바꿈 보존
+  els.pauseBtn?.addEventListener("click", pauseSession);
+  els.pausedResumeBtn?.addEventListener("click", resumePausedSession);
+  els.pausedDiscardBtn?.addEventListener("click", discardPausedSession);
+  initScrollControls();
+  // 페이지 로드 시 일시정지된 세션 있는지 확인
+  refreshPausedBanner();
 
   // v0.5.31 #4: 입력창 높이 조절 (드래그 핸들)
   initComposerResizer();
@@ -3395,6 +3412,7 @@ async function startSession(chapterId) {
       roadmapId: decodeURIComponent(roadmapIdEnc),
       roadmapName: decodeURIComponent(roadmapNameEnc),
     };
+    refreshPausedBanner(); // 일시정지 배너 숨김
     updateTopbar();
     enableSessionUi(true);
 
@@ -3648,9 +3666,160 @@ async function sendMessage(text) {
   }
 }
 
+// ──────────────────────────────────────────────────────────
+// v0.5.41 — Pause / Resume session
+// 클라이언트가 sessionId + 표시용 메타를 localStorage에 보관.
+// 서버는 그대로 in-memory 세션 유지 → 이어가기 시 GET /api/session/:id로 복원.
+// ──────────────────────────────────────────────────────────
+
+const PAUSED_KEY = "spiral-buddy:paused-session";
+
+function readPaused() {
+  try {
+    const raw = localStorage.getItem(PAUSED_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePaused(info) {
+  try {
+    if (info) localStorage.setItem(PAUSED_KEY, JSON.stringify(info));
+    else localStorage.removeItem(PAUSED_KEY);
+  } catch {}
+}
+
+function refreshPausedBanner() {
+  if (!els.pausedBanner) return;
+  const info = readPaused();
+  if (!info || state.session) {
+    els.pausedBanner.classList.add("hidden");
+    return;
+  }
+  els.pausedBanner.classList.remove("hidden");
+  if (els.pausedBannerText) {
+    const label = `${info.chapterTitle ?? "세션"}${info.depth ? ` · depth ${info.depth}` : ""}`;
+    els.pausedBannerText.innerHTML = `⏸ 일시정지된 세션 — <strong>${escapeHtml(label)}</strong>`;
+  }
+}
+
+async function pauseSession() {
+  if (!state.session || state.pending) return;
+  // 클라이언트 상태만 정리 + localStorage에 메타 저장 (서버 세션은 살려둠)
+  const meta = {
+    id: state.session.id,
+    chapterId: state.session.chapterId,
+    chapterTitle: state.session.chapterTitle,
+    roadmapId: state.session.roadmapId,
+    roadmapName: state.session.roadmapName,
+    depth: state.session.depth,
+    activeRoadmapId: state.activeRoadmapId,
+    pausedAt: Date.now(),
+  };
+  writePaused(meta);
+  state.session = null;
+  state.messages = [];
+  els.messages.innerHTML = "";
+  enableSessionUi(false);
+  updateTopbar();
+  setStatus("⏸ 세션 일시정지됨 — 언제든 [이어가기]로 돌아올 수 있어요");
+  setTimeout(() => {
+    if (els.statusBar?.textContent?.startsWith("⏸")) setStatus("");
+  }, 3500);
+  refreshPausedBanner();
+}
+
+async function resumePausedSession() {
+  const info = readPaused();
+  if (!info) {
+    refreshPausedBanner();
+    return;
+  }
+  setStatus("⏵ 세션 복원 중…");
+  try {
+    const res = await fetch(`/api/session/${info.id}`);
+    if (res.status === 404) {
+      // 서버 재시작 등으로 세션 만료
+      if (
+        confirm(
+          "서버 세션이 만료되어 이어갈 수 없습니다. 일시정지 정보를 폐기할까요?",
+        )
+      ) {
+        writePaused(null);
+      }
+      refreshPausedBanner();
+      setStatus("");
+      return;
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    // 로드맵이 다른 곳에 가 있다면 원래 로드맵으로 돌아감
+    if (data.chapter?.roadmapId && data.chapter.roadmapId !== state.activeRoadmapId) {
+      await switchRoadmap(data.chapter.roadmapId);
+    }
+
+    // 클라이언트 상태 복원
+    state.session = {
+      id: data.id,
+      chapterId: data.chapter.id,
+      depth: data.depth,
+      chapterTitle: data.chapter.title,
+      roadmapId: data.chapter.roadmapId,
+      roadmapName: data.chapter.roadmapName,
+    };
+    state.messages = (data.messages ?? []).map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    // 메시지 다시 렌더
+    els.messages.innerHTML = "";
+    for (const m of data.messages ?? []) {
+      if (m.role === "user") {
+        appendUserMessage(m.content, { skipPush: true });
+      } else if (m.role === "assistant") {
+        const el = appendAssistantMessage(m.content);
+        // appendAssistantMessage pushes to state.messages — already pushed above; pop duplicate
+        state.messages.pop();
+        // 원래 content 그대로 두기 위해 마지막 messages 항목 다시 추가
+        state.messages.push({ role: "assistant", content: m.content });
+        void el;
+      }
+    }
+
+    enableSessionUi(true);
+    updateTopbar();
+    writePaused(null);
+    refreshPausedBanner();
+    setStatus("✓ 세션 이어가기 시작", "success");
+    setTimeout(() => setStatus(""), 2000);
+    scrollToBottom(true);
+  } catch (err) {
+    setStatus(`복원 실패: ${err.message}`, "error");
+    setTimeout(() => setStatus(""), 3000);
+  }
+}
+
+async function discardPausedSession() {
+  const info = readPaused();
+  if (!info) return;
+  if (!confirm("일시정지된 세션을 폐기할까요? (서버에서도 제거됩니다)")) return;
+  // 서버 세션도 정리
+  try {
+    await fetch(`/api/session/${info.id}/cancel`, { method: "POST" });
+  } catch {}
+  writePaused(null);
+  refreshPausedBanner();
+  setStatus("일시정지 세션 폐기됨");
+  setTimeout(() => setStatus(""), 1500);
+}
+
 async function endSession() {
   if (!state.session || state.pending) return;
   if (!confirm("세션 종료하고 옵시디언에 노트 생성할까?")) return;
+  const endingSessionId = state.session.id;
 
   setPending(true);
 
@@ -3703,6 +3872,10 @@ async function endSession() {
     state.messages = [];
     enableSessionUi(false);
     updateTopbar();
+    // 같은 세션이 일시정지 목록에 있었다면 정리
+    const paused = readPaused();
+    if (paused?.id === endingSessionId) writePaused(null);
+    refreshPausedBanner();
 
     // 진도 + 활동 streak 갱신
     const roadmaps = await fetch("/api/roadmaps").then((r) => r.json());
@@ -3939,16 +4112,17 @@ async function streamInto(response, messageEl) {
 // Message UI
 // ──────────────────────────────────────────────────────────
 
-function appendUserMessage(text) {
+function appendUserMessage(text, opts = {}) {
   const div = document.createElement("div");
   div.className = "message user";
   div.innerHTML = `
     <div class="role">You</div>
     <div class="content"></div>
   `;
+  // textContent로 입력 — 줄바꿈은 CSS white-space: pre-wrap이 유지함
   div.querySelector(".content").textContent = text;
   els.messages.appendChild(div);
-  state.messages.push({ role: "user", content: text });
+  if (!opts.skipPush) state.messages.push({ role: "user", content: text });
   scrollToBottom();
   return div;
 }
@@ -4016,6 +4190,7 @@ function enableSessionUi(enabled) {
   els.sendBtn.disabled = !enabled;
   els.endBtn.disabled = !enabled;
   els.quizBtn.disabled = !enabled;
+  if (els.pauseBtn) els.pauseBtn.disabled = !enabled;
   if (els.refineBtn) els.refineBtn.disabled = !enabled;
   els.input.placeholder = enabled
     ? "메시지 입력 후 Enter (Shift+Enter는 줄바꿈) — 다듬어 보내기 ⌘⇧↵"
@@ -4027,6 +4202,7 @@ function setPending(p) {
   els.sendBtn.disabled = p || !state.session;
   els.endBtn.disabled = p || !state.session;
   els.quizBtn.disabled = p || !state.session;
+  if (els.pauseBtn) els.pauseBtn.disabled = p || !state.session;
   if (els.refineBtn) {
     els.refineBtn.disabled = p || !state.session || state.refining === true;
   }
@@ -4037,7 +4213,52 @@ function setStatus(text, kind = "") {
   els.statusBar.className = `status-bar ${kind}`;
 }
 
-function scrollToBottom() {
+// v0.5.41: 스트리밍 중 사용자가 스크롤 올리면 자동 스크롤 잠금.
+// "맨 아래로" 버튼은 사용자가 스크롤 올렸을 때만 표시.
+const _scrollState = {
+  messagesStick: true, // messages 영역이 자동 스크롤 활성 상태인지
+  lookupStick: true, // lookup body 영역
+};
+
+function _isNearBottom(el, threshold = 60) {
+  return el.scrollHeight - (el.scrollTop + el.clientHeight) < threshold;
+}
+
+function _updateScrollBtn(btn, stick) {
+  if (!btn) return;
+  btn.classList.toggle("hidden", stick);
+}
+
+function initScrollControls() {
+  if (els.messages) {
+    els.messages.addEventListener("scroll", () => {
+      _scrollState.messagesStick = _isNearBottom(els.messages);
+      _updateScrollBtn(els.scrollBottomBtn, _scrollState.messagesStick);
+    });
+  }
+  if (els.scrollBottomBtn) {
+    els.scrollBottomBtn.addEventListener("click", () => {
+      _scrollState.messagesStick = true;
+      scrollToBottom(true);
+    });
+  }
+  if (els.lookupPanelBody) {
+    els.lookupPanelBody.addEventListener("scroll", () => {
+      _scrollState.lookupStick = _isNearBottom(els.lookupPanelBody);
+      _updateScrollBtn(els.lookupScrollBottomBtn, _scrollState.lookupStick);
+    });
+  }
+  if (els.lookupScrollBottomBtn) {
+    els.lookupScrollBottomBtn.addEventListener("click", () => {
+      _scrollState.lookupStick = true;
+      els.lookupPanelBody.scrollTop = els.lookupPanelBody.scrollHeight;
+    });
+  }
+}
+
+function scrollToBottom(force = false) {
+  if (!els.messages) return;
+  if (!force && !_scrollState.messagesStick) return;
   els.messages.scrollTop = els.messages.scrollHeight;
 }
 
