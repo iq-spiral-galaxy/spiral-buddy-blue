@@ -205,8 +205,12 @@ export function createApi(config: Config) {
           const roadmapNotes = notes.filter((n) =>
             noteBelongsToRoadmap(n, { roadmapId: r.id, roadmapName: r.name }),
           );
+          // v0.5.47 fix: 신 schema는 chapter_id 없음 → n.chapter(제목)로 fall-back.
+          // 이렇게 안 하면 신 schema 노트는 visited 0개로 잘못 카운트됨.
           const visitedChapters = new Set(
-            roadmapNotes.map((n) => n.chapterId).filter(Boolean),
+            roadmapNotes
+              .map((n) => n.chapterId || n.chapter)
+              .filter(Boolean),
           );
           const maxDepth = roadmapNotes.reduce(
             (m, n) => Math.max(m, n.depth),
@@ -604,6 +608,12 @@ export function createApi(config: Config) {
     }
 
     const all = await listSpiralNotes(config.vaultPath);
+    // v0.5.47 fix: 신 schema 매칭에 chapterTitle 필요 — chapter 정의 lookup
+    let chapterTitle: string | undefined;
+    if (body.chapterId) {
+      const chapters = await loadRoadmapChapters(roadmap);
+      chapterTitle = chapters.find((ch) => ch.id === body.chapterId)?.title;
+    }
     const target = all.filter((n) => {
       // chapterId 있으면 챕터 단위, 없으면 roadmap 전체
       if (body.chapterId) {
@@ -612,6 +622,7 @@ export function createApi(config: Config) {
             roadmapId: roadmap.id,
             roadmapName: roadmap.name,
             chapterId: body.chapterId,
+            chapterTitle,
           })
         ) {
           return false;
@@ -948,11 +959,14 @@ export function createApi(config: Config) {
     }
 
     const allNotes = await listSpiralNotes(config.vaultPath);
+    // v0.5.47 fix: chapterTitle을 같이 넘겨야 신 schema (chapter_id 없음) 노트를 매칭.
+    // 안 넘기면 같은 챕터를 d1 끝낸 후 다시 클릭해도 prior 0건으로 잡혀 d2로 안 올라감.
     const priorOnSame = allNotes.filter((n) =>
       noteMatchesChapter(n, {
         roadmapId: roadmap.id,
         roadmapName: roadmap.name,
         chapterId: chapter.id,
+        chapterTitle: chapter.title,
       }),
     );
     const depth = priorOnSame.length + 1;

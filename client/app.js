@@ -4381,7 +4381,7 @@ function appendUserMessage(text, opts = {}) {
   const div = document.createElement("div");
   div.className = "message user";
   div.innerHTML = `
-    <div class="role">You</div>
+    <div class="role">Spiraler</div>
     <div class="content"></div>
   `;
   // textContent로 입력 — 줄바꿈은 CSS white-space: pre-wrap이 유지함
@@ -4399,7 +4399,7 @@ function appendAssistantMessage(initialMarkdown) {
   const div = document.createElement("div");
   div.className = "message assistant";
   div.innerHTML = `
-    <div class="role">Claude</div>
+    <div class="role">Buddy</div>
     <div class="content"></div>
     ${renderFeedbackBar("msg")}
   `;

@@ -5,8 +5,8 @@
         "id": "backend",
         "name": "백엔드 개발자",
         "emoji": "🔧",
-        "subtitle": "Foundations · Languages · Backend",
-        "domains": ["foundations", "languages", "backend"],
+        "subtitle": "Foundations · Languages · Backend · Data Eng",
+        "domains": ["foundations", "languages", "backend", "data-engineering"],
         "color": "#2563eb",
         "recommended": true
       },
@@ -31,7 +31,7 @@
         "name": "풀스택 · CS 깊게",
         "emoji": "🧬",
         "subtitle": "모든 도메인 · Synthesis까지",
-        "domains": ["foundations", "languages", "backend", "frontend", "android", "ios", "cross-platform", "synthesis"],
+        "domains": ["foundations", "languages", "backend", "data-engineering", "frontend", "android", "ios", "cross-platform", "synthesis"],
         "color": "#7c3aed",
         "heavy": true
       }
@@ -190,7 +190,17 @@
             "repos": [
               "performance-testing-deep-dive"
             ]
-          },
+          }
+        ]
+      },
+      {
+        "id": "data-engineering",
+        "name": "Data Engineering",
+        "emoji": "📊",
+        "subtitle": "스트림 · 컬럼 · 분산 데이터",
+        "color": "#e25a1c",
+        "order": 4,
+        "categories": [
           {
             "name": "Data Engineering",
             "emoji": "📊",
@@ -209,7 +219,7 @@
         "emoji": "🌐",
         "subtitle": "클라이언트의 본질",
         "color": "#0891b2",
-        "order": 4,
+        "order": 5,
         "categories": [
           {
             "name": "Web Platform & Engine",
@@ -246,7 +256,7 @@
         "emoji": "🤖",
         "subtitle": "온디바이스의 본질",
         "color": "#3ddc84",
-        "order": 5,
+        "order": 6,
         "categories": [
           {
             "name": "Mobile — Android",
@@ -271,7 +281,7 @@
         "emoji": "🍎",
         "subtitle": "Apple 플랫폼의 본질",
         "color": "#9ca3af",
-        "order": 6,
+        "order": 7,
         "categories": [
           {
             "name": "Mobile — iOS",
@@ -295,7 +305,7 @@
         "emoji": "🔀",
         "subtitle": "한 코드, 여러 플랫폼",
         "color": "#02569b",
-        "order": 7,
+        "order": 8,
         "categories": [
           {
             "name": "Cross-Platform",
