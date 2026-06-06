@@ -961,6 +961,21 @@ ipcMain.handle("settings:add-workspace", async (event, args) => {
 
   const name = (args?.name ?? "").trim() || "새 워크스페이스";
   const sourceKind = args?.sourceKind; // "git" | "dir"
+
+  // v0.5.54 — 같은 이름의 워크스페이스가 이미 있으면 차단.
+  // 표시 이름이 displayWorkspaceName으로 정규화되니 그것 기준으로 비교.
+  const nameKey = name.trim().toLowerCase();
+  const dupByName = cfg.workspaces.find(
+    (w) => (w.name ?? "").trim().toLowerCase() === nameKey,
+  );
+  if (dupByName) {
+    return {
+      ok: false,
+      error: `이미 같은 이름의 워크스페이스가 있습니다: "${dupByName.name}". 다른 이름을 사용하세요.`,
+      duplicateId: dupByName.id,
+    };
+  }
+
   const takenIds = new Set(cfg.workspaces.map((w) => w.id));
   const id = uniqueId(name, takenIds);
   // 기본 vault sub-dir: spiral-buddy-<id> (default와 안 겹치게)
