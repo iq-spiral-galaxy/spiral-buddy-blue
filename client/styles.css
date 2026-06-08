@@ -1315,6 +1315,18 @@ button.ghost {
 .domain-body .repo-body .roadmap-item {
   padding-left: 50px;
 }
+
+/* v0.5.57 — single-cat 도메인: 카테고리 헤더가 생략돼서 한 단계 가깝게 들여쓰기.
+ * Foundations, Android, iOS, Cross Platform 등 7개 도메인이 single-cat이라
+ * 도메인 헤더 = 카테고리 헤더 역할. 그 안의 repo가 깊이 들어가 보이지 않게.
+ */
+.domain-body.single-cat .repo-header {
+  padding-left: 22px;
+}
+.domain-body.single-cat .repo-body .sub-roadmap-item,
+.domain-body.single-cat .repo-body .roadmap-item {
+  padding-left: 36px;
+}
 body.light-mode .domain-header {
   background: linear-gradient(
     90deg,

@@ -931,12 +931,19 @@ function renderRoadmapSelector() {
           ? `<span class="depth-pill">d${domMaxDepth}</span>`
           : "";
 
+      // v0.5.57 — 도메인에 카테고리가 하나뿐이면 카테고리 헤더 생략.
+      // (Foundations, Android, iOS, Cross Platform, Data Eng, Languages,
+      //  Synthesis 7개 도메인이 single-cat — 도메인↔카테고리가 사실상 동의어).
+      // 도메인 헤더 토글로 바로 레포 목록 보이게 → 펼치는 클릭 한 번 절약.
+      const isSingleCat = domCats.size === 1;
+
       let domBody = "";
       if (domExpanded) {
         for (const [catName, repoMap] of domCats) {
           const cat = catMeta.get(catName);
           const catKey = `${domName}::${catName}`;
-          const catExpanded = isCatExpanded(catKey);
+          // single-cat이면 카테고리 항상 펼침 (별도 토글 없음)
+          const catExpanded = isSingleCat ? true : isCatExpanded(catKey);
           const catCaret = catExpanded ? "▼" : "▶";
 
           let catBody = "";
@@ -1043,24 +1050,40 @@ function renderRoadmapSelector() {
             0,
           );
 
-          domBody += `
-            <div class="curated-category local-category">
-              <button class="category-header" data-local-cat="${escapeAttr(catKey)}" style="--cat-color: ${escapeAttr(cat.color)}">
-                <span class="cat-caret">${catCaret}</span>
-                ${categoryIconHtml(cat)}
-                <span class="cat-name">${escapeHtml(catName)}</span>
-                <span class="cat-count">${repoMap.size}r · ${totalRoadmapsInCat}</span>
-              </button>
-              <div class="category-body ${catExpanded ? "" : "hidden"}">${catBody}</div>
-            </div>
-          `;
+          if (isSingleCat) {
+            // v0.5.57 — 카테고리 헤더 생략. catBody(레포 목록)만 도메인 body에 직접.
+            domBody += catBody;
+          } else {
+            domBody += `
+              <div class="curated-category local-category">
+                <button class="category-header" data-local-cat="${escapeAttr(catKey)}" style="--cat-color: ${escapeAttr(cat.color)}">
+                  <span class="cat-caret">${catCaret}</span>
+                  ${categoryIconHtml(cat)}
+                  <span class="cat-name">${escapeHtml(catName)}</span>
+                  <span class="cat-count">${repoMap.size}r · ${totalRoadmapsInCat}</span>
+                </button>
+                <div class="category-body ${catExpanded ? "" : "hidden"}">${catBody}</div>
+              </div>
+            `;
+          }
         }  // end category loop
       }  // end if domExpanded
 
-      // 도메인 헤더 자체 push
+      // 도메인 헤더 자체 push.
+      // v0.5.57 — single-cat이면 "Nr · M"(레포 / sub-roadmap),
+      //           multi-cat이면 "Nc · M"(카테고리 / sub-roadmap)으로 표시.
       const domStyle = dom.color
         ? `style="--dom-color: ${escapeAttr(dom.color)}"`
         : "";
+      let domCountText;
+      if (isSingleCat) {
+        const repoCount = Array.from(domCats.values())[0]?.size ?? 0;
+        domCountText = `${repoCount}r · ${domRoadmaps}`;
+      } else {
+        domCountText = `${domCats.size}c · ${domRoadmaps}`;
+      }
+      // single-cat 도메인 body는 별도 클래스 → CSS에서 들여쓰기 한 단계 빼기
+      const bodyClass = `domain-body${isSingleCat ? " single-cat" : ""}${domExpanded ? "" : " hidden"}`;
       parts.push(`
         <div class="local-domain">
           <button class="domain-header" data-local-dom="${escapeAttr(domName)}" ${domStyle}>
@@ -1068,9 +1091,9 @@ function renderRoadmapSelector() {
             ${categoryIconHtml({ name: dom.name })}
             <span class="dom-name">${escapeHtml(dom.name)}</span>
             ${domDepthBadge}
-            <span class="dom-count">${domCats.size}c · ${domRoadmaps}</span>
+            <span class="dom-count">${domCountText}</span>
           </button>
-          <div class="domain-body ${domExpanded ? "" : "hidden"}">${domBody}</div>
+          <div class="${bodyClass}">${domBody}</div>
         </div>
       `);
     }  // end domain loop
