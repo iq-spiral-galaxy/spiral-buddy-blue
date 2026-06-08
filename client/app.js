@@ -35,6 +35,10 @@ const state = {
   expandedLocalDomains: new Set(), // Local 도메인 (v0.5.53)
   expandedLocalCategories: new Set(), // Local 카테고리 (key: "domain::category")
   expandedLocalRepos: new Set(), // Local 레포 (key: "domain::category::repo")
+  // 검색 활성 시 임시 펼침 셋 (v0.5.56 — toggle 핸들러에서도 접근하려고 state로 끌어올림)
+  _searchExpandedDoms: null,
+  _searchExpandedCats: null,
+  _searchExpandedRepos: null,
   // active 로드맵이 바뀌었을 때만 자동 펼침하기 위해 마지막으로 자동 펼침한 id 기록.
   // null이면 다음 렌더에서 active 로드맵의 cat/repo를 한 번 펼침.
   lastAutoExpandedRoadmapId: null,
@@ -856,33 +860,38 @@ function renderRoadmapSelector() {
       state.lastAutoExpandedRoadmapId = state.activeRoadmapId;
     }
 
-    // 검색 활성 시 매칭 전체 임시 펼침 (state는 안 건드림)
-    let _searchExpandedDoms = null;
-    let _searchExpandedCats = null;
-    let _searchExpandedRepos = null;
+    // 검색 활성 시 매칭 전체 임시 펼침. 이전엔 함수 로컬이었지만 v0.5.56부터
+    // state에 저장 — 토글 핸들러에서도 빼야 검색 중 사용자가 닫을 수 있음.
     if (searchQuery) {
-      _searchExpandedDoms = new Set();
-      _searchExpandedCats = new Set();
-      _searchExpandedRepos = new Set();
+      // 검색 활성 = 매 렌더마다 셋을 처음부터 재구성 (이전 상태 무시).
+      // 사용자가 toggle로 닫은 항목도 같은 키워드 검색이면 다시 펼쳐짐 — 의도.
+      state._searchExpandedDoms = new Set();
+      state._searchExpandedCats = new Set();
+      state._searchExpandedRepos = new Set();
       for (const [domName, domEntry] of domainTree) {
-        _searchExpandedDoms.add(domName);
+        state._searchExpandedDoms.add(domName);
         for (const [catName, repoMap] of domEntry.cats) {
-          _searchExpandedCats.add(`${domName}::${catName}`);
+          state._searchExpandedCats.add(`${domName}::${catName}`);
           for (const repoName of repoMap.keys()) {
-            _searchExpandedRepos.add(`${domName}::${catName}::${repoName}`);
+            state._searchExpandedRepos.add(`${domName}::${catName}::${repoName}`);
           }
         }
       }
+    } else {
+      // 검색 비활성 — 셋 클리어
+      state._searchExpandedDoms = null;
+      state._searchExpandedCats = null;
+      state._searchExpandedRepos = null;
     }
     const isDomExpanded = (n) =>
       state.expandedLocalDomains.has(n) ||
-      (_searchExpandedDoms?.has(n) ?? false);
+      (state._searchExpandedDoms?.has(n) ?? false);
     const isCatExpanded = (k) =>
       state.expandedLocalCategories.has(k) ||
-      (_searchExpandedCats?.has(k) ?? false);
+      (state._searchExpandedCats?.has(k) ?? false);
     const isRepoExpanded = (k) =>
       state.expandedLocalRepos.has(k) ||
-      (_searchExpandedRepos?.has(k) ?? false);
+      (state._searchExpandedRepos?.has(k) ?? false);
 
     const totalCats = sortedDomains.reduce(
       (sum, [, e]) => sum + e.cats.size,
@@ -1247,12 +1256,18 @@ function renderRoadmapSelector() {
   });
 
   // wire local domain headers (v0.5.53)
+  // v0.5.56 — 검색 활성 시 search-expanded set에도 들어있을 수 있으므로 둘 다 확인.
+  // 화면상 열려 있으면(state || search) → 닫기 (둘 다에서 제거).
+  // 화면상 닫혀 있으면 → 열기 (state에 add).
   els.roadmapList.querySelectorAll(".domain-header[data-local-dom]").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const domName = btn.dataset.localDom;
-      if (state.expandedLocalDomains.has(domName)) {
+      const inState = state.expandedLocalDomains.has(domName);
+      const inSearch = state._searchExpandedDoms?.has(domName) ?? false;
+      if (inState || inSearch) {
         state.expandedLocalDomains.delete(domName);
+        state._searchExpandedDoms?.delete(domName);
       } else {
         state.expandedLocalDomains.add(domName);
       }
@@ -1265,8 +1280,11 @@ function renderRoadmapSelector() {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const catKey = btn.dataset.localCat;
-      if (state.expandedLocalCategories.has(catKey)) {
+      const inState = state.expandedLocalCategories.has(catKey);
+      const inSearch = state._searchExpandedCats?.has(catKey) ?? false;
+      if (inState || inSearch) {
         state.expandedLocalCategories.delete(catKey);
+        state._searchExpandedCats?.delete(catKey);
       } else {
         state.expandedLocalCategories.add(catKey);
       }
@@ -1279,8 +1297,11 @@ function renderRoadmapSelector() {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       const key = btn.dataset.localRepo;
-      if (state.expandedLocalRepos.has(key)) {
+      const inState = state.expandedLocalRepos.has(key);
+      const inSearch = state._searchExpandedRepos?.has(key) ?? false;
+      if (inState || inSearch) {
         state.expandedLocalRepos.delete(key);
+        state._searchExpandedRepos?.delete(key);
       } else {
         state.expandedLocalRepos.add(key);
       }
@@ -1494,6 +1515,20 @@ async function switchRoadmap(roadmapId) {
   state.activeRoadmapId = roadmapId;
   localStorage.setItem(LS_KEY, roadmapId);
   els.roadmapList.classList.add("hidden");
+
+  // v0.5.56 — 검색으로 들어온 경우, 챕터 리스트도 검색어로 필터돼서 비어 보임.
+  // 사용자가 검색해서 로드맵을 골랐으면 검색 의도는 끝난 셈 — 자동으로 해제.
+  if (state.sidebarQuery) {
+    state.sidebarQuery = "";
+    if (els.sidebarSearch) els.sidebarSearch.value = "";
+    els.sidebarSearchClear?.classList.add("hidden");
+    if (els.sidebarSearchMeta) {
+      els.sidebarSearchMeta.classList.add("hidden");
+      els.sidebarSearchMeta.textContent = "";
+    }
+    // search-expanded 셋은 다음 렌더 때 자동으로 null로 reset됨.
+  }
+
   renderRoadmapSelector();
   await loadRoadmapData();
   scrollToRecentChapter();

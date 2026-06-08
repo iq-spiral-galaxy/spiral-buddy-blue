@@ -107,11 +107,33 @@ async function _domainReposForPreset(presetId) {
   return Array.from(repos);
 }
 
+// v0.5.56 — roadmapRoot가 이미 입력돼 있으면 그 폴더를 부모로 사용.
+// 사용자가 위에서 한 번 골랐는데 프리셋/도메인 클릭할 때마다 다시 묻던 문제 해결.
+//
+// 규칙:
+//   - 마지막 segment가 "iq-dev-lab" → 그 부모를 사용 (해당 폴더 안에 레포 추가)
+//   - 그 외 → 그대로 부모로 사용 (그 폴더 안에 <org>/<repo> 형태로 설치)
+function _parentDirOfRoadmapRoot() {
+  const v = (roadmapRoot.value ?? "").trim();
+  if (!v) return null;
+  const idx = Math.max(v.lastIndexOf("/"), v.lastIndexOf("\\"));
+  if (idx < 1) return v; // 슬래시 없는 단순 경로 → 그대로
+  const lastSeg = v.slice(idx + 1).toLowerCase();
+  if (lastSeg === "iq-dev-lab") {
+    return v.slice(0, idx);
+  }
+  return v;
+}
+
 async function _runPreset(presetId, presetLabel) {
   if (downloading || downloadDone) return;
   if (!window.spiralCurated) return;
-  const parent = await window.spiralCurated.pickParentDir();
-  if (!parent) return;
+  // v0.5.56 — 위에서 이미 폴더 골랐으면 그걸 재사용. 비어 있으면 picker.
+  let parent = _parentDirOfRoadmapRoot();
+  if (!parent) {
+    parent = await window.spiralCurated.pickParentDir();
+    if (!parent) return;
+  }
 
   // 이미 받은 거 빼고 미설치만 받기 (incremental)
   const want = await _domainReposForPreset(presetId);
