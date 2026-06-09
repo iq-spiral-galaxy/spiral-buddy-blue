@@ -368,6 +368,13 @@ function wireEvents() {
   function setSidebarCollapsed(collapsed, persist = true) {
     document.body.classList.toggle("sidebar-collapsed", collapsed);
     if (persist) localStorage.setItem(SIDEBAR_KEY, collapsed ? "1" : "0");
+    // v0.5.62 — 펼친 직후 chat composer/Look-up이 침범당하지 않도록 cap 재적용.
+    // (Look-up이 열려있는 상태에서 사이드바 펼침 시 발생할 수 있는 케이스)
+    if (!collapsed) {
+      // window resize 이벤트를 한 번 발화 — 이미 등록된 cap 핸들러들이 알아서 처리
+      // (사이드바 cap, lookup cap 둘 다 resize listener 등록돼 있음)
+      window.dispatchEvent(new Event("resize"));
+    }
   }
   // 초기 상태 복원
   if (localStorage.getItem(SIDEBAR_KEY) === "1") {
@@ -393,13 +400,40 @@ function wireEvents() {
   const SIDEBAR_DEFAULT = 400;
   const SIDEBAR_MIN = 280;
   const SIDEBAR_MAX = 680;
+  // v0.5.62 — chat composer가 짤리지 않을 최소 폭. Look-up과 동일 정책.
+  const CHAT_MIN_FOR_SIDEBAR = 620;
+
+  // 현재 viewport 기준으로 사이드바가 가질 수 있는 최대 폭 계산.
+  // Look-up이 열려있으면 그 폭도 빼야 함.
+  function _sidebarMaxForViewport() {
+    let lookupW = 0;
+    if (document.body.classList.contains("lookup-open")) {
+      const inline = document.body.style.getPropertyValue("--lookup-w").trim();
+      const cs = inline
+        ? inline
+        : getComputedStyle(document.body).getPropertyValue("--lookup-w").trim();
+      lookupW = parseInt(cs, 10) || 0;
+    }
+    const headroom = window.innerWidth - CHAT_MIN_FOR_SIDEBAR - lookupW;
+    return Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, headroom));
+  }
+
   const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
   if (savedWidth) {
     const w = Math.max(
       SIDEBAR_MIN,
-      Math.min(SIDEBAR_MAX, parseInt(savedWidth, 10) || SIDEBAR_DEFAULT),
+      Math.min(
+        _sidebarMaxForViewport(),
+        parseInt(savedWidth, 10) || SIDEBAR_DEFAULT,
+      ),
     );
     document.body.style.setProperty("--sidebar-w", `${w}px`);
+  } else {
+    // saved 값이 없어도 viewport가 좁으면 cap 적용 (디폴트가 너무 넓을 수 있으므로)
+    const cap = _sidebarMaxForViewport();
+    if (cap < SIDEBAR_DEFAULT) {
+      document.body.style.setProperty("--sidebar-w", `${cap}px`);
+    }
   }
   const resizer = document.getElementById("sidebar-resizer");
   if (resizer) {
@@ -411,7 +445,11 @@ function wireEvents() {
     });
     document.addEventListener("mousemove", (e) => {
       if (!dragging) return;
-      const w = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, e.clientX));
+      // v0.5.62 — 드래그 시도 cap 적용 (chat 영역 침범 방지)
+      const w = Math.max(
+        SIDEBAR_MIN,
+        Math.min(_sidebarMaxForViewport(), e.clientX),
+      );
       document.body.style.setProperty("--sidebar-w", `${w}px`);
     });
     document.addEventListener("mouseup", () => {
@@ -427,6 +465,24 @@ function wireEvents() {
       localStorage.removeItem(SIDEBAR_WIDTH_KEY);
     });
   }
+
+  // v0.5.62 — 창 크기 변경 시 사이드바도 자동 재클램프.
+  // saved localStorage는 안 건드림 — 창 다시 키우면 원래 폭으로 복원되도록.
+  window.addEventListener("resize", () => {
+    if (document.body.classList.contains("sidebar-collapsed")) return;
+    const inline = document.body.style.getPropertyValue("--sidebar-w").trim();
+    const cur =
+      parseInt(inline, 10) ||
+      parseInt(
+        getComputedStyle(document.body).getPropertyValue("--sidebar-w").trim(),
+        10,
+      ) ||
+      SIDEBAR_DEFAULT;
+    const cap = _sidebarMaxForViewport();
+    if (cur > cap) {
+      document.body.style.setProperty("--sidebar-w", `${cap}px`);
+    }
+  });
 
   // 설정 + 워크스페이스 (Electron 모드에서만 동작 — window.spiralSettings 존재 여부)
   if (window.spiralSettings) {
