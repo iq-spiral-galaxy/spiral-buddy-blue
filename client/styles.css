@@ -38,7 +38,7 @@ body {
 }
 
 body {
-  --sidebar-w: 400px;
+  --sidebar-w: 320px;  /* v0.5.65 — JS SIDEBAR_DEFAULT와 일치 (400→320) */
   --lookup-w: 0px;
   display: grid;
   /* v0.5.64 — CSS Grid 함정: 1fr의 기본 min은 auto(content-based).

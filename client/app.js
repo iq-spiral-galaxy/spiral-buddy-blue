@@ -396,12 +396,15 @@ function wireEvents() {
   });
 
   // 사이드바 너비 조절 (드래그 핸들)
+  // v0.5.65 — 사용자 피드백 "최대 크기를 픽스해놓는거 어때?":
+  // SIDEBAR_MAX를 강하게 줄여서 사용자가 드래그로 늘려도 절대 그 이상 안 가게.
+  // chat 컬럼의 composer Send/다듬기 + topbar의 lookup-toggle 버튼이 보장됨.
   const SIDEBAR_WIDTH_KEY = "spiral-buddy:sidebar-width:v2";
-  const SIDEBAR_DEFAULT = 400;
+  const SIDEBAR_DEFAULT = 320; // 400 → 320 (디폴트도 더 컴팩트하게)
   const SIDEBAR_MIN = 280;
-  const SIDEBAR_MAX = 680;
-  // v0.5.62 — chat composer가 짤리지 않을 최소 폭. Look-up과 동일 정책.
-  const CHAT_MIN_FOR_SIDEBAR = 620;
+  const SIDEBAR_MAX = 420; // 680 → 420 (절대 더 못 늘림)
+  // chat composer + topbar actions를 모두 보장하는 최소 폭
+  const CHAT_MIN_FOR_SIDEBAR = 760; // 620 → 760 (composer + topbar actions 둘 다 안전)
 
   // 현재 viewport 기준으로 사이드바가 가질 수 있는 최대 폭 계산.
   // Look-up이 열려있으면 그 폭도 빼야 함.
@@ -420,14 +423,19 @@ function wireEvents() {
 
   const savedWidth = localStorage.getItem(SIDEBAR_WIDTH_KEY);
   if (savedWidth) {
+    const parsed = parseInt(savedWidth, 10) || SIDEBAR_DEFAULT;
     const w = Math.max(
       SIDEBAR_MIN,
-      Math.min(
-        _sidebarMaxForViewport(),
-        parseInt(savedWidth, 10) || SIDEBAR_DEFAULT,
-      ),
+      Math.min(_sidebarMaxForViewport(), parsed),
     );
     document.body.style.setProperty("--sidebar-w", `${w}px`);
+    // v0.5.65 — saved가 새 cap보다 크면 localStorage도 갱신해서
+    // 다음 진입 시 cap에 맞는 값으로 시작 (옛 버전에서 큰 값으로 저장된 케이스 대응)
+    if (parsed > w) {
+      try {
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, String(w));
+      } catch {}
+    }
   } else {
     // saved 값이 없어도 viewport가 좁으면 cap 적용 (디폴트가 너무 넓을 수 있으므로)
     const cap = _sidebarMaxForViewport();
