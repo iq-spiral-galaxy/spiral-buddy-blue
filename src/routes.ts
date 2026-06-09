@@ -16,6 +16,13 @@ import {
   type Roadmap,
 } from "./roadmap.js";
 import {
+  computeContentHash,
+  generatePreview,
+  isPreviewCached,
+  loadCachedPreview,
+  savePreview,
+} from "./chapter-preview-cache.js";
+import {
   listSpiralNotes,
   listTrash,
   moveNotesToTrash,
@@ -453,6 +460,22 @@ export function createApi(config: Config) {
     const chapters = await loadRoadmapChapters(roadmap);
     const notes = config.vaultPath ? await listSpiralNotes(config.vaultPath) : [];
 
+    // v0.5.70 — 챕터별 AI 카드 캐시 여부를 미리 확인.
+    // 사이드바에서 💡 버튼 외관(채워짐 vs 비어있음)을 결정.
+    const cardReadyMap = new Map<string, boolean>();
+    if (config.vaultPath) {
+      await Promise.all(
+        chapters.map(async (ch) => {
+          const ready = await isPreviewCached(
+            config.vaultPath as string,
+            roadmap.id,
+            ch.id,
+          );
+          cardReadyMap.set(ch.id, ready);
+        }),
+      );
+    }
+
     return c.json({
       roadmapId: roadmap.id,
       roadmapName: roadmap.name,
@@ -501,9 +524,70 @@ export function createApi(config: Config) {
           lastDate,
           // v0.5.69 — 사이드바 hover tooltip용 미리보기.
           preview: ch.preview,
+          // v0.5.70 — AI 카드 캐시 여부 (💡 버튼 외관용).
+          aiCardReady: cardReadyMap.get(ch.id) === true,
         };
       }),
     });
+  });
+
+  /**
+   * v0.5.70 — 챕터 AI 미리보기 카드 생성/조회.
+   *
+   * 사용자가 사이드바 💡 버튼을 누르면 호출. 캐시 hit이면 즉시 반환,
+   * miss면 Claude(Haiku 4.5)로 생성 후 저장 + 반환.
+   *
+   * 명시적 트리거라 사용자가 비용 의식 가능. 한 번 생성 후 캐시되므로
+   * 같은 챕터 다음 클릭은 latency 0.
+   */
+  app.post("/chapter-preview", async (c) => {
+    const body = await c.req.json().catch(() => ({}) as Record<string, unknown>);
+    const roadmapId =
+      typeof body.roadmap_id === "string" ? body.roadmap_id : null;
+    const chapterId =
+      typeof body.chapter_id === "string" ? body.chapter_id : null;
+    if (!roadmapId || !chapterId) {
+      return c.json({ error: "roadmap_id, chapter_id required" }, 400);
+    }
+    if (!config.vaultPath) {
+      return c.json(
+        { error: "vault 경로가 설정되지 않았어 — 설정에서 워크스페이스 확인" },
+        400,
+      );
+    }
+
+    const roadmap = await resolveRoadmap(roadmapId);
+    if (!roadmap) return c.json({ error: "Roadmap not found" }, 404);
+
+    const chapters = await loadRoadmapChapters(roadmap);
+    const chapter = chapters.find((ch) => ch.id === chapterId);
+    if (!chapter) return c.json({ error: "Chapter not found" }, 404);
+
+    const contentHash = computeContentHash(chapter.content ?? "");
+
+    // 캐시 hit이면 즉시 반환 (네트워크 round-trip만 비용)
+    const cached = await loadCachedPreview(
+      config.vaultPath,
+      roadmap.id,
+      chapter.id,
+      contentHash,
+    );
+    if (cached) {
+      return c.json({ card: cached, cached: true });
+    }
+
+    // miss → Claude로 생성
+    try {
+      const card = await generatePreview(client, chapter);
+      await savePreview(config.vaultPath, roadmap.id, chapter.id, card);
+      return c.json({ card, cached: false });
+    } catch (e) {
+      console.error("[chapter-preview] generation failed:", e);
+      return c.json(
+        { error: friendlyApiErrorMessage(e) || "미리보기 생성 실패" },
+        500,
+      );
+    }
   });
 
   // ─────────────────────────────────────────────────────

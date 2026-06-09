@@ -8904,3 +8904,336 @@ body.light-mode .chapter-preview-tooltip {
     0 8px 24px rgba(15, 23, 42, 0.12),
     0 2px 6px rgba(15, 23, 42, 0.06);
 }
+
+/* ═══════════════════ v0.5.70 — AI 미리보기 카드 ═══════════════════
+ * 💡 버튼 — 챕터 hover 시 노출. 캐시 있으면 채워진 색.
+ * popover 카드 — 클릭 시 표시 (loading → 카드 또는 에러).
+ */
+.chapter-ai-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: var(--text-faint);
+  opacity: 0;
+  transition:
+    opacity 120ms,
+    background 120ms,
+    color 120ms;
+  cursor: pointer;
+}
+
+.chapter-btn:hover .chapter-ai-btn {
+  opacity: 0.7;
+}
+
+.chapter-ai-btn.ready {
+  /* 캐시 있으면 항상 살짝 보이게 (학습자가 미리보기 가능 신호) */
+  opacity: 0.55;
+  color: var(--accent-warm, #ffb86c);
+}
+
+.chapter-btn:hover .chapter-ai-btn.ready {
+  opacity: 1;
+}
+
+.chapter-ai-btn:hover {
+  opacity: 1 !important;
+  background: rgba(255, 184, 108, 0.16);
+  color: var(--accent-warm, #ffb86c);
+}
+
+/* ─── popover 카드 ──────────────────────────────────────────── */
+.chapter-ai-popover {
+  position: fixed;
+  z-index: 9500;
+  background: var(--bg-elev-2, #1a2230);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.10));
+  border-radius: 12px;
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.45),
+    0 4px 12px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+  animation: chapterAiPopFadeIn 140ms ease-out;
+}
+
+@keyframes chapterAiPopFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+.chapter-ai-popover-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+
+.chapter-ai-popover-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim, #8b95a3);
+  letter-spacing: 0.02em;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chapter-ai-popover-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition:
+    background 120ms,
+    color 120ms;
+}
+
+.chapter-ai-popover-close:hover {
+  background: var(--bg-elev-3, rgba(255, 255, 255, 0.08));
+  color: var(--text);
+}
+
+.chapter-ai-popover-body {
+  padding: 14px 16px 16px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text, #e6ecf2);
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+/* ─── 카드 내용 ─────────────────────────────────────────────── */
+.chapter-ai-summary {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text);
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.06));
+}
+
+.chapter-ai-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim, #8b95a3);
+  margin-bottom: 8px;
+}
+
+.chapter-ai-questions {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 14px;
+}
+
+.chapter-ai-questions li {
+  position: relative;
+  padding: 6px 0 6px 18px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.chapter-ai-questions li::before {
+  content: "?";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-warm, #ffb86c);
+  background: rgba(255, 184, 108, 0.14);
+  border-radius: 50%;
+  line-height: 1;
+}
+
+.chapter-ai-prereq {
+  margin-top: 4px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--text-dim);
+  background: var(--bg-elev-1, rgba(255, 255, 255, 0.03));
+  border-radius: 6px;
+  border-left: 2px solid var(--accent, #7ee2ff);
+}
+
+.chapter-ai-prereq-label {
+  font-weight: 600;
+  color: var(--accent, #7ee2ff);
+  margin-right: 4px;
+}
+
+.chapter-ai-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.chapter-ai-start-btn {
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #0a0e14;
+  background: linear-gradient(
+    135deg,
+    var(--accent, #7ee2ff) 0%,
+    var(--accent-warm, #b794f6) 100%
+  );
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: transform 120ms, box-shadow 120ms;
+}
+
+.chapter-ai-start-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(126, 226, 255, 0.30);
+}
+
+/* ─── 로딩 상태 ─────────────────────────────────────────────── */
+.chapter-ai-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px;
+  text-align: center;
+}
+
+.chapter-ai-loading-dots {
+  display: inline-flex;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+
+.chapter-ai-loading-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-warm, #ffb86c);
+  opacity: 0.4;
+  animation: chapterAiDot 1.2s infinite ease-in-out;
+}
+
+.chapter-ai-loading-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.chapter-ai-loading-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes chapterAiDot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.85);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+.chapter-ai-loading-text {
+  font-size: 12.5px;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.chapter-ai-loading-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* ─── 에러 상태 ─────────────────────────────────────────────── */
+.chapter-ai-error {
+  padding: 12px 4px;
+}
+
+.chapter-ai-error-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--danger, #ff7a7a);
+  margin-bottom: 6px;
+}
+
+.chapter-ai-error-msg {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.chapter-ai-retry {
+  padding: 6px 12px;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg-elev-3, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 120ms;
+}
+
+.chapter-ai-retry:hover {
+  background: var(--bg-elev-2);
+}
+
+/* ─── Light mode 보정 ──────────────────────────────────────── */
+body.light-mode .chapter-ai-popover {
+  background: #ffffff;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 16px 40px rgba(15, 23, 42, 0.16),
+    0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+body.light-mode .chapter-ai-popover-body {
+  color: #1a202c;
+}
+
+body.light-mode .chapter-ai-summary {
+  color: #0f172a;
+  border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+body.light-mode .chapter-ai-questions li {
+  color: #1a202c;
+}
+
+body.light-mode .chapter-ai-prereq {
+  background: rgba(126, 226, 255, 0.10);
+  color: #1a202c;
+}
+
+body.light-mode .chapter-ai-start-btn {
+  color: #ffffff;
+}

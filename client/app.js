@@ -1810,17 +1810,35 @@ function renderChapters() {
     const previewAttr = ch.preview
       ? ` data-chapter-preview="${escapeAttr(ch.preview)}"`
       : "";
+    // v0.5.70 — 💡 AI 카드 버튼. 캐시 있으면 채워진 외관, 없으면 비어있음.
+    const aiReady = ch.aiCardReady === true;
+    const aiBtn = `<span class="chapter-ai-btn${aiReady ? " ready" : ""}" data-chapter-ai="${escapeAttr(ch.id)}" role="button" tabindex="0" title="${aiReady ? "AI 미리보기 카드 보기" : "AI 미리보기 카드 만들기 (1회 생성, 캐시됨)"}">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="${aiReady ? "currentColor" : "none"}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 18h6"></path>
+          <path d="M10 22h4"></path>
+          <path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.2 1 2V17a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-.3c0-.8.4-1.5 1-2A7 7 0 0 0 12 2z"></path>
+        </svg>
+      </span>`;
     li.innerHTML = `
       <button class="chapter-btn ${visited ? "visited" : ""}" data-id="${escapeAttr(ch.id)}"${previewAttr}>
         <span class="num">${originalIdx + 1}.</span>
         <span class="title">${titleHtml}</span>
         ${badge}
+        ${aiBtn}
         ${openBtn}
         ${trashBtn}
       </button>
     `;
     const btn = li.querySelector("button");
     btn.addEventListener("click", async (e) => {
+      // v0.5.70 — AI 카드(💡) 클릭은 별도 popover 흐름
+      const aiTrigger = e.target.closest("[data-chapter-ai]");
+      if (aiTrigger) {
+        e.preventDefault();
+        e.stopPropagation();
+        openChapterAiCardPopover(aiTrigger, ch);
+        return;
+      }
       // 노트 열기 (📖) 클릭은 Obsidian 노트 열기로 분기
       const openTrigger = e.target.closest("[data-chapter-open]");
       if (openTrigger) {
@@ -1984,6 +2002,157 @@ function openChapterNotePopover(anchorEl, chapter) {
     document.addEventListener("mousedown", _onOutsideClick, true);
     document.addEventListener("keydown", _onPopoverKey, true);
   }, 0);
+}
+
+/**
+ * v0.5.70 — 챕터 AI 미리보기 카드 popover.
+ *
+ * 사용자가 사이드바 💡 버튼을 클릭하면 호출. 서버에 fetch — 캐시 있으면
+ * 즉시 카드 받음, 없으면 Claude(Haiku 4.5)로 생성 후 받음. 결과는 서버에서
+ * 자동 캐시되므로 다음 클릭은 latency 0.
+ *
+ * 카드 구조:
+ *   - summary    한 문장 — 이 챕터가 다루는 것
+ *   - keyQuestions  이 챕터를 읽으면 답할 수 있게 되는 질문 2-3개
+ *   - prerequisites  선수 지식 (있을 때만)
+ *   - "이 챕터 시작" 버튼  바로 세션 진입
+ */
+async function openChapterAiCardPopover(anchorEl, chapter) {
+  closeDeletePopover();
+  const pop = document.createElement("div");
+  pop.className = "chapter-ai-popover";
+  pop.innerHTML = `
+    <div class="chapter-ai-popover-header">
+      <span class="chapter-ai-popover-title">${escapeHtml(chapter.title)}</span>
+      <button class="chapter-ai-popover-close" type="button" aria-label="닫기">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+    <div class="chapter-ai-popover-body chapter-ai-loading">
+      <div class="chapter-ai-loading-dots"><span></span><span></span><span></span></div>
+      <div class="chapter-ai-loading-text">AI가 챕터를 살펴보는 중…</div>
+      <div class="chapter-ai-loading-hint">처음 한 번만 생성, 다음 클릭부터는 즉시 표시</div>
+    </div>
+  `;
+  // 위치 — 챕터 항목 우측. viewport 넘으면 좌측으로 fallback.
+  const rect = anchorEl.getBoundingClientRect();
+  const POP_WIDTH = 380;
+  let left = rect.right + 12;
+  if (left + POP_WIDTH > window.innerWidth - 8) {
+    left = Math.max(8, rect.left - POP_WIDTH - 12);
+  }
+  let top = rect.top - 4;
+  // viewport 아래 넘으면 위로 조정 — 일단 표시 후 실제 height로 보정
+  pop.style.position = "fixed";
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
+  pop.style.width = `${POP_WIDTH}px`;
+  document.body.appendChild(pop);
+  _activePopover = pop;
+
+  // 표시 후 viewport 충돌 보정
+  requestAnimationFrame(() => {
+    const r = pop.getBoundingClientRect();
+    if (r.bottom > window.innerHeight - 8) {
+      top = Math.max(8, window.innerHeight - r.height - 8);
+      pop.style.top = `${top}px`;
+    }
+  });
+
+  // 닫기 버튼
+  pop.querySelector(".chapter-ai-popover-close")?.addEventListener("click", () => {
+    closeDeletePopover();
+  });
+
+  // 외부 클릭/ESC 닫기 — 다른 popover와 동일 메커니즘
+  setTimeout(() => {
+    document.addEventListener("mousedown", _onOutsideClick, true);
+    document.addEventListener("keydown", _onPopoverKey, true);
+  }, 0);
+
+  // fetch
+  try {
+    const res = await fetch("/api/chapter-preview", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roadmap_id: state.activeRoadmapId,
+        chapter_id: chapter.id,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.card) {
+      throw new Error(data.error || "미리보기 생성 실패");
+    }
+    // popover 가 그새 닫혔을 수 있음 (사용자가 다른 챕터 클릭)
+    if (_activePopover !== pop) return;
+    _renderChapterAiCardBody(pop, chapter, data.card);
+    // state 갱신 — 다음 렌더링에서 💡 채워진 상태로 표시
+    chapter.aiCardReady = true;
+    const btn = document.querySelector(
+      `[data-chapter-ai="${cssEscape(chapter.id)}"]`,
+    );
+    if (btn) btn.classList.add("ready");
+  } catch (e) {
+    if (_activePopover !== pop) return;
+    const body = pop.querySelector(".chapter-ai-popover-body");
+    if (body) {
+      body.classList.remove("chapter-ai-loading");
+      body.innerHTML = `
+        <div class="chapter-ai-error">
+          <div class="chapter-ai-error-title">생성 실패</div>
+          <div class="chapter-ai-error-msg">${escapeHtml(String(e?.message || e))}</div>
+          <button class="chapter-ai-retry" type="button">다시 시도</button>
+        </div>
+      `;
+      body.querySelector(".chapter-ai-retry")?.addEventListener("click", () => {
+        closeDeletePopover();
+        openChapterAiCardPopover(anchorEl, chapter);
+      });
+    }
+  }
+}
+
+function _renderChapterAiCardBody(pop, chapter, card) {
+  const body = pop.querySelector(".chapter-ai-popover-body");
+  if (!body) return;
+  body.classList.remove("chapter-ai-loading");
+
+  const questionsHtml =
+    Array.isArray(card.keyQuestions) && card.keyQuestions.length
+      ? `<ul class="chapter-ai-questions">${card.keyQuestions
+          .map((q) => `<li>${escapeHtml(q)}</li>`)
+          .join("")}</ul>`
+      : "";
+  const prereqHtml = card.prerequisites
+    ? `<div class="chapter-ai-prereq"><span class="chapter-ai-prereq-label">선수 지식</span> ${escapeHtml(card.prerequisites)}</div>`
+    : "";
+
+  body.innerHTML = `
+    <div class="chapter-ai-summary">${escapeHtml(card.summary)}</div>
+    <div class="chapter-ai-section-label">이 챕터를 읽으면 답할 수 있게 됩니다</div>
+    ${questionsHtml}
+    ${prereqHtml}
+    <div class="chapter-ai-actions">
+      <button class="chapter-ai-start-btn" type="button">이 챕터 시작</button>
+    </div>
+  `;
+
+  body.querySelector(".chapter-ai-start-btn")?.addEventListener("click", async () => {
+    closeDeletePopover();
+    const decision = await handleSessionInterruption();
+    if (decision === "cancel") return;
+    startSession(chapter.id);
+  });
+}
+
+/** CSS.escape polyfill — 안전한 selector 생성. */
+function cssEscape(s) {
+  if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(s);
+  return String(s).replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
 }
 
 // ──────────────────────────────────────────────────────────
