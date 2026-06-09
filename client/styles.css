@@ -4480,14 +4480,15 @@ button.primary:hover:not(:disabled),
   line-height: 1.5;
 }
 
-/* v0.5.58 + v0.5.60 — Buddy 메시지 "📋 문맥" 버튼.
- * v0.5.60: 우측 상단으로 이동 (따봉이 우측 하단이라 겹치던 문제 해결).
- * 항상 보이게(opacity 0.85) + accent violet 톤으로 따봉과 시각 구분.
+/* v0.5.58 + v0.5.60 + v0.5.61 — Buddy 메시지 "📋 문맥" 버튼.
+ * v0.5.60: 우측 상단으로 이동.
+ * v0.5.61: BUDDY 라벨(.role)과 같은 라인(top 0) — vertical center 매칭.
+ * accent violet 톤으로 따봉(우측 하단)과 시각 구분.
  */
 .chapter-context-btn {
   position: absolute;
   right: 12px;
-  top: 10px;
+  top: 0;
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -4503,6 +4504,15 @@ button.primary:hover:not(:disabled),
   opacity: 0.85;
   transition: opacity 0.15s, background 0.12s, border-color 0.12s, transform 0.12s;
   z-index: 2;  /* 마크다운 본문 위에 떠 있도록 */
+  height: 26px;  /* .role과 동일 — 같은 baseline에 align */
+  box-sizing: border-box;
+}
+/* v0.5.61 — BUDDY 라벨도 같은 높이로 늘려서 버튼과 vertical center 일치 */
+.message.assistant .role {
+  display: flex;
+  align-items: center;
+  min-height: 26px;
+  margin-bottom: 6px;
 }
 .message.assistant {
   position: relative;
@@ -4533,14 +4543,9 @@ body.light-mode .chapter-context-btn:hover {
   border-color: #7c3aed;
   color: #5b21b6;
 }
-/* v0.5.60 — 첫 문단/제목 우측 padding으로 우측 상단 문맥 버튼과 안 겹치게.
- * 두 번째 단락부터는 full width 유지 (시각 부담 최소).
- * content 마지막 자식이 첫 자식인 경우(=한 줄 응답)도 보호.
+/* v0.5.60 → v0.5.61: 버튼이 .role 라인으로 이동했으니 content 첫 자식
+ * padding-right 불필요 — 제거 (텍스트가 full width로 흐름).
  */
-.message.assistant .content > *:first-child {
-  padding-right: 80px;
-  min-height: 28px;
-}
 
 /* v0.5.58 — Look-up 카드 종류 구분: 지식(기존) vs 본문 맥락(신규).
  * 본문 맥락 카드는 좌측 violet accent border로 구분 — 인용을 다룬다는 시각 단서.
