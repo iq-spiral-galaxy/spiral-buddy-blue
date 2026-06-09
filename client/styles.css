@@ -4480,45 +4480,66 @@ button.primary:hover:not(:disabled),
   line-height: 1.5;
 }
 
-/* v0.5.58 — Buddy 메시지 하단 "📋 문맥" 버튼 (챕터 본문 맥락 요약 트리거) */
+/* v0.5.58 + v0.5.60 — Buddy 메시지 "📋 문맥" 버튼.
+ * v0.5.60: 우측 상단으로 이동 (따봉이 우측 하단이라 겹치던 문제 해결).
+ * 항상 보이게(opacity 0.85) + accent violet 톤으로 따봉과 시각 구분.
+ */
 .chapter-context-btn {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
+  right: 12px;
+  top: 10px;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-faint);
-  font-size: 10.5px;
-  font-family: var(--font-mono, monospace);
-  padding: 3px 8px;
-  border-radius: 6px;
+  gap: 5px;
+  background: rgba(167, 139, 250, 0.10);
+  border: 1px solid rgba(167, 139, 250, 0.32);
+  color: #c5a7ff;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-sans);
+  padding: 4px 10px;
+  border-radius: 999px;
   cursor: pointer;
-  opacity: 0;
-  transition: opacity 0.18s, color 0.12s, background 0.12s, border-color 0.12s;
+  opacity: 0.85;
+  transition: opacity 0.15s, background 0.12s, border-color 0.12s, transform 0.12s;
+  z-index: 2;  /* 마크다운 본문 위에 떠 있도록 */
 }
 .message.assistant {
   position: relative;
 }
-.message.assistant:hover .chapter-context-btn,
-.message.assistant:focus-within .chapter-context-btn {
-  opacity: 0.78;
+.message.assistant:hover .chapter-context-btn {
+  opacity: 1;
 }
 .chapter-context-btn:hover {
-  opacity: 1 !important;
-  background: rgba(126, 226, 255, 0.10);
-  border-color: rgba(126, 226, 255, 0.32);
-  color: var(--accent, #7ee2ff);
+  background: rgba(167, 139, 250, 0.20);
+  border-color: #b794f6;
+  color: #d4c4ff;
+  transform: translateY(-1px);
+  opacity: 1;
+}
+.chapter-context-btn:active {
+  transform: translateY(0);
 }
 .chapter-context-btn svg {
   display: block;
 }
+body.light-mode .chapter-context-btn {
+  background: rgba(124, 58, 237, 0.10);
+  border-color: rgba(124, 58, 237, 0.32);
+  color: #6d28d9;
+}
 body.light-mode .chapter-context-btn:hover {
-  background: rgba(8, 145, 178, 0.10);
-  border-color: rgba(8, 145, 178, 0.32);
-  color: #0e7490;
+  background: rgba(124, 58, 237, 0.20);
+  border-color: #7c3aed;
+  color: #5b21b6;
+}
+/* v0.5.60 — 첫 문단/제목 우측 padding으로 우측 상단 문맥 버튼과 안 겹치게.
+ * 두 번째 단락부터는 full width 유지 (시각 부담 최소).
+ * content 마지막 자식이 첫 자식인 경우(=한 줄 응답)도 보호.
+ */
+.message.assistant .content > *:first-child {
+  padding-right: 80px;
+  min-height: 28px;
 }
 
 /* v0.5.58 — Look-up 카드 종류 구분: 지식(기존) vs 본문 맥락(신규).
