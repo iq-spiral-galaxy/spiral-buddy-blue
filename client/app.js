@@ -2965,6 +2965,7 @@ function hideLookupToolbar() {
 const LOOKUP_MAX_CAP = 520; // v0.5.66 LOOKUP_MAX와 동일
 const LOOKUP_MIN_CAP = 280;
 const CHAT_MIN_CAP = 760; // v0.5.66 CHAT_MIN과 동일
+const LOOKUP_DEFAULT_W = 380; // v0.5.68 — CSS body.lookup-open { --lookup-w: 380px }와 일치
 
 function _currentSidebarPxForCap() {
   // sidebar가 collapsed 상태면 grid track이 0px라 cap 계산 시 0으로 봐야 함
@@ -2991,18 +2992,19 @@ function openLookupPanel() {
     } catch {}
   }
 
-  // 저장된 너비 복원 — 최소 280px 보장 (예전 작은 값 남아있을 수 있음)
+  // v0.5.68 — 항상 inline --lookup-w 적용. 옛 버전엔 saved 없을 때
+  // removeProperty 해서 CSS default(380px)가 cap 무시하고 적용됐고,
+  // 작은 viewport에선 380px가 chat 컬럼을 압박해 composer가 Look-up 패널
+  // 좌측 경계에 침범하던 증상. 첫 클릭에서만 saved가 없으니 정확히
+  // "처음에만 안 됨, resize 한 번 만지면 정상" 패턴과 일치.
+  const cap = _lookupMaxForViewportShared();
   const saved = (document.body.style.getPropertyValue("--lookup-w-saved") || "").trim();
   const savedPx = parseInt(saved, 10);
-  if (Number.isFinite(savedPx) && savedPx >= LOOKUP_MIN_CAP) {
-    // setupLookupResizer와 동일한 cap 함수 사용 — 일관성 보장
-    const cap = _lookupMaxForViewportShared();
-    const applied = Math.min(savedPx, cap);
-    document.body.style.setProperty("--lookup-w", `${applied}px`);
-  } else {
-    // inline --lookup-w 제거 → CSS의 body.lookup-open { --lookup-w: 380px } 적용
-    document.body.style.removeProperty("--lookup-w");
-  }
+  const base = Number.isFinite(savedPx) && savedPx >= LOOKUP_MIN_CAP
+    ? savedPx
+    : LOOKUP_DEFAULT_W;
+  const applied = Math.max(LOOKUP_MIN_CAP, Math.min(base, cap));
+  document.body.style.setProperty("--lookup-w", `${applied}px`);
   document.body.classList.add("lookup-open");
   els.lookupPanel?.classList.remove("hidden");
   els.lookupResizer?.classList.remove("hidden");
