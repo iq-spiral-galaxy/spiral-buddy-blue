@@ -1966,12 +1966,21 @@ button.primary {
   display: flex;
   gap: 12px;
   align-items: stretch;
+  /* v0.5.63 — grid item으로서 chat 컬럼 폭을 절대 초과하지 않게 */
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
 }
 
 .composer-input-wrap {
   flex: 1;
   position: relative;
   display: flex;
+  /* v0.5.63 — flex item 기본 min-width: auto가 content(textarea placeholder/text) 폭에 맞춰
+   * 부모를 늘리던 버그. 결과적으로 composer 박스가 chat 컬럼을 초과해 Send 버튼이 우측으로 흘러나가
+   * 짤리는 증상이 났음. min-width: 0으로 flex item이 content보다 작아질 수 있게.
+   */
+  min-width: 0;
 }
 
 .composer-input-col {
@@ -2119,6 +2128,9 @@ button.primary {
   resize: none;
   min-height: 88px;
   max-height: 240px;
+  min-width: 0;  /* v0.5.63 — flex item content-based min-width 비활성화 */
+  width: 100%;  /* textarea의 기본 cols 속성(20글자) 영향 제거 */
+  box-sizing: border-box;
   transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
 }
 
@@ -3767,6 +3779,12 @@ button.primary:hover:not(:disabled),
   background:
     linear-gradient(180deg, rgba(15, 20, 28, 0.28), rgba(8, 10, 15, 0.54)),
     transparent;
+  /* v0.5.63 — body grid의 1fr 컬럼으로서 항상 grid track 폭에 맞춤.
+   * 자식(composer, messages, topbar)이 content-based로 늘어나 grid track을
+   * 강제 확장시키는 걸 막음. min-width: 0이 핵심 — 없으면 content가 grid를 밀어냄.
+   */
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 #main::before {
