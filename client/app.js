@@ -2958,21 +2958,49 @@ function hideLookupToolbar() {
   els.lookupToolbar?.classList.add("hidden");
 }
 
+// v0.5.67 — openLookupPanel과 setupLookupResizer가 같은 cap 정책을 쓰도록
+// 모듈 레벨 상수/함수로 끌어올림. 기존엔 openLookupPanel에 옛 hard-coded
+// 값(LOOKUP_MAX=760, CHAT_MIN=620, sidebar-collapsed 무시)이 남아있어서
+// 첫 열림 시 cap이 잘못 적용 → resize handle 한 번 만지면 정상화되는 증상.
+const LOOKUP_MAX_CAP = 520; // v0.5.66 LOOKUP_MAX와 동일
+const LOOKUP_MIN_CAP = 280;
+const CHAT_MIN_CAP = 760; // v0.5.66 CHAT_MIN과 동일
+
+function _currentSidebarPxForCap() {
+  // sidebar가 collapsed 상태면 grid track이 0px라 cap 계산 시 0으로 봐야 함
+  if (document.body.classList.contains("sidebar-collapsed")) return 0;
+  const v = getComputedStyle(document.body)
+    .getPropertyValue("--sidebar-w")
+    .trim();
+  return parseInt(v, 10) || 0;
+}
+
+function _lookupMaxForViewportShared() {
+  const headroom =
+    window.innerWidth - _currentSidebarPxForCap() - CHAT_MIN_CAP;
+  return Math.min(LOOKUP_MAX_CAP, Math.max(LOOKUP_MIN_CAP, headroom));
+}
+
 function openLookupPanel() {
+  // v0.5.67 — sidebar-collapsed 상태로 먼저 전환한 후 cap 계산
+  // (자동 사이드바 접힘 이후 viewport headroom이 달라지므로 순서 중요)
+  if (!document.body.classList.contains("sidebar-collapsed")) {
+    document.body.classList.add("sidebar-collapsed");
+    try {
+      localStorage.setItem("spiral-buddy:sidebar-collapsed", "1");
+    } catch {}
+  }
+
   // 저장된 너비 복원 — 최소 280px 보장 (예전 작은 값 남아있을 수 있음)
   const saved = (document.body.style.getPropertyValue("--lookup-w-saved") || "").trim();
   const savedPx = parseInt(saved, 10);
-  if (Number.isFinite(savedPx) && savedPx >= 280) {
-    // v0.5.49 — 현재 viewport에서 chat 컬럼 최소 520px가 남도록 cap
-    const sidebarRaw = getComputedStyle(document.body)
-      .getPropertyValue("--sidebar-w")
-      .trim();
-    const sidebarPx = parseInt(sidebarRaw, 10) || 0;
-    const cap = Math.min(760, Math.max(280, window.innerWidth - sidebarPx - 620));
+  if (Number.isFinite(savedPx) && savedPx >= LOOKUP_MIN_CAP) {
+    // setupLookupResizer와 동일한 cap 함수 사용 — 일관성 보장
+    const cap = _lookupMaxForViewportShared();
     const applied = Math.min(savedPx, cap);
     document.body.style.setProperty("--lookup-w", `${applied}px`);
   } else {
-    // inline --lookup-w 제거 → CSS의 body.lookup-open { --lookup-w: 400px } 적용
+    // inline --lookup-w 제거 → CSS의 body.lookup-open { --lookup-w: 380px } 적용
     document.body.style.removeProperty("--lookup-w");
   }
   document.body.classList.add("lookup-open");
@@ -2980,15 +3008,6 @@ function openLookupPanel() {
   els.lookupResizer?.classList.remove("hidden");
   els.lookupPanel?.setAttribute("aria-hidden", "false");
   _lookupState.open = true;
-
-  // 좌측 사이드바 자동 접기 — 공간 확보 (이미 접혀 있으면 무시).
-  // 사용자가 직접 다시 펼치면 거기에 맡김 (다시 자동 접지 않음 — 이 panel-open 동작 1회만).
-  if (!document.body.classList.contains("sidebar-collapsed")) {
-    document.body.classList.add("sidebar-collapsed");
-    try {
-      localStorage.setItem("spiral-buddy:sidebar-collapsed", "1");
-    } catch {}
-  }
 }
 
 function closeLookupPanel() {
