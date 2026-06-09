@@ -1805,8 +1805,13 @@ function renderChapters() {
     // v0.5.51 — 검색 중일 땐 원본 인덱스를 보여줘서 "전체 중 N번째" 알 수 있게
     const originalIdx = q ? state.chapters.indexOf(ch) : i;
     const titleHtml = q ? _highlightMatch(ch.title, q) : escapeHtml(ch.title);
+    // v0.5.69 — preview는 hover tooltip으로 보여줌. data-preview에 저장
+    // (title attribute는 native browser tooltip이 떠서 충돌하므로 안 씀)
+    const previewAttr = ch.preview
+      ? ` data-chapter-preview="${escapeAttr(ch.preview)}"`
+      : "";
     li.innerHTML = `
-      <button class="chapter-btn ${visited ? "visited" : ""}" data-id="${escapeAttr(ch.id)}">
+      <button class="chapter-btn ${visited ? "visited" : ""}" data-id="${escapeAttr(ch.id)}"${previewAttr}>
         <span class="num">${originalIdx + 1}.</span>
         <span class="title">${titleHtml}</span>
         ${badge}
@@ -1844,6 +1849,105 @@ function renderChapters() {
     });
     els.chapterList.appendChild(li);
   });
+  _ensureChapterPreviewTooltip();
+}
+
+// v0.5.69 — 사이드바 챕터 hover 시 첫 단락 미리보기 floating tooltip.
+// chapterList 컨테이너에 한 번만 delegation 리스너 붙이고, 재렌더 시 재사용.
+let _chapterPreviewState = {
+  tipEl: null,
+  attached: false,
+  showTimer: null,
+  current: null, // 현재 hover 중인 chapter-btn (마우스 이동 race 방지)
+};
+
+function _ensureChapterPreviewTooltip() {
+  if (_chapterPreviewState.attached || !els.chapterList) return;
+  _chapterPreviewState.attached = true;
+
+  const onEnter = (e) => {
+    const btn = e.target.closest("[data-chapter-preview]");
+    if (!btn) return;
+    const preview = btn.getAttribute("data-chapter-preview");
+    if (!preview) return;
+    _chapterPreviewState.current = btn;
+    if (_chapterPreviewState.showTimer) {
+      clearTimeout(_chapterPreviewState.showTimer);
+    }
+    _chapterPreviewState.showTimer = setTimeout(() => {
+      // 그 사이 다른 항목으로 이동/벗어남 → 표시 안 함
+      if (_chapterPreviewState.current !== btn) return;
+      _showChapterPreviewTooltip(btn, preview);
+    }, 220);
+  };
+  const onLeave = (e) => {
+    const btn = e.target.closest("[data-chapter-preview]");
+    if (!btn) return;
+    // mouseout는 자식으로 들어갈 때도 발생 — relatedTarget이 같은 btn 안이면 무시
+    const related = e.relatedTarget;
+    if (related && btn.contains(related)) return;
+    _chapterPreviewState.current = null;
+    if (_chapterPreviewState.showTimer) {
+      clearTimeout(_chapterPreviewState.showTimer);
+      _chapterPreviewState.showTimer = null;
+    }
+    _hideChapterPreviewTooltip();
+  };
+
+  // mouseover/mouseout는 버블링 — chapterList 한 곳에만 붙이면 됨
+  els.chapterList.addEventListener("mouseover", onEnter);
+  els.chapterList.addEventListener("mouseout", onLeave);
+  // 사이드바 스크롤 시 tooltip 가리기 (위치 어긋남 방지)
+  els.chapterList.addEventListener("scroll", _hideChapterPreviewTooltip, {
+    passive: true,
+  });
+  // 사이드바 자체(부모) 스크롤도
+  const sidebarScroller = els.chapterList.closest(".sidebar") ?? null;
+  sidebarScroller?.addEventListener("scroll", _hideChapterPreviewTooltip, {
+    passive: true,
+  });
+  window.addEventListener("blur", _hideChapterPreviewTooltip);
+}
+
+function _showChapterPreviewTooltip(btn, text) {
+  let tip = _chapterPreviewState.tipEl;
+  if (!tip) {
+    tip = document.createElement("div");
+    tip.className = "chapter-preview-tooltip";
+    tip.setAttribute("role", "tooltip");
+    document.body.appendChild(tip);
+    _chapterPreviewState.tipEl = tip;
+  }
+  tip.textContent = text;
+
+  // 위치 계산: 챕터 항목 우측에 띄움. viewport 밖이면 좌측으로 fallback.
+  // 우선 화면에 그려서 size 측정 → 위치 결정
+  tip.style.visibility = "hidden";
+  tip.classList.add("visible");
+  const rect = btn.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  const GAP = 10;
+  let left = rect.right + GAP;
+  // viewport 우측 넘으면 좌측으로
+  if (left + tipRect.width > window.innerWidth - 8) {
+    left = rect.left - tipRect.width - GAP;
+  }
+  // 좌측도 안 되면 viewport 안에서 clamp
+  if (left < 8) left = 8;
+  // 세로 — 챕터 중앙에 tooltip 중앙
+  let top = rect.top + rect.height / 2 - tipRect.height / 2;
+  if (top < 8) top = 8;
+  if (top + tipRect.height > window.innerHeight - 8) {
+    top = window.innerHeight - tipRect.height - 8;
+  }
+  tip.style.left = `${Math.round(left)}px`;
+  tip.style.top = `${Math.round(top)}px`;
+  tip.style.visibility = "visible";
+}
+
+function _hideChapterPreviewTooltip() {
+  const tip = _chapterPreviewState.tipEl;
+  if (tip) tip.classList.remove("visible");
 }
 
 function openChapterNotePopover(anchorEl, chapter) {

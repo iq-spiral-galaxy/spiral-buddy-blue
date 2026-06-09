@@ -39,6 +39,11 @@ export interface Chapter {
   content: string;
   frontmatter: Record<string, unknown>;
   order: number;
+  /**
+   * v0.5.69 — 챕터 미리보기. 본문 첫 단락에서 마크다운 stripping 후 ~280자.
+   * 사이드바 hover 시 tooltip으로 표시해 학습자가 들어가기 전에 무슨 내용인지 가늠.
+   */
+  preview?: string;
 }
 
 const IGNORE_PATTERNS = ["node_modules/**", ".git/**", ".obsidian/**"];
@@ -239,7 +244,82 @@ async function loadChapterFile(
     content: parsed.content.trim(),
     frontmatter: parsed.data as Record<string, unknown>,
     order: 0,
+    preview: extractChapterPreview(parsed.content),
   };
+}
+
+/**
+ * v0.5.69 — 챕터 본문에서 hover-tooltip용 짧은 미리보기 추출.
+ *
+ * 알고리즘:
+ * 1) H1 (title 자체) 라인 skip
+ * 2) blockquote("> ..."), HTML 주석, image 라인 skip
+ * 3) 첫 비어있지 않은 단락(다음 빈 줄까지) 채취
+ * 4) 단락이 너무 짧으면(<60자) 다음 단락도 합침 (제목 다음 짧은 안내 한 줄로 끝나는 경우 대비)
+ * 5) 마크다운 강조/링크/코드 stripping
+ * 6) 280자 cut + 말줄임표
+ *
+ * 결과가 비어있으면 undefined.
+ */
+function extractChapterPreview(content: string): string | undefined {
+  const lines = content.split("\n");
+  const paragraphs: string[] = [];
+  let buf: string[] = [];
+  const flush = () => {
+    if (buf.length) paragraphs.push(buf.join(" "));
+    buf = [];
+  };
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line) {
+      flush();
+      continue;
+    }
+    // skip 헤딩, blockquote, HTML 주석, 이미지, 표 구분선, 코드 펜스 라인
+    if (/^#{1,6}\s/.test(line)) {
+      flush();
+      continue;
+    }
+    if (line.startsWith(">")) {
+      flush();
+      continue;
+    }
+    if (line.startsWith("<!--")) continue;
+    if (/^!\[/.test(line)) continue;
+    if (/^[-=]{3,}$/.test(line)) continue;
+    if (line.startsWith("```")) {
+      flush();
+      continue;
+    }
+    buf.push(line);
+  }
+  flush();
+
+  let preview = "";
+  for (const p of paragraphs) {
+    if (!preview) preview = p;
+    else if (preview.length < 60) preview = `${preview} ${p}`;
+    else break;
+  }
+  if (!preview) return undefined;
+
+  // 마크다운 stripping (순서 중요)
+  const stripped = preview
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "") // images
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1") // links → 텍스트만
+    .replace(/`([^`]+)`/g, "$1") // inline code
+    .replace(/\*\*([^*]+)\*\*/g, "$1") // bold
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, "$1") // italic
+    .replace(/(?<!_)_([^_]+)_(?!_)/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1") // strikethrough
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!stripped) return undefined;
+  const MAX = 280;
+  if (stripped.length <= MAX) return stripped;
+  return `${stripped.slice(0, MAX).trimEnd()}…`;
 }
 
 /**

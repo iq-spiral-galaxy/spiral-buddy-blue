@@ -499,6 +499,8 @@ export function createApi(config: Config) {
           depths,
           noteLinks,
           lastDate,
+          // v0.5.69 — 사이드바 hover tooltip용 미리보기.
+          preview: ch.preview,
         };
       }),
     });

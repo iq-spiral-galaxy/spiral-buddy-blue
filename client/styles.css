@@ -8860,3 +8860,47 @@ body.light-mode .curated-domain-btn.partial {
 body.light-mode .curated-domain-hint {
   color: #b45309;
 }
+
+/* ═══════════════════ v0.5.69 — 챕터 미리보기 tooltip ═══════════════════
+ * 사이드바 챕터 hover 시 우측에 floating으로 첫 단락 노출.
+ * 들어가기 전 "이 챕터가 무슨 내용인지" 가늠하게 해서 잘못된 진입 줄임.
+ */
+.chapter-preview-tooltip {
+  position: fixed;
+  z-index: 9000;
+  max-width: 360px;
+  min-width: 200px;
+  padding: 10px 13px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text, #e6ecf2);
+  background: var(--bg-elev-2, #1a2230);
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.10));
+  border-radius: 10px;
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.20);
+  pointer-events: none;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+  white-space: normal;
+  word-break: break-word;
+  letter-spacing: 0.01em;
+}
+
+.chapter-preview-tooltip.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+body.light-mode .chapter-preview-tooltip {
+  background: #ffffff;
+  color: #1a202c;
+  border-color: rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 8px 24px rgba(15, 23, 42, 0.12),
+    0 2px 6px rgba(15, 23, 42, 0.06);
+}
