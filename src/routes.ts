@@ -879,6 +879,113 @@ export function createApi(config: Config) {
   });
 
   // ─────────────────────────────────────────────────────
+  // 5b-2. Chapter context (v0.5.58)
+  //   Buddy가 한 메시지에서 챕터의 어느 부분을 가리키는지
+  //   본문에서 찾아 (인용 + 요약) 형식으로 보여줌.
+  //   사용자가 메시지의 📋 버튼 또는 드래그 후 "본문 맥락" 선택 시 호출.
+  // ─────────────────────────────────────────────────────
+
+  app.post("/chapter-context", async (c) => {
+    const body = await c.req
+      .json<{
+        sessionId: string;
+        targetMessageText: string;
+        /** 사용자가 드래그한 부분만 더 정밀하게 매칭 (선택). */
+        selectionText?: string;
+        model?: string;
+      }>()
+      .catch(() => null);
+    if (!body?.sessionId) {
+      return c.json({ error: "sessionId is required" }, 400);
+    }
+    if (!body?.targetMessageText || body.targetMessageText.trim().length < 5) {
+      return c.json(
+        { error: "targetMessageText is required (min 5 chars)" },
+        400,
+      );
+    }
+    const session = getSession(body.sessionId);
+    if (!session) {
+      return c.json({ error: "session not found" }, 404);
+    }
+
+    // 캐시 — 같은 (sessionId + 메시지 텍스트 해시 + 선택)에 대해 재호출 방지.
+    const cacheKey = _hashSimple(
+      `${body.sessionId}::${body.targetMessageText}::${body.selectionText ?? ""}`,
+    );
+    const cached = session.chapterContextCache?.get(cacheKey);
+    if (cached) {
+      return streamText(c, async (stream) => {
+        await stream.write(cached);
+      });
+    }
+
+    const chapter = session.chapter;
+    const chapterContent = chapter.content ?? "";
+    const fullLen = chapterContent.length;
+    const truncatedNote =
+      fullLen > 8000
+        ? `\n\n⚠️ 본문이 ${fullLen}자로 매우 길어 8000자에서 잘림. 잘린 뒤 부분은 확인 못함.`
+        : "";
+
+    const systemPrompt =
+      "사용자가 학습 대화 중 Buddy의 어떤 메시지에 대해 '챕터의 어디서 온 맥락이지?'라고 궁금해한다. " +
+      "주어진 챕터 본문에서 Buddy 메시지가 다루는 부분을 찾아 다음 마크다운 구조로 답한다:\n\n" +
+      "🔖 본문 인용 (대략)\n" +
+      "> (본문에서 가장 가까운 실제 문장 1-3개. 본문에 없는 표현은 인용하지 말 것. " +
+      "본문에서 직접 매칭 안 되면 '본문에서 그 부분 직접 못 찾음'이라고 정직히 말한다)\n\n" +
+      "💡 Buddy의 맥락\n" +
+      "(Buddy가 이 메시지에서 챕터의 어떤 개념/단계를 다루려고 하는지 2-3문장 요약. " +
+      "Buddy 메시지 자체를 다시 풀어쓰지 말고, 챕터 본문 기준으로 위치를 잡아준다.)\n\n" +
+      "규칙: \n" +
+      "- 직접 인용은 본문에 있는 표현만. 추측 인용은 절대 금지.\n" +
+      "- Buddy가 본문에 없는 detail을 말한 것 같으면 ⚠️ 표시로 알린다: " +
+      "'⚠️ 본문에선 이 부분 직접 안 다룸 — Buddy가 일반 지식 기반으로 말한 것 같음'.\n" +
+      "- 짧게. 전체 300-450자 정도. 한국어. 마크다운 사용 가능.";
+
+    const selectionBlock = body.selectionText?.trim()
+      ? `\n\n**사용자가 특히 궁금해 하는 부분 (Buddy 메시지에서 드래그)**:\n> ${body.selectionText.trim().slice(0, 400)}`
+      : "";
+
+    const userMessage =
+      `**챕터 정보**:\n` +
+      `- 제목: ${chapter.title}\n` +
+      `- 학습자 depth: ${session.depth}\n\n` +
+      `**챕터 본문${fullLen > 8000 ? " (잘림)" : ""}**:\n` +
+      `\`\`\`markdown\n${chapterContent.slice(0, 8000)}\n\`\`\`${truncatedNote}\n\n` +
+      `**Buddy의 메시지**:\n` +
+      `> ${body.targetMessageText.slice(0, 1500)}${selectionBlock}\n\n` +
+      `이 Buddy 메시지가 챕터 본문의 어느 부분을 다루는지, 위 형식대로 (인용 + 요약 분리) 답해줘.`;
+
+    return streamText(c, async (stream) => {
+      let fullResponse = "";
+      try {
+        await streamTurn(client, {
+          system: systemPrompt,
+          messages: [{ role: "user", content: userMessage }],
+          model: body.model,
+          maxTokens: 700,
+          onText: async (chunk) => {
+            fullResponse += chunk;
+            await stream.write(chunk);
+          },
+        });
+        // 캐시 저장
+        if (fullResponse.trim()) {
+          if (!session.chapterContextCache) {
+            session.chapterContextCache = new Map();
+          }
+          session.chapterContextCache.set(cacheKey, fullResponse.trim());
+        }
+      } catch (err) {
+        await stream.write(
+          `\n\n> [!warning] 맥락 요약 실패\n> ${friendlyApiErrorMessage(err)}`,
+        );
+      }
+    });
+  });
+
+  // ─────────────────────────────────────────────────────
   // 5c. Prompt refine (보내기 전 다듬기)
   //     사용자가 막 쓴 문장을 명확한 학습 질문으로 정돈.
   //     원본 의도/언어는 보존. 단발성 응답 (스트리밍 X).
@@ -1168,4 +1275,25 @@ export function createApi(config: Config) {
   });
 
   return app;
+}
+
+/**
+ * 가볍고 deterministic한 hash — 캐시 key용. crypto SHA 만큼 안전할 필요 X.
+ * (collision 확률은 매우 낮고 collision 나도 그저 동일 챕터/메시지로 처리됨)
+ */
+function _hashSimple(s: string): string {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (
+    (h2 >>> 0).toString(36) + "_" + (h1 >>> 0).toString(36)
+  );
 }

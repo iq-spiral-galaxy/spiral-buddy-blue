@@ -4480,6 +4480,79 @@ button.primary:hover:not(:disabled),
   line-height: 1.5;
 }
 
+/* v0.5.58 — Buddy 메시지 하단 "📋 문맥" 버튼 (챕터 본문 맥락 요약 트리거) */
+.chapter-context-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-family: var(--font-mono, monospace);
+  padding: 3px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.18s, color 0.12s, background 0.12s, border-color 0.12s;
+}
+.message.assistant {
+  position: relative;
+}
+.message.assistant:hover .chapter-context-btn,
+.message.assistant:focus-within .chapter-context-btn {
+  opacity: 0.78;
+}
+.chapter-context-btn:hover {
+  opacity: 1 !important;
+  background: rgba(126, 226, 255, 0.10);
+  border-color: rgba(126, 226, 255, 0.32);
+  color: var(--accent, #7ee2ff);
+}
+.chapter-context-btn svg {
+  display: block;
+}
+body.light-mode .chapter-context-btn:hover {
+  background: rgba(8, 145, 178, 0.10);
+  border-color: rgba(8, 145, 178, 0.32);
+  color: #0e7490;
+}
+
+/* v0.5.58 — Look-up 카드 종류 구분: 지식(기존) vs 본문 맥락(신규).
+ * 본문 맥락 카드는 좌측 violet accent border로 구분 — 인용을 다룬다는 시각 단서.
+ */
+.lookup-card.lookup-card-ctx {
+  border-left: 3px solid rgba(167, 139, 250, 0.6);
+}
+.lookup-card-kind-ctx {
+  background: rgba(167, 139, 250, 0.14) !important;
+  color: #c5a7ff !important;
+}
+.lookup-card-kind-ctx .lookup-card-depth-icon svg {
+  color: #c5a7ff;
+}
+body.light-mode .lookup-card.lookup-card-ctx {
+  border-left-color: #7c3aed;
+}
+body.light-mode .lookup-card-kind-ctx {
+  background: rgba(124, 58, 237, 0.14) !important;
+  color: #6d28d9 !important;
+}
+
+/* 드래그 toolbar의 "문맥" 버튼 — 다른 옵션과 시각 구분 (violet 톤) */
+.lookup-tool-context {
+  color: rgba(197, 167, 255, 0.85) !important;
+}
+.lookup-tool-context:hover {
+  background: rgba(167, 139, 250, 0.15) !important;
+}
+body.light-mode .lookup-tool-context {
+  color: #6d28d9 !important;
+}
+
 /* v0.5.51 — 중복 lookup 시도 시 기존 카드 플래시 */
 @keyframes lookup-card-flash {
   0% { box-shadow: 0 0 0 0 rgba(197, 167, 255, 0.0); border-color: var(--border-soft, rgba(148, 169, 190, 0.12)); }

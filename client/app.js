@@ -2694,6 +2694,25 @@ function initLookup() {
         hideLookupToolbar();
         return;
       }
+      if (action === "context") {
+        // v0.5.58 — 챕터 본문 맥락 요약. selection이 어떤 assistant 메시지 안에 있는지 찾아
+        // 그 메시지 전체를 target으로, 선택 텍스트를 selectionText로 보냄.
+        const sel = window.getSelection();
+        const anchor = sel?.anchorNode;
+        const anchorEl =
+          anchor?.nodeType === Node.ELEMENT_NODE
+            ? anchor
+            : anchor?.parentElement;
+        const msgEl = anchorEl?.closest?.(".message.assistant");
+        const messageText =
+          msgEl?.querySelector(".content")?.innerText?.trim() ?? text;
+        hideLookupToolbar();
+        try {
+          window.getSelection()?.removeAllRanges();
+        } catch {}
+        runChapterContext({ targetMessageText: messageText, selectionText: text });
+        return;
+      }
       if (!depth) return;
       hideLookupToolbar();
       try {
@@ -3288,6 +3307,143 @@ async function runLookup(query, depth, opts = {}) {
     bodyEl.innerHTML = `<p>(에러: ${escapeHtml(err.message)})</p>`;
   }
 }
+
+// ──────────────────────────────────────────────────────────
+// v0.5.58 — 챕터 본문 맥락 요약 (β 방향)
+//   Buddy 메시지가 챕터의 어느 부분을 가리키는지 (인용+요약) 형식으로
+//   Look-up 패널에 카드로 표시. 매 메시지 📋 버튼 또는 드래그 toolbar에서 트리거.
+// ──────────────────────────────────────────────────────────
+
+async function runChapterContext({ targetMessageText, selectionText } = {}) {
+  if (!state.session?.id) {
+    setStatus("세션을 먼저 시작해줘 — 챕터 맥락을 잡으려면 활성 세션이 필요해", "info");
+    return;
+  }
+  openLookupPanel();
+  if (!els.lookupPanelBody) return;
+
+  // 중복 차단 — 같은 메시지+선택에 대해 카드가 이미 있으면 그걸 강조.
+  const fingerprint = _chapterContextFingerprint(targetMessageText, selectionText);
+  const existing = els.lookupPanelBody.querySelector(
+    `.lookup-card[data-context-key="${CSS.escape(fingerprint)}"]`,
+  );
+  if (existing) {
+    existing.classList.remove("collapsed");
+    existing.classList.add("lookup-card-flash");
+    existing.scrollIntoView({ block: "center", behavior: "smooth" });
+    setTimeout(() => existing.classList.remove("lookup-card-flash"), 1500);
+    setStatus("이 메시지의 본문 맥락은 위에 표시했어요", "info");
+    return;
+  }
+
+  // 기존 카드는 접기 — Look-up과 동일 UX
+  els.lookupPanelBody.querySelectorAll(".lookup-card").forEach((c) => {
+    c.classList.add("collapsed");
+  });
+
+  const card = document.createElement("article");
+  card.className = "lookup-card lookup-card-ctx";
+  card.dataset.contextKey = fingerprint;
+  const previewText = (selectionText ?? targetMessageText).slice(0, 80).trim();
+  card.innerHTML = `
+    <div class="lookup-card-head" role="button" tabindex="0" title="클릭하여 펼침/접기">
+      <span class="lookup-card-depth lookup-card-kind-ctx" data-kind="ctx">
+        <span class="lookup-card-depth-icon">${CONTEXT_ICON_SVG}</span>
+        <span>본문 맥락</span>
+      </span>
+      <span class="lookup-card-query" title="${escapeAttr(previewText)}">${escapeHtml(previewText)}${previewText.length >= 80 ? "…" : ""}</span>
+      <span class="lookup-card-fold" aria-hidden="true">▾</span>
+      <div class="lookup-card-actions">
+        <button class="lookup-card-act" data-act="copy" type="button" title="복사" aria-label="복사">${COPY_SVG_INLINE}</button>
+        <button class="lookup-card-act" data-act="close" type="button" title="삭제" aria-label="삭제">${X_SVG_INLINE}</button>
+      </div>
+    </div>
+    <div class="lookup-card-body"><span style="opacity:0.6">맥락 찾는 중…</span></div>
+    ${renderFeedbackBar("lookup")}
+  `;
+  els.lookupPanelBody.insertBefore(card, els.lookupPanelBody.firstChild);
+  _lookupState.cardCount++;
+  els.lookupPanelBody.scrollTop = 0;
+
+  const bodyEl = card.querySelector(".lookup-card-body");
+  const headEl = card.querySelector(".lookup-card-head");
+  headEl.addEventListener("click", (e) => {
+    if (e.target.closest(".lookup-card-act")) return;
+    card.classList.toggle("collapsed");
+  });
+  headEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      card.classList.toggle("collapsed");
+    }
+  });
+  card.querySelectorAll(".lookup-card-act").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const act = btn.dataset.act;
+      if (act === "close") {
+        card.remove();
+        _lookupState.cardCount--;
+      } else if (act === "copy") {
+        const txt = bodyEl?.innerText ?? "";
+        navigator.clipboard?.writeText(txt).then(() => {
+          btn.innerHTML = CHECK_SVG_INLINE;
+          btn.classList.add("copied");
+          setTimeout(() => {
+            btn.innerHTML = COPY_SVG_INLINE;
+            btn.classList.remove("copied");
+          }, 1200);
+        });
+      }
+    });
+  });
+  wireFeedbackBar(card.querySelector(".feedback-bar"));
+
+  // SSE 수신
+  let acc = "";
+  try {
+    const res = await fetch("/api/chapter-context", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId: state.session.id,
+        targetMessageText,
+        selectionText: selectionText || undefined,
+        model: state.selectedModel ?? undefined,
+      }),
+    });
+    if (!res.ok || !res.body) {
+      bodyEl.textContent = `(요청 실패: ${res.status})`;
+      return;
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      acc += decoder.decode(value, { stream: true });
+      try {
+        bodyEl.innerHTML = marked.parse(acc);
+      } catch {
+        bodyEl.textContent = acc;
+      }
+    }
+  } catch (err) {
+    bodyEl.innerHTML = `<p>(에러: ${escapeHtml(err.message)})</p>`;
+  }
+}
+
+function _chapterContextFingerprint(targetMessageText, selectionText) {
+  const norm = (s) =>
+    String(s ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .slice(0, 400);
+  return `ctx::${norm(targetMessageText)}::${norm(selectionText)}`;
+}
+
+const CONTEXT_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`;
 
 // ──────────────────────────────────────────────────────────
 // 따봉 (👍/👎) — v0.5.31
@@ -4897,14 +5053,42 @@ function appendAssistantMessage(initialMarkdown) {
     <div class="role">Buddy</div>
     <div class="content"></div>
     ${renderFeedbackBar("msg")}
+    ${_renderChapterContextBtn()}
   `;
   if (initialMarkdown) {
     div.querySelector(".content").innerHTML = marked.parse(initialMarkdown);
   }
   els.messages.appendChild(div);
   wireFeedbackBar(div.querySelector(".feedback-bar"));
+  _wireChapterContextBtn(div);
   scrollToBottom();
   return div;
+}
+
+// v0.5.58 — Buddy 메시지마다 "📋 문맥" 버튼 (챕터 본문 맥락 요약 카드 트리거)
+function _renderChapterContextBtn() {
+  return `<button class="chapter-context-btn" type="button" title="이 메시지가 챕터 본문의 어느 부분인지 확인" aria-label="챕터 본문 맥락 보기">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+      <polyline points="14 2 14 8 20 8"/>
+      <line x1="16" y1="13" x2="8" y2="13"/>
+      <line x1="16" y1="17" x2="8" y2="17"/>
+      <polyline points="10 9 9 9 8 9"/>
+    </svg>
+    <span>문맥</span>
+  </button>`;
+}
+
+function _wireChapterContextBtn(messageDiv) {
+  const btn = messageDiv.querySelector(".chapter-context-btn");
+  if (!btn) return;
+  btn.addEventListener("click", async (e) => {
+    e.stopPropagation();
+    const contentEl = messageDiv.querySelector(".content");
+    const text = contentEl?.innerText?.trim();
+    if (!text || text.length < 5) return;
+    await runChapterContext({ targetMessageText: text });
+  });
 }
 
 function showCompletionCard(result) {
