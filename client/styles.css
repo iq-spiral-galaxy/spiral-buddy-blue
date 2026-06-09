@@ -53,7 +53,7 @@ body {
 }
 
 body.lookup-open {
-  --lookup-w: 400px;
+  --lookup-w: 380px;  /* v0.5.66 — JS LOOKUP_DEFAULT와 일치 (400→380) */
 }
 
 /* 사이드바 너비 드래그 핸들 */

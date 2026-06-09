@@ -2815,13 +2815,16 @@ function initLookup() {
   });
 
   // 패널 너비 조절 (사이드바와 동일 패턴, 우측에서 드래그)
+  // v0.5.66 — 사용자 피드백 "맥락 버튼 눌렀는데 우측 패널이 커지면 좌측 다듬기 send를 덮어버리네"
+  // LOOKUP_MAX와 CHAT_MIN을 사이드바 정책과 일관성 있게 정리:
+  //   - LOOKUP_MAX 760 → 520 (Look-up은 보조 도구 — 너무 클 필요 없음)
+  //   - CHAT_MIN 620 → 760 (composer 다듬기/Send + topbar 모두 보장)
   const LOOKUP_WIDTH_KEY = "spiral-buddy:lookup-width";
-  const LOOKUP_DEFAULT = 400;
+  const LOOKUP_DEFAULT = 380;
   const LOOKUP_MIN = 280;
-  const LOOKUP_MAX = 760;
-  // v0.5.49 — 채팅 컬럼이 너무 좁아져서 topbar 액션 버튼이 가려지는 걸 방지.
-  // sidebar + lookup이 viewport를 다 먹지 않도록 chat에 최소 폭(520px) 확보.
-  const CHAT_MIN = 620; // v0.5.52 — Pause 라벨 복귀로 topbar 더 넓어짐
+  const LOOKUP_MAX = 520;
+  // chat 컬럼 최소 폭 — composer btn-col(다듬기/Send) + topbar 액션이 모두 fit
+  const CHAT_MIN = 760;
   function _sidebarPx() {
     const v = getComputedStyle(document.body)
       .getPropertyValue("--sidebar-w")
@@ -2836,12 +2839,16 @@ function initLookup() {
   }
   const savedLookupW = localStorage.getItem(LOOKUP_WIDTH_KEY);
   if (savedLookupW) {
-    const w = Math.max(
-      LOOKUP_MIN,
-      Math.min(_lookupMaxForViewport(), parseInt(savedLookupW, 10) || LOOKUP_DEFAULT),
-    );
+    const parsed = parseInt(savedLookupW, 10) || LOOKUP_DEFAULT;
+    const w = Math.max(LOOKUP_MIN, Math.min(_lookupMaxForViewport(), parsed));
     // 패널이 열려 있을 때만 적용. 처음엔 width 0이므로 변수만 저장.
     document.body.style.setProperty("--lookup-w-saved", `${w}px`);
+    // v0.5.66 — saved가 새 cap보다 크면 localStorage 갱신 (옛 큰 값 마이그레이션)
+    if (parsed > w) {
+      try {
+        localStorage.setItem(LOOKUP_WIDTH_KEY, String(w));
+      } catch {}
+    }
   }
   if (els.lookupResizer) {
     let dragging = false;
