@@ -1,7 +1,13 @@
 import { randomUUID } from "node:crypto";
+import type Anthropic from "@anthropic-ai/sdk";
 import type { Chapter } from "./roadmap.js";
 import type { SpiralNote } from "./vault.js";
 import type { ClaudeMessage } from "./claude.js";
+
+// v0.5.59 — prompt caching 도입 후 본문 한도 확장.
+// Sonnet 4.6의 최소 캐시 단위는 2048 토큰. 18000자는 한국어 기준
+// 대략 6000-8000 토큰이라 안전하게 캐시 가능. 대부분 챕터가 풀로 들어감.
+export const CHAPTER_CONTENT_MAX = 18000;
 
 export const SESSION_SYSTEM = `You are spiral-buddy, a Socratic learning companion in a local web app.
 
@@ -105,10 +111,10 @@ Excerpt: ${n.body.slice(0, 800)}`,
 
   // v0.5.58 — truncation 상태와 본문 부실 여부를 모델에 명시.
   const fullLen = (chapter.content ?? "").length;
-  const isTruncated = fullLen > 6000;
-  const isThin = fullLen < 300; // README 헤더만 있는 등 거의 빈 챕터
+  const isTruncated = fullLen > CHAPTER_CONTENT_MAX;
+  const isThin = fullLen < 300;
   const contentNote = isTruncated
-    ? `\n\n⚠️ 본문이 ${fullLen}자라 6000자에서 잘림. 잘린 뒤 부분은 보지 못함 — 인용 보수적으로.`
+    ? `\n\n⚠️ 본문이 ${fullLen}자라 ${CHAPTER_CONTENT_MAX}자에서 잘림. 잘린 뒤 부분은 보지 못함 — 인용 보수적으로.`
     : isThin
       ? `\n\n⚠️ 본문이 ${fullLen}자로 매우 짧음 (README 수준). 일반 지식 기반으로 진행하고 그 사실을 첫 메시지에 명시해줘.`
       : "";
@@ -119,7 +125,7 @@ Excerpt: ${n.body.slice(0, 800)}`,
 **${chapter.title}**
 
 ## 챕터 본문
-${truncate(chapter.content, 6000)}${contentNote}
+${truncate(chapter.content, CHAPTER_CONTENT_MAX)}${contentNote}
 
 # 관련된 이전 학습 노트
 ${relatedBlock}
@@ -132,7 +138,40 @@ ${relatedBlock}
 이제 시작해줘.`;
 }
 
+/**
+ * v0.5.59 — prompt caching 적용 버전.
+ *
+ * Anthropic prompt caching은 prefix match 기반 — `cache_control` 마킹된
+ * 블록까지의 모든 prefix(tools → system → messages)가 캐시됨. 같은 세션의
+ * 모든 turn에서 이 user 메시지(messages[0])의 prefix가 동일하므로 한 번
+ * 캐시 미스(write 1.25x) 후 모든 후속 turn에서 cache read(0.1x)로 비용
+ * 90% 절감.
+ *
+ * 첫 user 메시지를 두 블록으로 나눠 마지막 stable block에 cache_control 마킹:
+ *   1) chapter content + related notes (큰 stable, 같은 챕터/depth면 동일)
+ *   2) 변동 가능한 trailing (현재는 없음, 다만 구조적으로 분리)
+ *
+ * 챕터 본문은 18000자까지 (Sonnet 4.6 minimum cache 2048 토큰 충족 + 대부분
+ * 챕터가 truncation 없이 풀로 들어감).
+ */
+export function buildInitialContextBlocks(
+  chapter: Chapter,
+  related: SpiralNote[],
+  depth: number,
+): Anthropic.TextBlockParam[] {
+  const text = buildInitialContext(chapter, related, depth);
+  return [
+    {
+      type: "text",
+      text,
+      // 마지막 stable block 끝에 마킹 → tools+system+이 user 메시지까지 캐시.
+      // TTL 기본 5분 (한 세션은 거의 5분 안에 활발히 진행).
+      cache_control: { type: "ephemeral" },
+    },
+  ];
+}
+
 function truncate(s: string, max: number): string {
   if (s.length <= max) return s;
-  return `${s.slice(0, max)}\n\n... (truncated — 본문 ${s.length}자 중 6000자만 보임)`;
+  return `${s.slice(0, max)}\n\n... (truncated — 본문 ${s.length}자 중 ${max}자만 보임)`;
 }

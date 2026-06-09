@@ -29,6 +29,8 @@ import { generateNote } from "./note-writer.js";
 import {
   SESSION_SYSTEM,
   buildInitialContext,
+  buildInitialContextBlocks,
+  CHAPTER_CONTENT_MAX,
   createSession,
   getSession,
   deleteSession,
@@ -923,9 +925,12 @@ export function createApi(config: Config) {
     const chapter = session.chapter;
     const chapterContent = chapter.content ?? "";
     const fullLen = chapterContent.length;
+    // v0.5.59 — chapter context endpoint도 18000자로 확장. 같은 챕터 안에서
+    // 여러 번 클릭 시 cache_control로 chapter content prefix가 캐시됨.
+    const ctxMax = CHAPTER_CONTENT_MAX;
     const truncatedNote =
-      fullLen > 8000
-        ? `\n\n⚠️ 본문이 ${fullLen}자로 매우 길어 8000자에서 잘림. 잘린 뒤 부분은 확인 못함.`
+      fullLen > ctxMax
+        ? `\n\n⚠️ 본문이 ${fullLen}자로 매우 길어 ${ctxMax}자에서 잘림. 잘린 뒤 부분은 확인 못함.`
         : "";
 
     const systemPrompt =
@@ -947,13 +952,17 @@ export function createApi(config: Config) {
       ? `\n\n**사용자가 특히 궁금해 하는 부분 (Buddy 메시지에서 드래그)**:\n> ${body.selectionText.trim().slice(0, 400)}`
       : "";
 
-    const userMessage =
+    // v0.5.59 — chapter content는 같은 챕터 안에서 동일 → cache_control로 마킹.
+    // 같은 챕터의 두 번째 chapter-context 호출부터 cache_read (0.1x base).
+    // 가변 부분(buddy message, selection)은 캐시 마킹 이후 트레일에 둠.
+    const cachedHead =
       `**챕터 정보**:\n` +
       `- 제목: ${chapter.title}\n` +
       `- 학습자 depth: ${session.depth}\n\n` +
-      `**챕터 본문${fullLen > 8000 ? " (잘림)" : ""}**:\n` +
-      `\`\`\`markdown\n${chapterContent.slice(0, 8000)}\n\`\`\`${truncatedNote}\n\n` +
-      `**Buddy의 메시지**:\n` +
+      `**챕터 본문${fullLen > ctxMax ? " (잘림)" : ""}**:\n` +
+      `\`\`\`markdown\n${chapterContent.slice(0, ctxMax)}\n\`\`\`${truncatedNote}`;
+    const tail =
+      `\n\n**Buddy의 메시지**:\n` +
       `> ${body.targetMessageText.slice(0, 1500)}${selectionBlock}\n\n` +
       `이 Buddy 메시지가 챕터 본문의 어느 부분을 다루는지, 위 형식대로 (인용 + 요약 분리) 답해줘.`;
 
@@ -962,7 +971,19 @@ export function createApi(config: Config) {
       try {
         await streamTurn(client, {
           system: systemPrompt,
-          messages: [{ role: "user", content: userMessage }],
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "text",
+                  text: cachedHead,
+                  cache_control: { type: "ephemeral" },
+                },
+                { type: "text", text: tail },
+              ],
+            },
+          ],
           model: body.model,
           maxTokens: 700,
           onText: async (chunk) => {
@@ -1101,8 +1122,11 @@ export function createApi(config: Config) {
       model: body.model,
     });
 
-    const initialContext = buildInitialContext(chapter, related, depth);
-    session.messages.push({ role: "user", content: initialContext });
+    // v0.5.59 — array of TextBlockParam with cache_control 마킹.
+    // 같은 세션의 후속 turn에서 이 부트스트랩 메시지의 prefix(tools+system 포함)
+    // 가 캐시 hit → 토큰 비용 90% 절감 (cache_read = 0.1x base).
+    const initialContextBlocks = buildInitialContextBlocks(chapter, related, depth);
+    session.messages.push({ role: "user", content: initialContextBlocks });
 
     c.header("X-Session-Id", session.id);
     c.header("X-Depth", String(depth));
