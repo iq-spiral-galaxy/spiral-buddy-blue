@@ -4,6 +4,7 @@
 import { marked } from "https://esm.sh/marked@13.0.3";
 import { markedHighlight } from "https://esm.sh/marked-highlight@2.2.1";
 import hljs from "https://esm.sh/highlight.js@11.10.0";
+import DOMPurify from "https://esm.sh/dompurify@3.1.6";
 
 // ──────────────────────────────────────────────────────────
 // Markdown setup
@@ -19,6 +20,14 @@ marked.use(
   }),
 );
 marked.setOptions({ breaks: true, gfm: true });
+
+// v0.5.77 — 모든 마크다운 → HTML 변환을 sanitize 통과시킴.
+// LLM 출력은 챕터 본문(임의 마크다운 파일)의 영향을 받으므로
+// <img onerror=...> 류가 본문을 타고 응답에 섞일 가능성을 차단.
+// marked.parse를 직접 쓰지 말고 항상 이 함수를 거칠 것.
+function renderMarkdown(raw) {
+  return DOMPurify.sanitize(marked.parse(raw));
+}
 
 // ──────────────────────────────────────────────────────────
 // State
@@ -3782,7 +3791,7 @@ async function runLookup(query, depth, opts = {}) {
     await pumpStream(res.body.getReader(), handle, (chunk) => {
       acc += chunk;
       try {
-        bodyEl.innerHTML = marked.parse(acc);
+        bodyEl.innerHTML = renderMarkdown(acc);
       } catch {
         bodyEl.textContent = acc;
       }
@@ -3909,7 +3918,7 @@ async function runChapterContext({ targetMessageText, selectionText } = {}) {
     await pumpStream(res.body.getReader(), handle, (chunk) => {
       acc += chunk;
       try {
-        bodyEl.innerHTML = marked.parse(acc);
+        bodyEl.innerHTML = renderMarkdown(acc);
       } catch {
         bodyEl.textContent = acc;
       }
@@ -5533,7 +5542,7 @@ function finalizeEndProgressCard(card, result) {
 // 증상 발생. 파싱 실패 시 plain text로 graceful 표시.
 function safeMarkedInto(el, raw) {
   try {
-    el.innerHTML = marked.parse(raw);
+    el.innerHTML = renderMarkdown(raw);
   } catch {
     el.textContent = raw;
   }
@@ -5608,7 +5617,7 @@ function appendAssistantMessage(initialMarkdown) {
     ${_renderChapterContextBtn()}
   `;
   if (initialMarkdown) {
-    div.querySelector(".content").innerHTML = marked.parse(initialMarkdown);
+    div.querySelector(".content").innerHTML = renderMarkdown(initialMarkdown);
   }
   els.messages.appendChild(div);
   wireFeedbackBar(div.querySelector(".feedback-bar"));

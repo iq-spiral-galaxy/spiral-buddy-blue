@@ -8,7 +8,15 @@
 // 빌드 전제: src/는 tsc로 dist/에 컴파일되어 있어야 함.
 // 패키징 시 electron-builder가 dist/, client/, electron/, data/, node_modules/를 묶음.
 
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  ipcMain,
+  dialog,
+  shell,
+  Menu,
+  safeStorage,
+} = require("electron");
 const path = require("node:path");
 const fs = require("node:fs");
 const os = require("node:os");
@@ -29,6 +37,45 @@ let mainWindow = null;
 let setupWindow = null;
 let serverPort = null;
 let serverStarted = false;
+
+// ─── v0.5.77 — main process 크래시 가시화 ─────────────────────
+//
+// 기존엔 uncaughtException 시 Node 기본 동작(즉시 종료)이라 사용자는
+// "앱이 갑자기 꺼짐"만 경험. 로그 + 1회 다이얼로그로 원인을 보여줌.
+// rejection은 종료 없이 로그만 (대부분 복구 가능한 비동기 에러).
+
+let _crashDialogShown = false;
+
+function _logFatal(kind, err) {
+  const msg = err instanceof Error ? `${err.message}\n${err.stack}` : String(err);
+  try {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    fs.appendFileSync(
+      SERVER_LOG_PATH,
+      `[${kind}] ${new Date().toISOString()}\n${msg}\n\n`,
+    );
+  } catch {}
+  return msg;
+}
+
+process.on("uncaughtException", (err) => {
+  const msg = _logFatal("UNCAUGHT", err);
+  if (!_crashDialogShown) {
+    _crashDialogShown = true;
+    try {
+      dialog.showErrorBox(
+        "Spiral Buddy 오류",
+        `예기치 않은 오류가 발생했어요.\n\n${msg.split("\n")[0]}\n\n자세한 내용: ${SERVER_LOG_PATH}`,
+      );
+    } catch {}
+  }
+  // 종료하지 않음 — 이벤트 핸들러 안 에러는 대부분 앱 전체를 죽일 이유가 없음.
+  // 진짜 복구 불능이면 어차피 후속 동작이 실패하고 사용자가 재시작함.
+});
+
+process.on("unhandledRejection", (reason) => {
+  _logFatal("UNHANDLED-REJECTION", reason);
+});
 
 function displayWorkspaceName(nameOrPath) {
   const raw = String(nameOrPath ?? "").trim();
@@ -132,17 +179,70 @@ function migrateConfig(raw) {
   });
 }
 
+// ─── v0.5.77 — API 키 암호화 저장 (Electron safeStorage) ──────
+//
+// 기존엔 spiral-buddy-config.json에 API 키가 평문으로 저장돼 같은 머신의
+// 다른 사용자/프로세스가 그냥 읽을 수 있었음. OS 키체인 기반 safeStorage로
+// 암호화해 디스크에는 anthropicApiKeyEnc(base64)만 두고, 메모리의 cfg
+// 객체에는 기존처럼 평문 anthropicApiKey를 둠 — 나머지 코드는 무수정.
+//
+// 암호화 불가 환경 (일부 Linux 키링 부재)에선 기존 평문 저장으로 fallback.
+// 복호화 실패 (OS 키체인 리셋 등) 시에는 키를 비워 setup wizard로 유도.
+
+function encryptApiKeyForDisk(cfg) {
+  const out = { ...cfg };
+  if (typeof out.anthropicApiKey === "string" && out.anthropicApiKey) {
+    try {
+      if (safeStorage.isEncryptionAvailable()) {
+        out.anthropicApiKeyEnc = safeStorage
+          .encryptString(out.anthropicApiKey)
+          .toString("base64");
+        delete out.anthropicApiKey;
+      }
+    } catch {
+      // 암호화 실패 — 평문 유지 (기존 동작)
+    }
+  }
+  return out;
+}
+
+function decryptApiKeyFromDisk(raw) {
+  if (!raw) return raw;
+  if (typeof raw.anthropicApiKeyEnc === "string" && raw.anthropicApiKeyEnc) {
+    try {
+      raw.anthropicApiKey = safeStorage.decryptString(
+        Buffer.from(raw.anthropicApiKeyEnc, "base64"),
+      );
+    } catch (e) {
+      console.warn(
+        "[config] API 키 복호화 실패 — 키 재입력 필요:",
+        e instanceof Error ? e.message : e,
+      );
+      raw.anthropicApiKey = "";
+    }
+    delete raw.anthropicApiKeyEnc;
+  }
+  return raw;
+}
+
 function loadConfig() {
   // 1순위: userData에 저장된 GUI 설정
   try {
     const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
     const original = JSON.parse(raw);
+    // v0.5.77 — 평문 키가 디스크에 있었는지 복호화 전에 기억 (암호화 업그레이드 트리거)
+    const hadPlaintextKey =
+      typeof original.anthropicApiKey === "string" &&
+      original.anthropicApiKey.length > 0;
+    decryptApiKeyFromDisk(original);
     const migrated = migrateConfig(original);
     // 마이그레이션으로 인해 model이 바뀌었거나 baseline 플래그가 추가됐으면 디스크에 반영
     // (다음 실행에선 다시 안 건드리도록)
+    // v0.5.77 — 평문 키였다면 암호화해서 다시 저장 (1회 업그레이드)
     if (
       migrated &&
-      (migrated.model !== original.model ||
+      ((hadPlaintextKey && safeStorage.isEncryptionAvailable()) ||
+        migrated.model !== original.model ||
         migrated.modelDefaultBaseline !== original.modelDefaultBaseline ||
         (Array.isArray(migrated.workspaces) &&
           Array.isArray(original.workspaces) &&
@@ -193,7 +293,9 @@ function loadConfig() {
 
 function saveConfig(cfg) {
   fs.mkdirSync(path.dirname(CONFIG_PATH), { recursive: true });
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(cfg, null, 2), "utf-8");
+  // v0.5.77 — 디스크에는 암호화된 키만 (가능한 환경에서)
+  const toDisk = encryptApiKeyForDisk(cfg);
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(toDisk, null, 2), "utf-8");
 }
 
 function activeWorkspace(cfg) {
@@ -475,8 +577,20 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
   return { ok: true };
 });
 
+// v0.5.77 — 프로토콜 whitelist. 렌더러가 XSS 등으로 오염돼도
+// file:// / javascript: 같은 위험 URL은 못 열게.
+const OPEN_EXTERNAL_PROTOCOLS = new Set(["http:", "https:", "obsidian:"]);
+
 ipcMain.handle("app:open-external", (_e, url) => {
-  if (typeof url === "string") shell.openExternal(url);
+  if (typeof url !== "string") return false;
+  try {
+    const parsed = new URL(url);
+    if (!OPEN_EXTERNAL_PROTOCOLS.has(parsed.protocol)) return false;
+    shell.openExternal(url);
+    return true;
+  } catch {
+    return false;
+  }
 });
 
 // ─── Auto-update (v0.5.32) ───────────────────────────────────
@@ -1181,8 +1295,17 @@ ipcMain.handle("settings:add-workspace", async (event, args) => {
     }
     roadmapRoot = args.localPath;
   } else if (sourceKind === "git") {
-    if (!args.gitUrl?.startsWith("http")) {
-      return { ok: false, error: "git URL이 잘못되었습니다." };
+    // v0.5.77 — startsWith("http")만으론 http://(평문)도 통과했음.
+    // https만 허용 + URL 파싱 검증. (호스트는 제한 안 함 — GitLab/사내 git 등
+    // 정당한 학습 자료 소스가 있을 수 있음)
+    let parsedGitUrl = null;
+    try {
+      parsedGitUrl = new URL(args.gitUrl ?? "");
+    } catch {
+      /* 아래에서 처리 */
+    }
+    if (!parsedGitUrl || parsedGitUrl.protocol !== "https:") {
+      return { ok: false, error: "https git URL만 지원합니다." };
     }
     // 기본 클론 위치: <vaultPath>/../iq-spiral-buddy-data/<id>/<repoName>
     // 또는 사용자가 parentDir 지정 가능
