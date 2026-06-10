@@ -33,6 +33,22 @@ const MIME_TYPES: Record<string, string> = {
 export async function startServer(): Promise<{ url: string; port: number }> {
   const config = loadConfig();
 
+  // v0.5.72 — 디스크에 저장된 세션 snapshot 복원 (앱 재시작 후에도
+  // pause된 세션을 이어갈 수 있도록). 실패해도 서버 시작은 막지 않음.
+  try {
+    const { restorePersistedSessions } = await import("./session-store.js");
+    const restored = await restorePersistedSessions();
+    if (restored > 0) {
+      console.log(chalk.gray(`  sessions restored: ${restored}`));
+    }
+  } catch (e) {
+    console.warn(
+      chalk.yellow(
+        `  ⚠ session restore failed: ${e instanceof Error ? e.message : e}`,
+      ),
+    );
+  }
+
   const app = new Hono();
 
   // API

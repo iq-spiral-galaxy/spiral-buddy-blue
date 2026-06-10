@@ -1,4 +1,7 @@
 import { randomUUID } from "node:crypto";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import type Anthropic from "@anthropic-ai/sdk";
 import type { Chapter } from "./roadmap.js";
 import type { SpiralNote } from "./vault.js";
@@ -63,6 +66,112 @@ export interface ActiveSession {
 
 const sessions = new Map<string, ActiveSession>();
 
+// ─────────────────────────────────────────────────────────────
+// v0.5.72 — 세션 디스크 영속화.
+//
+// 기존엔 sessions Map이 메모리 전용이라 앱 재시작(크래시/업데이트/종료)
+// 시 진행 중 + pause된 세션이 전부 유실됐음. 이제 turn이 끝날 때마다
+// snapshot을 JSON으로 저장하고, 서버 시작 시 복원한다. 클라이언트의
+// paused 세션 목록(localStorage)은 세션 id만 들고 있으므로, 서버가
+// 복원해두면 기존 resume 흐름(GET /session/:id)이 그대로 동작.
+//
+// 저장 위치: SPIRAL_SESSION_DIR (Electron이 userData/sessions/<workspace>
+// 주입) 또는 기본 ~/.spiral-buddy/sessions.
+// ─────────────────────────────────────────────────────────────
+
+const SESSION_DIR =
+  process.env.SPIRAL_SESSION_DIR?.trim() ||
+  path.join(os.homedir(), ".spiral-buddy", "sessions");
+
+/** 이보다 오래된 snapshot은 복원하지 않고 삭제 (클라이언트 paused 최대 10개 유지와 별개의 안전망). */
+const SESSION_MAX_AGE_MS = 14 * 24 * 60 * 60 * 1000;
+
+function sessionFilePath(id: string): string {
+  // id는 server가 만든 UUID지만, 클라이언트가 보낸 임의 문자열로 조회될 수
+  // 있으므로 path separator 제거 (디렉토리 탈출 방지).
+  const safe = id.replace(/[^a-zA-Z0-9-]/g, "_");
+  return path.join(SESSION_DIR, `${safe}.json`);
+}
+
+/**
+ * 세션 snapshot을 디스크에 저장. 실패해도 세션 진행은 막지 않음 (경고만).
+ * tmp 파일 → rename으로 원자적 쓰기 (중간 크래시 시 corrupt 파일 방지).
+ */
+export async function persistSession(session: ActiveSession): Promise<void> {
+  try {
+    await fs.mkdir(SESSION_DIR, { recursive: true });
+    // chapterContextCache는 Map(직렬화 불가)이고 재생성 가능한 캐시 — 제외.
+    const { chapterContextCache: _omit, ...serializable } = session;
+    const target = sessionFilePath(session.id);
+    const tmp = `${target}.tmp`;
+    await fs.writeFile(tmp, JSON.stringify(serializable), "utf-8");
+    await fs.rename(tmp, target);
+  } catch (e) {
+    console.warn(
+      `[session-store] persist 실패 (${session.id}):`,
+      e instanceof Error ? e.message : e,
+    );
+  }
+}
+
+async function removePersistedSession(id: string): Promise<void> {
+  try {
+    await fs.unlink(sessionFilePath(id));
+  } catch {
+    // 파일 없음 = 이미 정리됨
+  }
+}
+
+/**
+ * 서버 시작 시 디스크의 세션 snapshot들을 메모리로 복원.
+ * corrupt 파일과 14일 지난 파일은 삭제. 복원된 개수 반환.
+ */
+export async function restorePersistedSessions(): Promise<number> {
+  let files: string[];
+  try {
+    files = await fs.readdir(SESSION_DIR);
+  } catch {
+    return 0; // 디렉토리 없음 — 복원할 것 없음
+  }
+  let restored = 0;
+  for (const f of files) {
+    if (!f.endsWith(".json")) continue;
+    const full = path.join(SESSION_DIR, f);
+    try {
+      const raw = await fs.readFile(full, "utf-8");
+      const data = JSON.parse(raw) as ActiveSession;
+      const valid =
+        data &&
+        typeof data.id === "string" &&
+        Array.isArray(data.messages) &&
+        data.chapter &&
+        typeof data.depth === "number";
+      if (!valid) {
+        await fs.unlink(full).catch(() => {});
+        continue;
+      }
+      if (Date.now() - (data.startedAt ?? 0) > SESSION_MAX_AGE_MS) {
+        await fs.unlink(full).catch(() => {});
+        continue;
+      }
+      if (!sessions.has(data.id)) {
+        // 복원 시 누락 필드 보정 (옛 snapshot 호환)
+        data.lookups = Array.isArray(data.lookups) ? data.lookups : [];
+        data.totalInputTokens = data.totalInputTokens ?? 0;
+        data.totalOutputTokens = data.totalOutputTokens ?? 0;
+        // JSON에서 온 chapterContextCache는 Map이 아님 — 제거 (사용처에서 lazy 재생성)
+        delete data.chapterContextCache;
+        sessions.set(data.id, data);
+        restored++;
+      }
+    } catch {
+      // corrupt JSON — 제거 (다음 시작 때 또 안 걸리게)
+      await fs.unlink(full).catch(() => {});
+    }
+  }
+  return restored;
+}
+
 export function createSession(args: {
   chapter: Chapter;
   depth: number;
@@ -90,6 +199,8 @@ export function getSession(id: string): ActiveSession | undefined {
 }
 
 export function deleteSession(id: string): boolean {
+  // 노트 저장 완료/취소된 세션은 디스크 snapshot도 함께 정리
+  void removePersistedSession(id);
   return sessions.delete(id);
 }
 

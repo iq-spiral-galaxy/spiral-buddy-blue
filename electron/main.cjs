@@ -272,6 +272,13 @@ async function startServerInProcess(cfg) {
   if (cfg.model) process.env.SPIRAL_MODEL = cfg.model;
   if (cfg.maxTokens) process.env.SPIRAL_MAX_TOKENS = String(cfg.maxTokens);
   if (cfg.vaultName) process.env.SPIRAL_VAULT_NAME = cfg.vaultName;
+  // v0.5.72 — 세션 snapshot 저장 위치 (워크스페이스별 분리).
+  // 앱 재시작/업데이트 후에도 pause된 세션을 이어갈 수 있게 함.
+  process.env.SPIRAL_SESSION_DIR = path.join(
+    app.getPath("userData"),
+    "sessions",
+    ws?.vaultSubDir || "default",
+  );
 
   const serverEntry = path.join(APP_ROOT, "dist", "server.js");
 

@@ -41,6 +41,7 @@ import {
   createSession,
   getSession,
   deleteSession,
+  persistSession,
 } from "./session-store.js";
 import {
   listCuratedRepos,
@@ -957,6 +958,8 @@ export function createApi(config: Config) {
             at: Date.now(),
             userQuestion: userQuestion || undefined,
           });
+          // v0.5.72 — lookup도 snapshot에 포함 (재시작 후 resume 시 보존)
+          void persistSession(session);
         }
       } catch (err) {
         await stream.write(
@@ -1247,6 +1250,10 @@ export function createApi(config: Config) {
       } catch (err) {
         const msg = friendlyApiErrorMessage(err);
         await stream.write(`\n\n> [!warning] 응답을 받지 못했습니다\n> ${msg}`);
+      } finally {
+        // v0.5.72 — turn 종료 시 snapshot 저장 (성공/실패 무관).
+        // 첫 응답이 실패해도 부트스트랩 컨텍스트는 보존해야 resume 가능.
+        void persistSession(session);
       }
     });
   });
@@ -1258,6 +1265,9 @@ export function createApi(config: Config) {
     if (!body?.message) return c.json({ error: "message required" }, 400);
 
     session.messages.push({ role: "user", content: body.message });
+    // v0.5.72 — rollback용. 이 인덱스 뒤에 assistant 응답이 안 붙었으면
+    // 스트림 실패로 간주하고 user 메시지를 제거 (orphan 방지).
+    const pushedUserIdx = session.messages.length - 1;
 
     return streamText(c, async (stream) => {
       try {
@@ -1273,8 +1283,19 @@ export function createApi(config: Config) {
         session.totalInputTokens += usage.input;
         session.totalOutputTokens += usage.output;
       } catch (err) {
+        // v0.5.72 — orphaned user 메시지 rollback.
+        // 기존엔 user 메시지가 히스토리에 남은 채 assistant 응답만 없어서,
+        // 사용자가 재시도하면 같은 질문이 두 번 쌓여 다음 turn 문맥이 깨졌음.
+        if (
+          session.messages.length === pushedUserIdx + 1 &&
+          session.messages[pushedUserIdx]?.role === "user"
+        ) {
+          session.messages.pop();
+        }
         const msg = friendlyApiErrorMessage(err);
         await stream.write(`\n\n> [!warning] 응답을 받지 못했습니다\n> ${msg}`);
+      } finally {
+        void persistSession(session);
       }
     });
   });
