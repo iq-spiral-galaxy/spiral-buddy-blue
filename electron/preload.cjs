@@ -17,11 +17,16 @@ contextBridge.exposeInMainWorld("spiralSetup", {
   },
 });
 
-// 자동 업데이트 (v0.5.32+ · v0.5.36 force/캐시)
+// 자동 업데이트 (v0.5.32+ · v0.5.36 force/캐시 · v0.5.75 다운로드 진행률)
 contextBridge.exposeInMainWorld("spiralUpdate", {
   check: (opts) => ipcRenderer.invoke("app:check-update", opts ?? {}),
   install: (args) => ipcRenderer.invoke("app:install-update", args),
   openExternal: (url) => ipcRenderer.invoke("app:open-external", url),
+  onProgress: (callback) => {
+    const wrapper = (_e, payload) => callback(payload);
+    ipcRenderer.on("update:progress", wrapper);
+    return () => ipcRenderer.removeListener("update:progress", wrapper);
+  },
 });
 
 // v0.5.45 — 도메인 단위 curated 받기

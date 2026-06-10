@@ -2350,12 +2350,33 @@ async function refreshUpdateBanner({ force = false } = {}) {
         return;
       installBtn.disabled = true;
       installBtn.textContent = "받는 중…";
+      // v0.5.75 — Windows는 다운로드가 앱 안에서 진행됨 → 진행률 표시
+      const offProgress = window.spiralUpdate.onProgress?.((p) => {
+        if (p?.pct != null) {
+          installBtn.textContent = `다운로드 ${p.pct}%`;
+        }
+      });
       try {
-        await window.spiralUpdate.install({ version: info.latest });
+        const result = await window.spiralUpdate.install({
+          version: info.latest,
+        });
+        // v0.5.75 — 실패가 명시적 반환으로 옴 (앱이 안 꺼졌다는 뜻).
+        // 기존엔 실패해도 앱이 꺼져서 사용자가 아무것도 못 봤음.
+        if (result && result.ok === false) {
+          installBtn.disabled = false;
+          installBtn.textContent = "받기";
+          alert(
+            `업데이트 실패: ${result.reason ?? "알 수 없는 오류"}\n\n` +
+              `잠시 후 다시 시도하거나, 우측 Releases 링크에서 수동으로 받아주세요.`,
+          );
+        }
+        // ok=true면 곧 앱이 종료되고 설치가 진행됨
       } catch (err) {
         installBtn.disabled = false;
         installBtn.textContent = "받기";
         alert(`업데이트 실패: ${err?.message ?? err}`);
+      } finally {
+        offProgress?.();
       }
     };
   } else {
@@ -4676,28 +4697,30 @@ async function startSession(chapterId) {
     setStatus("세션 시작 중이에요 — 잠시만요", "info");
     return;
   }
+  // v0.5.75 — 플래그 set 이후 전 구간을 try로 감쌈. 기존엔 try 진입 전
+  // (abortStreams/resetQuiz 등)에서 예외가 나면 플래그가 영구 true로
+  // 남아 이후 모든 챕터 클릭이 "시작 중" 안내만 받는 잠금 상태가 됐음.
   _sessionStartInFlight = true;
-
-  els.messages.innerHTML = "";
-  state.messages = [];
-
-  // 이전 세션의 lookup 카드 자동 비우기 — 챕터별로 깨끗하게 시작
-  // v0.5.73 — 카드를 비우기 전에 진행 중 lookup 스트림부터 중단
-  abortStreams("lookup");
-  if (els.lookupPanelBody) {
-    els.lookupPanelBody.innerHTML = "";
-    _lookupState.cardCount = 0;
-  }
-
-  // 퀴즈 단계 리셋 (v0.5.31 #8)
-  resetQuiz();
-
-  const chapter = state.chapters.find((c) => c.id === chapterId);
-  setStatus("Starting session…");
-  setPending(true);
-
   const handle = createStreamHandle("session");
   try {
+    els.messages.innerHTML = "";
+    state.messages = [];
+
+    // 이전 세션의 lookup 카드 자동 비우기 — 챕터별로 깨끗하게 시작
+    // v0.5.73 — 카드를 비우기 전에 진행 중 lookup 스트림부터 중단
+    abortStreams("lookup");
+    if (els.lookupPanelBody) {
+      els.lookupPanelBody.innerHTML = "";
+      _lookupState.cardCount = 0;
+    }
+
+    // 퀴즈 단계 리셋 (v0.5.31 #8)
+    resetQuiz();
+
+    const chapter = state.chapters.find((c) => c.id === chapterId);
+    setStatus("Starting session…");
+    setPending(true);
+
     const res = await fetch("/api/session/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -4742,9 +4765,22 @@ async function startSession(chapterId) {
   } catch (err) {
     setPending(false);
     if (isIntentionalAbort(err, handle)) return;
-    enableSessionUi(false);
-    state.session = null;
-    setStatus(`Failed: ${err.message}`, "error");
+    // v0.5.75 — 세션이 이미 성립됐으면 (서버에 세션 존재, 첫 응답만 실패/부분)
+    // UI를 죽이지 않음. 기존엔 무조건 enableSessionUi(false) + session=null이라
+    // "Buddy 첫 메시지는 보이는데 입력이 영구 비활성" 증상이 났음.
+    // 서버 세션은 살아있으므로 사용자가 그냥 메시지를 보내면 이어짐.
+    if (state.session?.id) {
+      enableSessionUi(true);
+      setStatus(
+        `첫 응답이 중단됐어요 (${err.message}) — 그대로 메시지를 보내면 이어집니다`,
+        "error",
+      );
+      els.input.focus();
+    } else {
+      enableSessionUi(false);
+      state.session = null;
+      setStatus(`세션 시작 실패: ${err.message} — 챕터를 다시 클릭해주세요`, "error");
+    }
   } finally {
     finishStreamHandle(handle);
     _sessionStartInFlight = false;
@@ -5490,6 +5526,19 @@ function finalizeEndProgressCard(card, result) {
 // Streaming
 // ──────────────────────────────────────────────────────────
 
+// v0.5.75 — marked.parse 안전 래퍼.
+// 기존엔 streamInto의 최종 parse가 무방비라, 특정 마크다운(깨진 테이블,
+// 비정상 중첩 등)에서 marked가 throw하면 startSession catch로 전파 →
+// enableSessionUi(false) → "Buddy 메시지는 보이는데 입력이 영구 비활성"
+// 증상 발생. 파싱 실패 시 plain text로 graceful 표시.
+function safeMarkedInto(el, raw) {
+  try {
+    el.innerHTML = marked.parse(raw);
+  } catch {
+    el.textContent = raw;
+  }
+}
+
 async function streamInto(response, messageEl, handle) {
   const reader = response.body.getReader();
   const contentEl = messageEl.querySelector(".content");
@@ -5501,7 +5550,7 @@ async function streamInto(response, messageEl, handle) {
     renderScheduled = true;
     requestAnimationFrame(() => {
       renderScheduled = false;
-      contentEl.innerHTML = marked.parse(raw);
+      safeMarkedInto(contentEl, raw);
       scrollToBottom();
     });
   };
@@ -5516,10 +5565,15 @@ async function streamInto(response, messageEl, handle) {
     });
   } finally {
     if (!handle) finishStreamHandle(h);
+    // v0.5.75 — 스트림이 어떻게 끝나든 (성공/중단/에러) 받은 만큼은
+    // 화면과 히스토리에 남김. 기존엔 에러 시 state.messages.push가
+    // 안 돼서 부분 응답이 히스토리에서 증발했음.
+    safeMarkedInto(contentEl, raw);
+    scrollToBottom();
+    if (raw.trim()) {
+      state.messages.push({ role: "assistant", content: raw });
+    }
   }
-  contentEl.innerHTML = marked.parse(raw);
-  scrollToBottom();
-  state.messages.push({ role: "assistant", content: raw });
 }
 
 // ──────────────────────────────────────────────────────────

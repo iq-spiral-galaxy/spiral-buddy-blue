@@ -674,122 +674,6 @@ open '/Applications/Spiral Buddy.app'
 echo "=== done ==="
 `;
   }
-  if (platform === "win32") {
-    const exeName = `Spiral.Buddy.Setup.${version}.exe`;
-    const url = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/v${version}/${exeName}`;
-    const releasesUrl = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/latest`;
-    // PowerShell 스크립트: 종료 → 다운로드 → 사일런트 install (/S) → 재실행
-    //
-    // v0.5.71 — Windows 자동 업데이트가 안 되던 3대 버그 수정:
-    //   1. TLS 1.2 강제: Windows PowerShell 5.1 (Win10/11 기본)은
-    //      SecurityProtocol 기본이 TLS 1.0 — GitHub은 TLS 1.2+ 만 허용해서
-    //      Invoke-WebRequest가 연결 단계에서 실패. SilentlyContinue 때문에
-    //      조용히 죽어서 "받아도 아무 일 없음"으로 보였음. (핵심 원인)
-    //   2. $ProgressPreference = 'SilentlyContinue': IWR의 진행바 렌더가
-    //      비대화형/transcript 환경에서 다운로드를 수십 배 느리게/hang.
-    //   3. 에러 가시화: 기존 ErrorActionPreference=SilentlyContinue가 모든
-    //      에러를 삼켜 디버깅 불가. 단계별 try/catch + transcript 로깅으로 전환.
-    //   + curl.exe fallback (Win10 1803+ 기본 탑재, TLS 자동 처리)
-    //   + Unblock-File (mark-of-the-web 때문에 /S 사일런트 설치가 막히는 경우)
-    //   + relaunch 경로 robust화 (커스텀 설치 위치 대응 — 레지스트리 + 후보 경로)
-    //   + 다운로드 완전 실패 시 브라우저로 release 페이지 열어 수동 안내
-    //
-    // 주의: PowerShell의 ${'$'}{env:NAME} 문법은 JS 템플릿 보간(${'$'}{...})과
-    // 충돌하므로, 괄호 포함 변수는 [Environment]::GetEnvironmentVariable 사용.
-    return `# Spiral Buddy update v${version}
-$ErrorActionPreference = "Continue"
-$ProgressPreference = "SilentlyContinue"
-try { Start-Transcript -Path "${logPath}" -Force | Out-Null } catch {}
-Write-Host "=== Spiral Buddy update v${version} ==="
-Get-Date
-
-# (1) TLS 1.2 강제 — PowerShell 5.1 기본 TLS 1.0은 GitHub이 거부
-try {
-  [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
-  Write-Host "TLS 1.2 enabled"
-} catch { Write-Host "TLS set failed: $_" }
-
-Write-Host "-- step 1: stopping current app"
-Get-Process -Name "Spiral Buddy" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-Start-Sleep -Seconds 2
-
-$exe = Join-Path $env:TEMP "spiral-buddy-setup.exe"
-if (Test-Path $exe) { Remove-Item $exe -Force -ErrorAction SilentlyContinue }
-
-Write-Host "-- step 2: downloading from ${url}"
-$ok = $false
-# 1차: Invoke-WebRequest (위에서 TLS 1.2 적용)
-try {
-  Invoke-WebRequest -Uri "${url}" -OutFile $exe -UseBasicParsing
-  if ((Test-Path $exe) -and ((Get-Item $exe).Length -gt 0)) { $ok = $true }
-} catch { Write-Host "Invoke-WebRequest failed: $_" }
-# 2차 fallback: curl.exe (Win10 1803+ 기본 탑재, TLS 자동)
-if (-not $ok) {
-  Write-Host "-- retry with curl.exe"
-  try {
-    & curl.exe -L --retry 3 -o "$exe" "${url}"
-    if ((Test-Path $exe) -and ((Get-Item $exe).Length -gt 0)) { $ok = $true }
-  } catch { Write-Host "curl.exe failed: $_" }
-}
-if (-not $ok) {
-  Write-Host "ERROR: download failed — opening releases page for manual install"
-  Start-Process "${releasesUrl}"
-  try { Stop-Transcript | Out-Null } catch {}
-  exit 1
-}
-Write-Host "downloaded: $((Get-Item $exe).Length) bytes"
-
-# (mark-of-the-web 해제 — 안 하면 /S 사일런트 설치가 SmartScreen에 막힐 수 있음)
-Write-Host "-- step 3: unblock file"
-try { Unblock-File -Path $exe -ErrorAction SilentlyContinue } catch {}
-
-Write-Host "-- step 4: silent install (/S)"
-try {
-  $p = Start-Process -FilePath $exe -ArgumentList "/S" -PassThru -Wait
-  Write-Host "installer exit code: $($p.ExitCode)"
-} catch {
-  Write-Host "install failed: $_ — launching installer interactively"
-  Start-Process -FilePath $exe
-  try { Stop-Transcript | Out-Null } catch {}
-  exit 1
-}
-Remove-Item $exe -Force -ErrorAction SilentlyContinue
-
-Write-Host "-- step 5: relaunch"
-$pf = [Environment]::GetEnvironmentVariable("ProgramFiles")
-$pfx = [Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
-$candidates = @(
-  (Join-Path $env:LOCALAPPDATA "Programs\\spiral-buddy\\Spiral Buddy.exe"),
-  (Join-Path $env:LOCALAPPDATA "Programs\\Spiral Buddy\\Spiral Buddy.exe")
-)
-if ($pf)  { $candidates += (Join-Path $pf  "Spiral Buddy\\Spiral Buddy.exe") }
-if ($pfx) { $candidates += (Join-Path $pfx "Spiral Buddy\\Spiral Buddy.exe") }
-# 커스텀 설치 위치 — NSIS uninstall 레지스트리의 InstallLocation 조회
-foreach ($root in @("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall")) {
-  try {
-    Get-ChildItem $root -ErrorAction SilentlyContinue | ForEach-Object {
-      $props = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
-      if ($props.DisplayName -like "Spiral Buddy*" -and $props.InstallLocation) {
-        $candidates += (Join-Path $props.InstallLocation "Spiral Buddy.exe")
-      }
-    }
-  } catch {}
-}
-$launched = $false
-foreach ($c in $candidates) {
-  if ($c -and (Test-Path $c)) {
-    Write-Host "relaunching: $c"
-    Start-Process $c
-    $launched = $true
-    break
-  }
-}
-if (-not $launched) { Write-Host "relaunch path not found — user can open from Start Menu" }
-
-Write-Host "=== done ==="
-try { Stop-Transcript | Out-Null } catch {}
-`;
-  }
   return null;
 }
 
@@ -856,10 +740,165 @@ function checkPendingUpdateOutcome() {
   }
 }
 
+/**
+ * v0.5.75 — 바이너리 다운로드 (redirect 추적 + 진행 콜백 + 30s inactivity).
+ * GitHub release asset은 S3로 302 redirect되므로 follow 필수.
+ */
+function downloadFile(url, dest, onProgress, redirectsLeft = 5) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      url,
+      { headers: { "User-Agent": `spiral-buddy/${APP_VERSION}` } },
+      (res) => {
+        if (
+          res.statusCode &&
+          res.statusCode >= 300 &&
+          res.statusCode < 400 &&
+          res.headers.location
+        ) {
+          res.resume();
+          if (redirectsLeft <= 0) {
+            return reject(new Error("redirect 한도 초과"));
+          }
+          return downloadFile(
+            res.headers.location,
+            dest,
+            onProgress,
+            redirectsLeft - 1,
+          ).then(resolve, reject);
+        }
+        if (res.statusCode !== 200) {
+          res.resume();
+          return reject(new Error(`HTTP ${res.statusCode}`));
+        }
+        const total = Number(res.headers["content-length"] ?? 0);
+        let received = 0;
+        const out = fs.createWriteStream(dest);
+        res.on("data", (chunk) => {
+          received += chunk.length;
+          if (onProgress) onProgress(received, total);
+        });
+        res.pipe(out);
+        out.on("finish", () => out.close(() => resolve(undefined)));
+        out.on("error", (e) => {
+          res.destroy();
+          reject(e);
+        });
+        res.on("error", (e) => {
+          out.destroy();
+          reject(e);
+        });
+      },
+    );
+    req.on("error", reject);
+    // socket 30초 무활동 시 중단 (다운로드 hang 방지)
+    req.setTimeout(30_000, () => {
+      req.destroy(new Error("연결이 30초간 멈춰 중단했어요"));
+    });
+  });
+}
+
 ipcMain.handle("app:install-update", async (_e, { version }) => {
   if (!version) return { ok: false, reason: "no version" };
   // v0.5.74 — 로그를 고정 위치에 (tmpdir은 사용자가 못 찾음)
   const logPath = path.join(app.getPath("userData"), "last-update.log");
+
+  // ── Windows (v0.5.75) — PowerShell 스크립트 방식 폐기, 직접 방식으로.
+  //
+  // 기존: detached PowerShell이 다운로드+설치 → 어떤 단계가 실패해도
+  // (TLS, 정책, AV, 프록시...) 앱은 이미 꺼졌고 사용자는 아무것도 못 봄.
+  // v0.5.71 TLS fix 후에도 "받기 누르면 그냥 꺼지고 업데이트 안 됨" 보고.
+  //
+  // 새 구조:
+  //   1. 다운로드를 Electron 앱 안에서 Node https로 수행
+  //      — 앱이 떠 있는 동안 진행률 표시, 실패 시 앱 유지 + 에러 표시
+  //      — 업데이트 체크와 같은 네트워크 스택이라 체크가 되면 다운로드도 됨
+  //   2. 받은 NSIS installer를 직접 실행: /S --force-run
+  //      — --force-run은 electron-builder NSIS의 공식 옵션 (설치 후 자동 실행)
+  //      — Node https 다운로드는 mark-of-the-web이 안 붙어 SmartScreen 차단 없음
+  //   3. 그 후에만 앱 종료. 설치 실패는 v0.5.74 marker가 다음 부팅 때 감지.
+  if (process.platform === "win32") {
+    const exeName = `Spiral.Buddy.Setup.${version}.exe`;
+    const url = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/v${version}/${exeName}`;
+    const dest = path.join(os.tmpdir(), `spiral-buddy-setup-${version}.exe`);
+    const log = (msg) => {
+      try {
+        fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`);
+      } catch {}
+    };
+    try {
+      fs.writeFileSync(logPath, "", "utf8");
+    } catch {}
+    log(`win32 direct update v${APP_VERSION} → v${version}`);
+    log(`download: ${url}`);
+
+    let lastPctSent = -1;
+    try {
+      await downloadFile(url, dest, (received, total) => {
+        const pct = total > 0 ? Math.round((received / total) * 100) : null;
+        // IPC 폭주 방지 — 1% 단위로만 전송
+        if (pct !== null && pct !== lastPctSent) {
+          lastPctSent = pct;
+          for (const w of BrowserWindow.getAllWindows()) {
+            if (!w.isDestroyed()) {
+              w.webContents.send("update:progress", { received, total, pct });
+            }
+          }
+        }
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log(`download FAILED: ${msg}`);
+      try {
+        fs.unlinkSync(dest);
+      } catch {}
+      return { ok: false, reason: `다운로드 실패: ${msg}` };
+    }
+
+    let size = 0;
+    try {
+      size = fs.statSync(dest).size;
+    } catch {}
+    log(`downloaded ${size} bytes`);
+    // installer는 정상적으로 수십 MB — 너무 작으면 에러 페이지/잘린 파일
+    if (size < 10 * 1024 * 1024) {
+      log("size too small — aborting");
+      try {
+        fs.unlinkSync(dest);
+      } catch {}
+      return {
+        ok: false,
+        reason: "다운로드된 파일이 비정상적으로 작아요 — 잠시 후 다시 시도해주세요",
+      };
+    }
+
+    // 여기서부터는 앱이 꺼지므로 marker로 다음 부팅 때 성공/실패 판정 (v0.5.74)
+    writePendingUpdateMarker({
+      targetVersion: version,
+      fromVersion: APP_VERSION,
+      logPath,
+      at: Date.now(),
+    });
+    log("spawning installer: /S --force-run");
+    try {
+      const child = spawn(dest, ["/S", "--force-run"], {
+        detached: true,
+        stdio: "ignore",
+      });
+      child.unref();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      log(`spawn FAILED: ${msg}`);
+      try {
+        fs.unlinkSync(pendingUpdateMarkerPath());
+      } catch {}
+      return { ok: false, reason: `설치 실행 실패: ${msg}` };
+    }
+    setTimeout(() => app.quit(), 800);
+    return { ok: true, mode: "windows-direct", logPath };
+  }
+
+  // ── macOS / 기타 — 기존 스크립트 방식 유지 (안정 동작 확인됨)
   const script = buildInstallScript(version, logPath);
   if (!script) {
     shell.openExternal(
@@ -875,21 +914,6 @@ ipcMain.handle("app:install-update", async (_e, { version }) => {
     at: Date.now(),
   });
   try {
-    if (process.platform === "win32") {
-      const ps1Path = path.join(
-        os.tmpdir(),
-        `spiral-buddy-update-${Date.now()}.ps1`,
-      );
-      fs.writeFileSync(ps1Path, script, "utf8");
-      const proc = spawn(
-        "powershell.exe",
-        ["-ExecutionPolicy", "Bypass", "-File", ps1Path],
-        { detached: true, stdio: "ignore" },
-      );
-      proc.unref();
-      setTimeout(() => app.quit(), 500);
-      return { ok: true, mode: "windows-installer", logPath };
-    }
     // macOS
     const tmpPath = path.join(
       os.tmpdir(),
