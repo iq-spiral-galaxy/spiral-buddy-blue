@@ -9207,3 +9207,58 @@ body.light-mode .chapter-ai-prereq {
 body.light-mode .chapter-ai-start-btn {
   color: #ffffff;
 }
+
+/* ═══════════════════ v0.5.79 — 라이트 모드 정리 + 챕터 버튼 가시성 ═══════════════════
+ * 사용자 피드백 5건. 파일 끝에 둬서 이전 light-mode 세대 규칙들을 이김.
+ */
+
+/* 1) "Spiral Buddy" 타이틀이 라이트 모드에서 완전히 안 보이던 버그.
+ * 이전 fix(v0.5.36)가 background만 제거하고 -webkit-text-fill-color:
+ * transparent를 남겨놔서, gradient 없이 투명 글자만 남았음. */
+body.light-mode .brand-title {
+  background: none !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+  -webkit-text-fill-color: var(--text) !important;
+  color: var(--text) !important;
+  text-shadow: none !important;
+}
+
+/* 2) 📖 노트 열기 버튼 — visited 챕터에서 항상 살짝 보이게.
+ * 기존엔 opacity 0이라 hover 전엔 존재 자체를 모름. 💡 ready와 동일 정책. */
+.chapter-open-btn {
+  opacity: 0.5;
+}
+.chapter-btn:hover .chapter-open-btn {
+  opacity: 0.9;
+}
+
+/* 3) 라이트 모드 메시지 이중 박스 제거.
+ * .message.assistant(외곽)와 .content(내부 카드)가 둘 다 흰 카드+테두리라
+ * 박스가 겹쳐 보였음. 외곽은 투명하게 — 카드는 .content 하나만. */
+body.light-mode .message.assistant {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* 4) BUDDY 라벨과 문맥 버튼 높이 정렬 (라이트 모드).
+ * v0.5.36 계열이 .role을 top:10px로 절대배치해서 top:0 + height:26px인
+ * 문맥 버튼과 세로 중심이 어긋났음. 같은 26px 박스로 통일. */
+body.light-mode .message.assistant .role {
+  position: absolute !important;
+  top: 0 !important;
+  left: 16px !important;
+  height: 26px;
+  display: flex !important;
+  align-items: center;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* 5) 사이드바 도메인 카운트 배지 (5r · 35) — 라이트에서 어두운 배경 + 저대비. */
+body.light-mode .dom-count {
+  background: #eef2f8 !important;
+  color: #475569 !important;
+  border-color: #cdd5e0 !important;
+}

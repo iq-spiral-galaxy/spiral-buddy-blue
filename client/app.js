@@ -3043,7 +3043,32 @@ function initLookup() {
     _lookupState.cardCount = 0;
   });
   els.lookupExpand?.addEventListener("click", () => {
-    document.body.classList.toggle("lookup-fullscreen");
+    // v0.5.79 — 전체화면 버튼 무력화 fix.
+    // v0.5.68부터 openLookupPanel이 inline --lookup-w를 항상 설정하는데,
+    // inline style이 body.lookup-fullscreen의 CSS 변수 규칙(class)을
+    // 이겨버려서 클래스만 토글해서는 폭이 안 바뀌었음.
+    const entering = !document.body.classList.contains("lookup-fullscreen");
+    if (entering) {
+      // inline 제거 → fullscreen CSS 규칙(100vw - sidebar) 적용
+      document.body.style.removeProperty("--lookup-w");
+      document.body.classList.add("lookup-fullscreen");
+    } else {
+      document.body.classList.remove("lookup-fullscreen");
+      // 복귀 — 저장된 폭을 openLookupPanel과 동일한 cap 정책으로 복원
+      const saved = parseInt(
+        document.body.style.getPropertyValue("--lookup-w-saved"),
+        10,
+      );
+      const cap = _lookupMaxForViewportShared();
+      const base =
+        Number.isFinite(saved) && saved >= LOOKUP_MIN_CAP
+          ? saved
+          : LOOKUP_DEFAULT_W;
+      document.body.style.setProperty(
+        "--lookup-w",
+        `${Math.max(LOOKUP_MIN_CAP, Math.min(base, cap))}px`,
+      );
+    }
   });
 
   // 패널 너비 조절 (사이드바와 동일 패턴, 우측에서 드래그)
