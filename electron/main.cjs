@@ -793,12 +793,73 @@ try { Stop-Transcript | Out-Null } catch {}
   return null;
 }
 
+// ─── v0.5.74 — 업데이트 실패 가시화 ──────────────────────────
+//
+// 업데이트 스크립트는 detached로 돌아서 실패해도 사용자가 알 수 없었음
+// (앱이 구버전으로 다시 열리는 것만 보임). install 시작 시 marker 파일에
+// 목표 버전을 기록해두고, 다음 부팅 때 현재 버전과 비교:
+//   현재 >= 목표 → 업데이트 성공 → marker 조용히 삭제
+//   현재 <  목표 → 업데이트 실패 → 다이얼로그 (Releases 열기 / 로그 보기)
+//
+// 로그도 os.tmpdir()(찾기 어려움) 대신 userData/last-update.log 고정 위치로.
+
+function pendingUpdateMarkerPath() {
+  return path.join(app.getPath("userData"), "pending-update.json");
+}
+
+function writePendingUpdateMarker(info) {
+  try {
+    fs.writeFileSync(pendingUpdateMarkerPath(), JSON.stringify(info), "utf8");
+  } catch {
+    // marker 못 써도 업데이트 자체는 진행
+  }
+}
+
+function checkPendingUpdateOutcome() {
+  const markerPath = pendingUpdateMarkerPath();
+  let marker = null;
+  try {
+    marker = JSON.parse(fs.readFileSync(markerPath, "utf8"));
+  } catch {
+    return; // marker 없음 — 직전에 업데이트 시도 안 함
+  }
+  // one-shot — 판정과 무관하게 제거 (실패 다이얼로그가 매 부팅 반복되지 않게)
+  try {
+    fs.unlinkSync(markerPath);
+  } catch {}
+  if (!marker?.targetVersion) return;
+  if (cmpVersion(APP_VERSION, marker.targetVersion) >= 0) {
+    return; // 성공 — 조용히
+  }
+  const hasLog = marker.logPath && fs.existsSync(marker.logPath);
+  const buttons = hasLog
+    ? ["Releases 페이지 열기", "로그 보기", "닫기"]
+    : ["Releases 페이지 열기", "닫기"];
+  const choice = dialog.showMessageBoxSync({
+    type: "warning",
+    title: "업데이트 실패",
+    message: `v${marker.targetVersion} 업데이트가 완료되지 않았어요`,
+    detail:
+      `현재 버전: v${APP_VERSION}\n\n` +
+      `다운로드나 설치 과정에서 문제가 있었던 것 같아요. ` +
+      `Releases 페이지에서 직접 설치하면 해결됩니다.`,
+    buttons,
+    defaultId: 0,
+    cancelId: buttons.length - 1,
+  });
+  if (choice === 0) {
+    shell.openExternal(
+      `https://github.com/${GH_OWNER}/${GH_REPO}/releases/latest`,
+    );
+  } else if (hasLog && choice === 1) {
+    shell.showItemInFolder(marker.logPath);
+  }
+}
+
 ipcMain.handle("app:install-update", async (_e, { version }) => {
   if (!version) return { ok: false, reason: "no version" };
-  const logPath = path.join(
-    os.tmpdir(),
-    `spiral-buddy-update-${Date.now()}.log`,
-  );
+  // v0.5.74 — 로그를 고정 위치에 (tmpdir은 사용자가 못 찾음)
+  const logPath = path.join(app.getPath("userData"), "last-update.log");
   const script = buildInstallScript(version, logPath);
   if (!script) {
     shell.openExternal(
@@ -806,6 +867,13 @@ ipcMain.handle("app:install-update", async (_e, { version }) => {
     );
     return { ok: true, mode: "browser" };
   }
+  // v0.5.74 — 다음 부팅에서 성공/실패 판정할 marker
+  writePendingUpdateMarker({
+    targetVersion: version,
+    fromVersion: APP_VERSION,
+    logPath,
+    at: Date.now(),
+  });
   try {
     if (process.platform === "win32") {
       const ps1Path = path.join(
@@ -838,6 +906,11 @@ ipcMain.handle("app:install-update", async (_e, { version }) => {
     setTimeout(() => app.quit(), 500);
     return { ok: true, mode: "macos-installer", logPath };
   } catch (err) {
+    // 스크립트 spawn 자체가 실패 — 렌더러가 즉시 에러를 보여주므로
+    // marker를 남기면 다음 부팅 때 중복 실패 알림이 뜸. 정리.
+    try {
+      fs.unlinkSync(pendingUpdateMarkerPath());
+    } catch {}
     return {
       ok: false,
       reason: err instanceof Error ? err.message : String(err),
@@ -1504,6 +1577,10 @@ app.whenReady().then(async () => {
   if (process.platform === "darwin") {
     Menu.setApplicationMenu(Menu.getApplicationMenu());
   }
+
+  // v0.5.74 — 직전 업데이트 시도의 성공/실패 판정.
+  // 실패 시 다이얼로그로 알리고 수동 설치 경로 안내 (기존엔 조용히 실패).
+  checkPendingUpdateOutcome();
 
   const cfg = loadConfig();
   if (hasRequiredConfig(cfg)) {
