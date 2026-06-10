@@ -8861,50 +8861,6 @@ body.light-mode .curated-domain-hint {
   color: #b45309;
 }
 
-/* ═══════════════════ v0.5.69 — 챕터 미리보기 tooltip ═══════════════════
- * 사이드바 챕터 hover 시 우측에 floating으로 첫 단락 노출.
- * 들어가기 전 "이 챕터가 무슨 내용인지" 가늠하게 해서 잘못된 진입 줄임.
- */
-.chapter-preview-tooltip {
-  position: fixed;
-  z-index: 9000;
-  max-width: 360px;
-  min-width: 200px;
-  padding: 10px 13px;
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--text, #e6ecf2);
-  background: var(--bg-elev-2, #1a2230);
-  border: 1px solid var(--border, rgba(255, 255, 255, 0.10));
-  border-radius: 10px;
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.35),
-    0 2px 6px rgba(0, 0, 0, 0.20);
-  pointer-events: none;
-  opacity: 0;
-  transform: translateX(-4px);
-  transition:
-    opacity 120ms ease,
-    transform 120ms ease;
-  white-space: normal;
-  word-break: break-word;
-  letter-spacing: 0.01em;
-}
-
-.chapter-preview-tooltip.visible {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-body.light-mode .chapter-preview-tooltip {
-  background: #ffffff;
-  color: #1a202c;
-  border-color: rgba(0, 0, 0, 0.08);
-  box-shadow:
-    0 8px 24px rgba(15, 23, 42, 0.12),
-    0 2px 6px rgba(15, 23, 42, 0.06);
-}
-
 /* ═══════════════════ v0.5.70 — AI 미리보기 카드 ═══════════════════
  * 💡 버튼 — 챕터 hover 시 노출. 캐시 있으면 채워진 색.
  * popover 카드 — 클릭 시 표시 (loading → 카드 또는 에러).
@@ -8957,6 +8913,17 @@ body.light-mode .chapter-preview-tooltip {
     0 4px 12px rgba(0, 0, 0, 0.25);
   overflow: hidden;
   animation: chapterAiPopFadeIn 140ms ease-out;
+  /* v0.5.78 — popover 전체가 viewport를 절대 안 넘게.
+   * 기존엔 body에만 max-height(480px)가 있어서, popover가 화면 하단에
+   * 위치하면 카드 전체가 viewport 밖으로 삐져나가 스크롤로도 못 봤음.
+   * flex column으로 header는 고정, body가 남는 공간에서 스크롤. */
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 16px);
+}
+
+.chapter-ai-popover-header {
+  flex-shrink: 0;
 }
 
 @keyframes chapterAiPopFadeIn {
@@ -9020,6 +8987,9 @@ body.light-mode .chapter-preview-tooltip {
   color: var(--text, #e6ecf2);
   max-height: 480px;
   overflow-y: auto;
+  /* v0.5.78 — flex 부모(popover)가 viewport에 cap되면 body가
+   * 그 안에서 줄어들 수 있게 (min-height 기본값 auto가 축소를 막음) */
+  min-height: 0;
 }
 
 /* ─── 카드 내용 ─────────────────────────────────────────────── */
