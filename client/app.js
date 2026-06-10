@@ -2090,6 +2090,7 @@ async function openChapterAiCardPopover(anchorEl, chapter) {
     // popover 가 그새 닫혔을 수 있음 (사용자가 다른 챕터 클릭)
     if (_activePopover !== pop) return;
     _renderChapterAiCardBody(pop, chapter, data.card);
+    _aiCardRetryCount.delete(chapter.id); // v0.5.73 — 성공 시 재시도 카운터 리셋
     // state 갱신 — 다음 렌더링에서 💡 채워진 상태로 표시
     chapter.aiCardReady = true;
     const btn = document.querySelector(
@@ -2101,11 +2102,20 @@ async function openChapterAiCardPopover(anchorEl, chapter) {
     const body = pop.querySelector(".chapter-ai-popover-body");
     if (body) {
       body.classList.remove("chapter-ai-loading");
+      // v0.5.73 — 재시도 횟수 제한. 기존엔 무한 재시도 가능 → 같은 실패
+      // 요청을 연타하면 API 호출만 반복 낭비.
+      const tries = (_aiCardRetryCount.get(chapter.id) ?? 0) + 1;
+      _aiCardRetryCount.set(chapter.id, tries);
+      const canRetry = tries < AI_CARD_MAX_RETRIES;
       body.innerHTML = `
         <div class="chapter-ai-error">
           <div class="chapter-ai-error-title">생성 실패</div>
           <div class="chapter-ai-error-msg">${escapeHtml(String(e?.message || e))}</div>
-          <button class="chapter-ai-retry" type="button">다시 시도</button>
+          ${
+            canRetry
+              ? `<button class="chapter-ai-retry" type="button">다시 시도 (${tries}/${AI_CARD_MAX_RETRIES})</button>`
+              : `<div class="chapter-ai-error-msg">여러 번 실패했어요 — 네트워크/API 키 상태 확인 후 잠시 뒤에 다시 시도해주세요.</div>`
+          }
         </div>
       `;
       body.querySelector(".chapter-ai-retry")?.addEventListener("click", () => {
@@ -2115,6 +2125,10 @@ async function openChapterAiCardPopover(anchorEl, chapter) {
     }
   }
 }
+
+// v0.5.73 — AI 카드 생성 재시도 제한 (챕터별). 성공 시 리셋.
+const AI_CARD_MAX_RETRIES = 3;
+const _aiCardRetryCount = new Map();
 
 function _renderChapterAiCardBody(pop, chapter, card) {
   const body = pop.querySelector(".chapter-ai-popover-body");
@@ -3286,6 +3300,8 @@ function openLookupPanel() {
 }
 
 function closeLookupPanel() {
+  // v0.5.73 — 진행 중 lookup/맥락 스트림 중단 (네트워크/서버 생성 낭비 방지)
+  abortStreams("lookup");
   document.body.classList.remove("lookup-open");
   document.body.classList.remove("lookup-fullscreen");
   els.lookupPanel?.classList.add("hidden");
@@ -3507,6 +3523,90 @@ const DEPTH_LABEL_TEXT = {
   deep: "깊이",
 };
 
+// ──────────────────────────────────────────────────────────
+// v0.5.73 — SSE 스트림 lifecycle 관리 (abort + inactivity timeout)
+//
+// 기존엔 진행 중 스트림을 중단할 방법이 없어서:
+//   - Look-up 패널을 닫아도 reader가 계속 살아 네트워크/서버 생성 낭비
+//   - 새 세션 시작 시 이전 스트림이 사라진 DOM에 계속 write
+//   - 서버가 hang하면 클라이언트가 영구 대기
+//
+// 모든 스트리밍 fetch는 handle을 만들어 group("session"/"lookup")으로
+// 추적하고, 패널 닫기/세션 전환 시 abortStreams(group)으로 일괄 중단.
+// chunk 간 STREAM_INACTIVITY_MS 넘으면 자동 abort (총 시간 제한이 아니라
+// "멈춤" 감지 — 긴 생성은 chunk가 계속 오므로 안 걸림).
+// ──────────────────────────────────────────────────────────
+
+const STREAM_INACTIVITY_MS = 60_000;
+const _activeStreams = new Set();
+
+function createStreamHandle(group) {
+  const handle = {
+    group,
+    controller: new AbortController(),
+    // 사용자 액션(패널 닫기/세션 전환)에 의한 중단 = true → 에러 UI 안 띄움
+    intentional: false,
+  };
+  _activeStreams.add(handle);
+  return handle;
+}
+
+function finishStreamHandle(handle) {
+  _activeStreams.delete(handle);
+}
+
+/** group의 진행 중 스트림 전부 중단. group 생략 시 전체. */
+function abortStreams(group) {
+  for (const h of [..._activeStreams]) {
+    if (group && h.group !== group) continue;
+    h.intentional = true;
+    try {
+      h.controller.abort();
+    } catch {}
+    _activeStreams.delete(h);
+  }
+}
+
+function isIntentionalAbort(err, handle) {
+  return !!handle?.intentional && err?.name === "AbortError";
+}
+
+/**
+ * reader를 inactivity timeout과 함께 소비. chunk마다 onChunk(text) 호출.
+ * 멈춤 감지 시 abort + throw — 호출자 catch에서 사용자에게 표시.
+ */
+async function pumpStream(reader, handle, onChunk) {
+  const decoder = new TextDecoder();
+  while (true) {
+    let timer = null;
+    let result;
+    const readP = reader.read();
+    // race에서 진 read의 늦은 reject가 unhandled rejection 안 되게
+    readP.catch(() => {});
+    try {
+      result = await Promise.race([
+        readP,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => {
+            try {
+              handle.controller.abort();
+            } catch {}
+            reject(
+              new Error(
+                `서버 응답이 ${STREAM_INACTIVITY_MS / 1000}초간 멈춰서 중단했어요 — 다시 시도해주세요`,
+              ),
+            );
+          }, STREAM_INACTIVITY_MS);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+    if (result.done) break;
+    onChunk(decoder.decode(result.value, { stream: true }));
+  }
+}
+
 /**
  * 같은 (query, depth, userQuestion) 조합을 fingerprint로 만들어 중복 카드 막기.
  * v0.5.51 — 토큰 절약 + 카드 중복 방지.
@@ -3637,12 +3737,14 @@ async function runLookup(query, depth, opts = {}) {
     }
   }
 
-  // SSE 스트림 수신
+  // SSE 스트림 수신 (v0.5.73 — abort 가능 + inactivity timeout)
   let acc = "";
+  const handle = createStreamHandle("lookup");
   try {
     const res = await fetch("/api/lookup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: handle.controller.signal,
       body: JSON.stringify({
         query,
         depth,
@@ -3656,20 +3758,20 @@ async function runLookup(query, depth, opts = {}) {
       bodyEl.textContent = `(요청 실패: ${res.status})`;
       return;
     }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      acc += decoder.decode(value, { stream: true });
+    await pumpStream(res.body.getReader(), handle, (chunk) => {
+      acc += chunk;
       try {
         bodyEl.innerHTML = marked.parse(acc);
       } catch {
         bodyEl.textContent = acc;
       }
-    }
+    });
   } catch (err) {
+    // 패널 닫기/세션 전환에 의한 중단 — 카드도 곧 사라지므로 조용히
+    if (isIntentionalAbort(err, handle)) return;
     bodyEl.innerHTML = `<p>(에러: ${escapeHtml(err.message)})</p>`;
+  } finally {
+    finishStreamHandle(handle);
   }
 }
 
@@ -3764,12 +3866,14 @@ async function runChapterContext({ targetMessageText, selectionText } = {}) {
   });
   wireFeedbackBar(card.querySelector(".feedback-bar"));
 
-  // SSE 수신
+  // SSE 수신 (v0.5.73 — abort 가능 + inactivity timeout)
   let acc = "";
+  const handle = createStreamHandle("lookup");
   try {
     const res = await fetch("/api/chapter-context", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: handle.controller.signal,
       body: JSON.stringify({
         sessionId: state.session.id,
         targetMessageText,
@@ -3781,20 +3885,19 @@ async function runChapterContext({ targetMessageText, selectionText } = {}) {
       bodyEl.textContent = `(요청 실패: ${res.status})`;
       return;
     }
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      acc += decoder.decode(value, { stream: true });
+    await pumpStream(res.body.getReader(), handle, (chunk) => {
+      acc += chunk;
       try {
         bodyEl.innerHTML = marked.parse(acc);
       } catch {
         bodyEl.textContent = acc;
       }
-    }
+    });
   } catch (err) {
+    if (isIntentionalAbort(err, handle)) return;
     bodyEl.innerHTML = `<p>(에러: ${escapeHtml(err.message)})</p>`;
+  } finally {
+    finishStreamHandle(handle);
   }
 }
 
@@ -4563,11 +4666,24 @@ function renderSuggestion() {
 // Session
 // ──────────────────────────────────────────────────────────
 
+// v0.5.73 — 세션 시작 중복 방지. 시작 fetch/stream 중 다른 챕터를 또
+// 클릭하면 els.messages가 두 번 비워지고 이전 스트림이 사라진 DOM에
+// write하는 race가 있었음.
+let _sessionStartInFlight = false;
+
 async function startSession(chapterId) {
+  if (_sessionStartInFlight) {
+    setStatus("세션 시작 중이에요 — 잠시만요", "info");
+    return;
+  }
+  _sessionStartInFlight = true;
+
   els.messages.innerHTML = "";
   state.messages = [];
 
   // 이전 세션의 lookup 카드 자동 비우기 — 챕터별로 깨끗하게 시작
+  // v0.5.73 — 카드를 비우기 전에 진행 중 lookup 스트림부터 중단
+  abortStreams("lookup");
   if (els.lookupPanelBody) {
     els.lookupPanelBody.innerHTML = "";
     _lookupState.cardCount = 0;
@@ -4580,10 +4696,12 @@ async function startSession(chapterId) {
   setStatus("Starting session…");
   setPending(true);
 
+  const handle = createStreamHandle("session");
   try {
     const res = await fetch("/api/session/start", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: handle.controller.signal,
       body: JSON.stringify({
         chapterId,
         roadmapId: state.activeRoadmapId,
@@ -4616,16 +4734,20 @@ async function startSession(chapterId) {
     enableSessionUi(true);
 
     const assistantEl = appendAssistantMessage("");
-    await streamInto(res, assistantEl);
+    await streamInto(res, assistantEl, handle);
 
     setPending(false);
     setStatus("");
     els.input.focus();
   } catch (err) {
     setPending(false);
+    if (isIntentionalAbort(err, handle)) return;
     enableSessionUi(false);
     state.session = null;
     setStatus(`Failed: ${err.message}`, "error");
+  } finally {
+    finishStreamHandle(handle);
+    _sessionStartInFlight = false;
   }
 }
 
@@ -4844,22 +4966,30 @@ function truncate(s, n) {
 }
 
 async function sendMessage(text) {
-  if (!state.session) return;
+  // v0.5.73 — pending 가드를 sendMessage 자체에도. submitMessage는 이미
+  // 가드하지만 퀴즈 버튼(advanceQuiz) 등 직접 호출 경로는 안 막혀 있어서
+  // 스트리밍 중 연타 시 turn이 겹칠 수 있었음.
+  if (!state.session || state.pending) return;
   appendUserMessage(text);
   setPending(true);
 
+  const handle = createStreamHandle("session");
   try {
     const res = await fetch(`/api/session/${state.session.id}/message`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: handle.controller.signal,
       body: JSON.stringify({ message: text }),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const assistantEl = appendAssistantMessage("");
-    await streamInto(res, assistantEl);
+    await streamInto(res, assistantEl, handle);
   } catch (err) {
-    setStatus(`Message failed: ${err.message}`, "error");
+    if (!isIntentionalAbort(err, handle)) {
+      setStatus(`Message failed: ${err.message}`, "error");
+    }
   } finally {
+    finishStreamHandle(handle);
     setPending(false);
     els.input.focus();
   }
@@ -5360,9 +5490,8 @@ function finalizeEndProgressCard(card, result) {
 // Streaming
 // ──────────────────────────────────────────────────────────
 
-async function streamInto(response, messageEl) {
+async function streamInto(response, messageEl, handle) {
   const reader = response.body.getReader();
-  const decoder = new TextDecoder();
   const contentEl = messageEl.querySelector(".content");
   let raw = "";
   let renderScheduled = false;
@@ -5377,12 +5506,16 @@ async function streamInto(response, messageEl) {
     });
   };
 
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    const chunk = decoder.decode(value, { stream: true });
-    raw += chunk;
-    scheduleRender();
+  // v0.5.73 — inactivity timeout + abort 지원. handle 없이 호출되는
+  // 레거시 경로 대비 fallback handle 생성.
+  const h = handle ?? createStreamHandle("session");
+  try {
+    await pumpStream(reader, h, (chunk) => {
+      raw += chunk;
+      scheduleRender();
+    });
+  } finally {
+    if (!handle) finishStreamHandle(h);
   }
   contentEl.innerHTML = marked.parse(raw);
   scrollToBottom();
