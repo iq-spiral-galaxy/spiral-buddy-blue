@@ -9235,25 +9235,31 @@ body.light-mode .brand-title {
 
 /* 3) 라이트 모드 메시지 이중 박스 제거.
  * .message.assistant(외곽)와 .content(내부 카드)가 둘 다 흰 카드+테두리라
- * 박스가 겹쳐 보였음. 외곽은 투명하게 — 카드는 .content 하나만. */
+ * 박스가 겹쳐 보였음. 외곽은 투명하게 — 카드는 .content 하나만.
+ * v0.5.80 — padding-top 28px(v0.5.36 잔재)도 제거: 다크와 동일 지오메트리. */
 body.light-mode .message.assistant {
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
+  padding-top: 0 !important;
 }
 
-/* 4) BUDDY 라벨과 문맥 버튼 높이 정렬 (라이트 모드).
- * v0.5.36 계열이 .role을 top:10px로 절대배치해서 top:0 + height:26px인
- * 문맥 버튼과 세로 중심이 어긋났음. 같은 26px 박스로 통일. */
+/* 4) BUDDY 라벨 — 다크/라이트 완전 동일 배치 (v0.5.80).
+ * v0.5.79까지는 라이트만 절대배치라 다크와 위치가 미세하게 달랐고
+ * 문맥 버튼과의 세로 중심도 모드마다 어긋났음. 라이트의 절대배치를
+ * 폐기하고 다크와 같은 normal flow(v0.5.61: flex + min-height 26px)로
+ * 통일 — 문맥 버튼(top:0, height:26px)과 양쪽 모드에서 같은 줄. */
 body.light-mode .message.assistant .role {
-  position: absolute !important;
-  top: 0 !important;
-  left: 16px !important;
-  height: 26px;
+  position: static !important;
+  top: auto !important;
+  left: auto !important;
   display: flex !important;
   align-items: center;
-  margin: 0 !important;
+  min-height: 26px;
+  height: auto;
+  margin: 0 0 6px !important;
   padding: 0 !important;
+  font-size: 11px !important; /* 다크(11px)와 동일 — 모드 간 크기 차이 제거 */
 }
 
 /* 5) 사이드바 도메인 카운트 배지 (5r · 35) — 라이트에서 어두운 배경 + 저대비. */
@@ -9261,4 +9267,19 @@ body.light-mode .dom-count {
   background: #eef2f8 !important;
   color: #475569 !important;
   border-color: #cdd5e0 !important;
+}
+
+/* 6) 💡 AI 카드 버튼 — 라이트에서 거의 안 보이던 문제 (v0.5.80).
+ * ready 상태 색 #ffb86c(pale warm)이 흰 배경에서 대비가 너무 낮았음.
+ * 라이트에서는 진한 amber로. */
+body.light-mode .chapter-ai-btn.ready {
+  color: #d97706; /* amber-600 — 흰 배경에서 명확 */
+  opacity: 0.9;
+}
+body.light-mode .chapter-btn:hover .chapter-ai-btn.ready {
+  opacity: 1;
+}
+body.light-mode .chapter-ai-btn:hover {
+  background: rgba(217, 119, 6, 0.12) !important;
+  color: #b45309 !important;
 }
