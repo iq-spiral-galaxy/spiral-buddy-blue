@@ -670,28 +670,117 @@ echo "=== done ==="
   if (platform === "win32") {
     const exeName = `Spiral.Buddy.Setup.${version}.exe`;
     const url = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/v${version}/${exeName}`;
+    const releasesUrl = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/latest`;
     // PowerShell 스크립트: 종료 → 다운로드 → 사일런트 install (/S) → 재실행
+    //
+    // v0.5.71 — Windows 자동 업데이트가 안 되던 3대 버그 수정:
+    //   1. TLS 1.2 강제: Windows PowerShell 5.1 (Win10/11 기본)은
+    //      SecurityProtocol 기본이 TLS 1.0 — GitHub은 TLS 1.2+ 만 허용해서
+    //      Invoke-WebRequest가 연결 단계에서 실패. SilentlyContinue 때문에
+    //      조용히 죽어서 "받아도 아무 일 없음"으로 보였음. (핵심 원인)
+    //   2. $ProgressPreference = 'SilentlyContinue': IWR의 진행바 렌더가
+    //      비대화형/transcript 환경에서 다운로드를 수십 배 느리게/hang.
+    //   3. 에러 가시화: 기존 ErrorActionPreference=SilentlyContinue가 모든
+    //      에러를 삼켜 디버깅 불가. 단계별 try/catch + transcript 로깅으로 전환.
+    //   + curl.exe fallback (Win10 1803+ 기본 탑재, TLS 자동 처리)
+    //   + Unblock-File (mark-of-the-web 때문에 /S 사일런트 설치가 막히는 경우)
+    //   + relaunch 경로 robust화 (커스텀 설치 위치 대응 — 레지스트리 + 후보 경로)
+    //   + 다운로드 완전 실패 시 브라우저로 release 페이지 열어 수동 안내
+    //
+    // 주의: PowerShell의 ${'$'}{env:NAME} 문법은 JS 템플릿 보간(${'$'}{...})과
+    // 충돌하므로, 괄호 포함 변수는 [Environment]::GetEnvironmentVariable 사용.
     return `# Spiral Buddy update v${version}
-$ErrorActionPreference = "SilentlyContinue"
-Start-Transcript -Path "${logPath.replace(/\\/g, "\\\\")}"
+$ErrorActionPreference = "Continue"
+$ProgressPreference = "SilentlyContinue"
+try { Start-Transcript -Path "${logPath}" -Force | Out-Null } catch {}
 Write-Host "=== Spiral Buddy update v${version} ==="
-Get-Process "Spiral Buddy" | Stop-Process -Force
+Get-Date
+
+# (1) TLS 1.2 강제 — PowerShell 5.1 기본 TLS 1.0은 GitHub이 거부
+try {
+  [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+  Write-Host "TLS 1.2 enabled"
+} catch { Write-Host "TLS set failed: $_" }
+
+Write-Host "-- step 1: stopping current app"
+Get-Process -Name "Spiral Buddy" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
-$exe = "$env:TEMP\\spiral-buddy-setup.exe"
-Invoke-WebRequest -Uri "${url}" -OutFile $exe
-if (-not (Test-Path $exe)) {
-  Write-Host "ERROR: download failed"
-  Stop-Transcript
+
+$exe = Join-Path $env:TEMP "spiral-buddy-setup.exe"
+if (Test-Path $exe) { Remove-Item $exe -Force -ErrorAction SilentlyContinue }
+
+Write-Host "-- step 2: downloading from ${url}"
+$ok = $false
+# 1차: Invoke-WebRequest (위에서 TLS 1.2 적용)
+try {
+  Invoke-WebRequest -Uri "${url}" -OutFile $exe -UseBasicParsing
+  if ((Test-Path $exe) -and ((Get-Item $exe).Length -gt 0)) { $ok = $true }
+} catch { Write-Host "Invoke-WebRequest failed: $_" }
+# 2차 fallback: curl.exe (Win10 1803+ 기본 탑재, TLS 자동)
+if (-not $ok) {
+  Write-Host "-- retry with curl.exe"
+  try {
+    & curl.exe -L --retry 3 -o "$exe" "${url}"
+    if ((Test-Path $exe) -and ((Get-Item $exe).Length -gt 0)) { $ok = $true }
+  } catch { Write-Host "curl.exe failed: $_" }
+}
+if (-not $ok) {
+  Write-Host "ERROR: download failed — opening releases page for manual install"
+  Start-Process "${releasesUrl}"
+  try { Stop-Transcript | Out-Null } catch {}
   exit 1
 }
-Start-Process -FilePath $exe -ArgumentList "/S" -Wait
-Remove-Item $exe -Force
-# 새로 설치된 앱 실행 (NSIS가 보통 자동 실행하지만 안전망)
-$installed = "$env:LOCALAPPDATA\\Programs\\spiral-buddy\\Spiral Buddy.exe"
-if (Test-Path $installed) {
-  Start-Process $installed
+Write-Host "downloaded: $((Get-Item $exe).Length) bytes"
+
+# (mark-of-the-web 해제 — 안 하면 /S 사일런트 설치가 SmartScreen에 막힐 수 있음)
+Write-Host "-- step 3: unblock file"
+try { Unblock-File -Path $exe -ErrorAction SilentlyContinue } catch {}
+
+Write-Host "-- step 4: silent install (/S)"
+try {
+  $p = Start-Process -FilePath $exe -ArgumentList "/S" -PassThru -Wait
+  Write-Host "installer exit code: $($p.ExitCode)"
+} catch {
+  Write-Host "install failed: $_ — launching installer interactively"
+  Start-Process -FilePath $exe
+  try { Stop-Transcript | Out-Null } catch {}
+  exit 1
 }
-Stop-Transcript
+Remove-Item $exe -Force -ErrorAction SilentlyContinue
+
+Write-Host "-- step 5: relaunch"
+$pf = [Environment]::GetEnvironmentVariable("ProgramFiles")
+$pfx = [Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
+$candidates = @(
+  (Join-Path $env:LOCALAPPDATA "Programs\\spiral-buddy\\Spiral Buddy.exe"),
+  (Join-Path $env:LOCALAPPDATA "Programs\\Spiral Buddy\\Spiral Buddy.exe")
+)
+if ($pf)  { $candidates += (Join-Path $pf  "Spiral Buddy\\Spiral Buddy.exe") }
+if ($pfx) { $candidates += (Join-Path $pfx "Spiral Buddy\\Spiral Buddy.exe") }
+# 커스텀 설치 위치 — NSIS uninstall 레지스트리의 InstallLocation 조회
+foreach ($root in @("HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall", "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall")) {
+  try {
+    Get-ChildItem $root -ErrorAction SilentlyContinue | ForEach-Object {
+      $props = Get-ItemProperty $_.PSPath -ErrorAction SilentlyContinue
+      if ($props.DisplayName -like "Spiral Buddy*" -and $props.InstallLocation) {
+        $candidates += (Join-Path $props.InstallLocation "Spiral Buddy.exe")
+      }
+    }
+  } catch {}
+}
+$launched = $false
+foreach ($c in $candidates) {
+  if ($c -and (Test-Path $c)) {
+    Write-Host "relaunching: $c"
+    Start-Process $c
+    $launched = $true
+    break
+  }
+}
+if (-not $launched) { Write-Host "relaunch path not found — user can open from Start Menu" }
+
+Write-Host "=== done ==="
+try { Stop-Transcript | Out-Null } catch {}
 `;
   }
   return null;
