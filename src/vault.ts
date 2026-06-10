@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { glob } from "glob";
 import matter from "gray-matter";
+import { createTtlCache } from "./ttl-cache.js";
 
 export interface SpiralNote {
   filePath: string;
@@ -29,7 +30,27 @@ export interface SpiralNote {
 const SPIRAL_DIR = process.env.SPIRAL_VAULT_SUBDIR?.trim() || "spiral-buddy";
 const TRASH_DIR = ".trash";
 
+// v0.5.76 — 매 API 요청(/roadmaps, /chapters, /activity, /history, /search)
+// 마다 vault 전체를 glob+read하던 비용 제거. 노트 변경은 이 프로세스가
+// 직접 수행(writeNewNote/moveNotesToTrash/restoreFromTrash)하므로 그때
+// invalidate. 외부에서 vault를 고치는 경우는 30초 TTL이 안전망.
+const notesCache = createTtlCache<SpiralNote[]>(30_000);
+
+export function invalidateNotesCache(): void {
+  notesCache.invalidate();
+}
+
 export async function listSpiralNotes(
+  vaultPath: string,
+): Promise<SpiralNote[]> {
+  const cached = await notesCache.get(vaultPath, () =>
+    listSpiralNotesUncached(vaultPath),
+  );
+  // 호출자가 sort 등으로 배열을 mutate해도 캐시가 오염되지 않게 shallow copy
+  return [...cached];
+}
+
+async function listSpiralNotesUncached(
   vaultPath: string,
 ): Promise<SpiralNote[]> {
   const spiralRoot = path.join(vaultPath, SPIRAL_DIR);
@@ -182,6 +203,9 @@ export async function writeNewNote(
   await fs.writeFile(filePath, content, "utf-8");
 
   await updateIndex(spiralRoot, fileName, note);
+
+  // v0.5.76 — 새 노트가 바로 진도/depth에 반영되게
+  invalidateNotesCache();
 
   return filePath;
 }
@@ -355,6 +379,8 @@ export async function moveNotesToTrash(
     await fs.rename(note.filePath, dest);
     moved.push({ from: note.filePath, to: dest });
   }
+  // v0.5.76 — 삭제된 노트가 진도에서 바로 빠지게
+  if (moved.length > 0) invalidateNotesCache();
   return moved;
 }
 
@@ -467,6 +493,8 @@ export async function restoreFromTrash(
     counter++;
   }
   await fs.rename(src, dest);
+  // v0.5.76 — 복구된 노트가 진도에 바로 반영되게
+  invalidateNotesCache();
   return dest;
 }
 

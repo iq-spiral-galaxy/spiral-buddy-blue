@@ -14,6 +14,7 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import {
   discoverRoadmaps,
+  invalidateRoadmapCaches,
   type Roadmap,
 } from "./roadmap.js";
 
@@ -221,6 +222,8 @@ export async function installCuratedRepo(args: {
   if (args.shallow !== false) cloneArgs.push("--depth=1");
   cloneArgs.push(cloneUrl, target);
   await runGit(cloneArgs);
+  // v0.5.76 — 새 레포가 즉시 로드맵 목록에 잡히게
+  invalidateRoadmapCaches();
   return { cachePath: target, alreadyInstalled: false };
 }
 
@@ -233,6 +236,8 @@ export async function refreshCuratedRepo(args: {
     throw new Error(`${args.repoName} 아직 설치되지 않음`);
   }
   await runGit(["pull", "--ff-only"], target);
+  // v0.5.76 — pull로 챕터가 바뀌었을 수 있음
+  invalidateRoadmapCaches();
 }
 
 export async function uninstallCuratedRepo(args: {
@@ -242,6 +247,8 @@ export async function uninstallCuratedRepo(args: {
   const target = repoCachePath(args.org, args.repoName);
   if (fsSync.existsSync(target)) {
     await fs.rm(target, { recursive: true, force: true });
+    // v0.5.76 — 삭제된 레포가 목록에서 즉시 빠지게
+    invalidateRoadmapCaches();
   }
 }
 

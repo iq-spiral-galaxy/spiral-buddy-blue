@@ -3,6 +3,7 @@ import fsSync from "node:fs";
 import path from "node:path";
 import { glob } from "glob";
 import matter from "gray-matter";
+import { createTtlCache } from "./ttl-cache.js";
 
 /**
  * 로드맵 식별 체계:
@@ -55,7 +56,28 @@ const MIN_CHAPTERS = 2;
  * 로드맵 = README.md를 제외한 .md 파일이 MIN_CHAPTERS개 이상 직접 들어있는 디렉토리.
  * 로드맵으로 인식된 디렉토리 내부는 더 깊이 탐색하지 않는다.
  */
+// v0.5.76 — 매 API 요청마다 MAX_DEPTH=6 재귀 탐색 + 챕터 full read를
+// 반복하던 비용 제거. 로드맵 자료는 거의 안 바뀌므로 TTL 안전망만:
+//   discoverRoadmaps 60초 / loadRoadmapChapters 30초.
+// curated install/refresh/uninstall 시에는 invalidateRoadmapCaches()로
+// 즉시 무효화 (curated.ts에서 호출).
+const roadmapsCache = createTtlCache<Roadmap[]>(60_000);
+const chaptersCache = createTtlCache<Chapter[]>(30_000);
+
+export function invalidateRoadmapCaches(): void {
+  roadmapsCache.invalidate();
+  chaptersCache.invalidate();
+}
+
 export async function discoverRoadmaps(rootPath: string): Promise<Roadmap[]> {
+  const cached = await roadmapsCache.get(rootPath, () =>
+    discoverRoadmapsUncached(rootPath),
+  );
+  // 호출자 mutation으로부터 캐시 보호
+  return [...cached];
+}
+
+async function discoverRoadmapsUncached(rootPath: string): Promise<Roadmap[]> {
   const stat = await fs.stat(rootPath).catch(() => null);
   if (!stat?.isDirectory()) return [];
 
@@ -197,6 +219,17 @@ async function walk(
  * chapter_id는 roadmap 내부 상대경로.
  */
 export async function loadRoadmapChapters(
+  roadmap: Roadmap,
+): Promise<Chapter[]> {
+  // v0.5.76 — 챕터 full read는 비쌈 (50챕터 = 50 readFile + parse).
+  // /chapters, /search, /session/start가 매번 호출하므로 캐시.
+  const cached = await chaptersCache.get(roadmap.absolutePath, () =>
+    loadRoadmapChaptersUncached(roadmap),
+  );
+  return [...cached];
+}
+
+async function loadRoadmapChaptersUncached(
   roadmap: Roadmap,
 ): Promise<Chapter[]> {
   const files = await glob("**/*.md", {
