@@ -545,6 +545,34 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
     return { ok: false, error: "Roadmap 경로가 존재하지 않습니다." };
   }
 
+  // v0.5.85 — 기존 config가 있으면 merge (덮어쓰기 금지).
+  // 기존엔 wizard 재진입(경로 복구 등) 시 전체 config를 새로 만들어서
+  // 멀티 워크스페이스 사용자의 다른 워크스페이스가 전부 사라졌음.
+  // vault 이동 복구 흐름이 wizard로 유도되므로 보존이 필수.
+  const existing = loadConfig();
+  if (existing && Array.isArray(existing.workspaces) && existing.workspaces.length > 0) {
+    existing.anthropicApiKey = input.anthropicApiKey;
+    existing.vaultPath = input.vaultPath;
+    if (input.vaultName) existing.vaultName = input.vaultName;
+    const ws = activeWorkspace(existing);
+    if (ws) {
+      if (input.roadmapRoot) {
+        ws.roadmapRoot = input.roadmapRoot;
+      } else if (ws.roadmapRoot && !fs.existsSync(ws.roadmapRoot)) {
+        // 기존 root가 사라졌는데 새 값도 입력 안 함 — 비활성화 (Local off).
+        // null로 두면 부팅은 되고, 나중에 설정에서 다시 지정 가능.
+        // 그대로 두면 서버 시작이 또 실패해 복구 루프에 빠짐.
+        ws.roadmapRoot = null;
+      }
+    }
+    saveConfig(existing);
+    if (setupWindow && !setupWindow.isDestroyed()) {
+      setupWindow.close();
+    }
+    await bootWithConfig(existing);
+    return { ok: true };
+  }
+
   // 새 스키마로 저장. 첫 워크스페이스 = "기본" (또는 디렉토리 이름)
   const wsName = input.roadmapRoot
     ? displayWorkspaceName(input.roadmapRoot)
@@ -1719,6 +1747,48 @@ ipcMain.handle("setup:download-curated", async (event, args) => {
 
 // ─── App lifecycle ───────────────────────────────────────────
 
+// ─── v0.5.85 — vault/학습자료 경로 소실 시 복구 흐름 ──────────
+//
+// 사용자가 Obsidian 보관함이나 학습 자료 폴더를 이동/이름 변경하면
+// 기존엔 "서버 시작 실패" 다이얼로그 후 종료 — 앱 안에서 경로를
+// 재설정할 방법이 없는 막다른 골목이었음 (사용자가 빈 폴더를 옛
+// 경로에 만들어 우회). 부팅 전에 미리 검사해서, 사라진 경로가 있으면
+// 안내 후 setup wizard를 열어 그 자리에서 재지정할 수 있게 함.
+
+function missingConfigPaths(cfg) {
+  const missing = [];
+  if (cfg?.vaultPath && !fs.existsSync(cfg.vaultPath)) {
+    missing.push(`Obsidian Vault: ${cfg.vaultPath}`);
+  }
+  const ws = activeWorkspace(cfg);
+  if (ws?.roadmapRoot && !fs.existsSync(ws.roadmapRoot)) {
+    missing.push(`학습 자료: ${ws.roadmapRoot}`);
+  }
+  return missing;
+}
+
+async function bootOrSetup() {
+  const cfg = loadConfig();
+  const missing = cfg ? missingConfigPaths(cfg) : [];
+  if (hasRequiredConfig(cfg) && missing.length === 0) {
+    await bootWithConfig(cfg);
+    return;
+  }
+  if (cfg && missing.length > 0) {
+    dialog.showMessageBoxSync({
+      type: "warning",
+      title: "경로를 찾을 수 없어요",
+      message: "보관함/자료 폴더가 이동했거나 이름이 바뀐 것 같아요",
+      detail:
+        `찾을 수 없는 경로:\n${missing.map((m) => `• ${m}`).join("\n")}\n\n` +
+        `이어서 열리는 설정 화면에서 새 위치를 지정하면 바로 사용할 수 있어요.`,
+      buttons: ["설정 열기"],
+      defaultId: 0,
+    });
+  }
+  createSetupWindow();
+}
+
 app.whenReady().then(async () => {
   // macOS 기본 메뉴 유지 (Cmd+Q 등)
   if (process.platform === "darwin") {
@@ -1729,12 +1799,7 @@ app.whenReady().then(async () => {
   // 실패 시 다이얼로그로 알리고 수동 설치 경로 안내 (기존엔 조용히 실패).
   checkPendingUpdateOutcome();
 
-  const cfg = loadConfig();
-  if (hasRequiredConfig(cfg)) {
-    await bootWithConfig(cfg);
-  } else {
-    createSetupWindow();
-  }
+  await bootOrSetup();
 });
 
 app.on("window-all-closed", () => {
@@ -1745,8 +1810,6 @@ app.on("window-all-closed", () => {
 
 app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    const cfg = loadConfig();
-    if (hasRequiredConfig(cfg)) bootWithConfig(cfg);
-    else createSetupWindow();
+    void bootOrSetup();
   }
 });
