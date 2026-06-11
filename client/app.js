@@ -3166,36 +3166,45 @@ function initLookup() {
   // v0.5.49 — 창 축소 시 lookup 폭을 자동으로 줄여 chat 컬럼 최소 폭 유지
   window.addEventListener("resize", () => {
     if (!_lookupState.open) return;
-    // v0.5.82 — 반응형 자동 닫힘. 창이 좁아져 Look-up을 최소 폭(280px)으로
-    // 줄여도 chat 최소 폭(760px — 다듬기/Send 보장)을 만들 수 없으면
-    // 패널이 composer를 덮게 되므로 자동으로 닫음. 전체화면 모드는 의도적
-    // 상태라 제외. 창을 다시 넓히면 토글/문맥으로 재오픈 가능.
-    if (!document.body.classList.contains("lookup-fullscreen")) {
-      const headroom =
-        window.innerWidth - _currentSidebarPxForCap() - CHAT_MIN_CAP;
-      if (headroom < LOOKUP_MIN_CAP) {
-        closeLookupPanel();
-        setStatus(
-          "창이 좁아져 Look-up을 닫았어요 — 창을 넓히면 다시 열 수 있어요",
-          "info",
-        );
-        setTimeout(() => {
-          if (els.statusBar?.textContent?.startsWith("창이 좁아져")) {
-            setStatus("");
-          }
-        }, 3000);
-        return;
-      }
-    }
+    if (document.body.classList.contains("lookup-fullscreen")) return; // 의도적 상태
+
+    // 1) 먼저 re-cap — lookup 폭을 줄여서 chat 폭 확보 시도
     const cur = parseInt(
       (document.body.style.getPropertyValue("--lookup-w") || "").trim(),
       10,
     );
-    if (!cur) return;
-    const cap = _lookupMaxForViewport();
-    if (cur > cap) {
-      document.body.style.setProperty("--lookup-w", `${cap}px`);
-      // saved는 유지 — 창 다시 키우면 원래 폭으로 복원되도록
+    if (cur) {
+      const cap = _lookupMaxForViewport();
+      if (cur > cap) {
+        document.body.style.setProperty("--lookup-w", `${cap}px`);
+        // saved는 유지 — 창 다시 키우면 원래 폭으로 복원되도록
+      }
+    }
+
+    // 2) v0.5.83 — re-cap 후에도 "실측" chat 폭이 최소 폭에 못 미치면
+    //    침범이 시작되는 바로 그 순간이므로 즉시 닫음.
+    //    v0.5.82의 예측식(최소폭 280 가정 headroom)은 re-cap이 어떤
+    //    이유로든 적용 안 된 상태(inline 미설정 등)에선 침범이 한참
+    //    진행된 뒤에야 발동했음. 실측은 경로와 무관하게 정확.
+    //    getComputedStyle은 inline + CSS class 값 모두 반영.
+    const lookupNow =
+      parseInt(
+        getComputedStyle(document.body).getPropertyValue("--lookup-w"),
+        10,
+      ) || 0;
+    const chatW =
+      window.innerWidth - _currentSidebarPxForCap() - lookupNow;
+    if (lookupNow > 0 && chatW < CHAT_MIN_CAP - 2) {
+      closeLookupPanel();
+      setStatus(
+        "창이 좁아져 Look-up을 닫았어요 — 창을 넓히면 다시 열 수 있어요",
+        "info",
+      );
+      setTimeout(() => {
+        if (els.statusBar?.textContent?.startsWith("창이 좁아져")) {
+          setStatus("");
+        }
+      }, 3000);
     }
   });
 
