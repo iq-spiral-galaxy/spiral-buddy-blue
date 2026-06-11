@@ -9283,3 +9283,40 @@ body.light-mode .chapter-ai-btn:hover {
   background: rgba(217, 119, 6, 0.12) !important;
   color: #b45309 !important;
 }
+
+/* ═══════════════════ v0.5.81 — 💡 발견성 + 로고 라이트 보정 ═══════════════════ */
+
+/* 1) 💡 AI 카드 버튼 — 카드가 없는 챕터에서도 항상 희미하게 보이게.
+ * 기존엔 opacity 0이라 hover 전엔 기능 존재 자체를 알 수 없었음.
+ * outline 전구(fill: none)라 흐릿하게 떠 있으면 "여기 누르면 뭔가 있다"
+ * 신호가 됨. 📖(v0.5.79)과 동일 정책. */
+.chapter-ai-btn {
+  opacity: 0.45;
+}
+.chapter-btn:hover .chapter-ai-btn {
+  opacity: 0.85;
+}
+/* ready(캐시 있음)는 기존처럼 더 진하게 — 구분 유지 */
+.chapter-ai-btn.ready {
+  opacity: 0.7;
+}
+.chapter-btn:hover .chapter-ai-btn.ready {
+  opacity: 1;
+}
+
+/* 2) 사이드바 로고 — 라이트 모드에서 다크 원형 배경(rgba(10,13,19,.72))이
+ * 흰 사이드바 위에 떠서 부자연스러웠음. 라이트 팔레트의 옅은 칩으로 교체,
+ * 나선 stroke(파스텔)는 brightness를 낮춰 흰 배경에서도 보이게. */
+body.light-mode .logo-spiral {
+  background:
+    linear-gradient(145deg, rgba(37, 99, 235, 0.10), rgba(124, 58, 237, 0.08)),
+    #ffffff !important;
+  border-color: rgba(37, 99, 235, 0.28) !important;
+  box-shadow:
+    0 1px 6px rgba(37, 99, 235, 0.16),
+    inset 0 0 1px rgba(37, 99, 235, 0.2) !important;
+}
+body.light-mode .logo-spiral svg {
+  filter: saturate(1.6) brightness(0.72)
+    drop-shadow(0 1px 2px rgba(37, 99, 235, 0.2)) !important;
+}

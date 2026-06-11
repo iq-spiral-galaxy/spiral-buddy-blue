@@ -48,6 +48,9 @@ const state = {
   _searchExpandedDoms: null,
   _searchExpandedCats: null,
   _searchExpandedRepos: null,
+  // v0.5.81 — 어느 검색어 기준으로 위 셋을 구성했는지. 검색어가 바뀔 때만
+  // 재구성해서, 같은 검색어 동안 사용자의 접기 조작이 유지되게 함.
+  _searchExpandedForQuery: null,
   // active 로드맵이 바뀌었을 때만 자동 펼침하기 위해 마지막으로 자동 펼침한 id 기록.
   // null이면 다음 렌더에서 active 로드맵의 cat/repo를 한 번 펼침.
   lastAutoExpandedRoadmapId: null,
@@ -935,23 +938,31 @@ function renderRoadmapSelector() {
 
     // 검색 활성 시 매칭 전체 임시 펼침. 이전엔 함수 로컬이었지만 v0.5.56부터
     // state에 저장 — 토글 핸들러에서도 빼야 검색 중 사용자가 닫을 수 있음.
+    //
+    // v0.5.81 — 재구성은 "검색어가 바뀐 시점"에만. 기존엔 매 렌더마다
+    // 전체 재구성이라, 토글로 닫아도 토글이 유발한 재렌더에서 즉시 다시
+    // 펼쳐져 사실상 접기가 불가능했음 (사용자: "아예 건드리지도 못함").
+    // 같은 검색어 동안에는 사용자가 닫은 상태가 유지되고, 검색어를
+    // 바꾸면 새 매칭 기준으로 다시 전체 펼침.
     if (searchQuery) {
-      // 검색 활성 = 매 렌더마다 셋을 처음부터 재구성 (이전 상태 무시).
-      // 사용자가 toggle로 닫은 항목도 같은 키워드 검색이면 다시 펼쳐짐 — 의도.
-      state._searchExpandedDoms = new Set();
-      state._searchExpandedCats = new Set();
-      state._searchExpandedRepos = new Set();
-      for (const [domName, domEntry] of domainTree) {
-        state._searchExpandedDoms.add(domName);
-        for (const [catName, repoMap] of domEntry.cats) {
-          state._searchExpandedCats.add(`${domName}::${catName}`);
-          for (const repoName of repoMap.keys()) {
-            state._searchExpandedRepos.add(`${domName}::${catName}::${repoName}`);
+      if (state._searchExpandedForQuery !== searchQuery) {
+        state._searchExpandedForQuery = searchQuery;
+        state._searchExpandedDoms = new Set();
+        state._searchExpandedCats = new Set();
+        state._searchExpandedRepos = new Set();
+        for (const [domName, domEntry] of domainTree) {
+          state._searchExpandedDoms.add(domName);
+          for (const [catName, repoMap] of domEntry.cats) {
+            state._searchExpandedCats.add(`${domName}::${catName}`);
+            for (const repoName of repoMap.keys()) {
+              state._searchExpandedRepos.add(`${domName}::${catName}::${repoName}`);
+            }
           }
         }
       }
     } else {
       // 검색 비활성 — 셋 클리어
+      state._searchExpandedForQuery = null;
       state._searchExpandedDoms = null;
       state._searchExpandedCats = null;
       state._searchExpandedRepos = null;
