@@ -9343,3 +9343,16 @@ body.light-mode .workspace-list {
   border-color: #cdd5e0 !important;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.10) !important;
 }
+
+/* ═══════════════════ v0.5.84 — 메시지 컬럼 폭이 내용 따라 쪼그라드는 버그 ═══════════════════
+ * 원인: v0.5.41에서 .messages를 .messages-wrap(flex column)으로 감싸면서
+ * .messages가 flex item이 됐는데, 기존 margin-left/right: auto 규칙이
+ * flex cross-axis에선 stretch를 무력화 → width가 fit-content(내용 폭)로
+ * 추락. 대화의 가장 긴 줄이 짧으면 (한국어 짧은 문장 위주 응답) 컬럼
+ * 전체가 ~300-600px로 쪼그라들었음. 긴 단락/코드가 끼면 900까지 늘어나서
+ * "가끔" 발생하는 것처럼 보였던 것.
+ * width: 100%로 명시 → min(컬럼, max-width)을 항상 채우고 auto 마진이
+ * 중앙 정렬. 실측 검증: 짧은 단락 카드 316px → 900px 고정. */
+.messages {
+  width: 100%;
+}
