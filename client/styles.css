@@ -1038,7 +1038,8 @@ button.ghost {
   background: var(--bg-elev-2);
   border: 1px solid var(--border);
   border-radius: 6px;
-  max-height: 320px;
+  /* v0.5.82 — 320px → 480px (1.5배). 도메인 그룹이 스크롤 없이 더 보이게. */
+  max-height: 480px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -9319,4 +9320,26 @@ body.light-mode .logo-spiral {
 body.light-mode .logo-spiral svg {
   filter: saturate(1.6) brightness(0.72)
     drop-shadow(0 1px 2px rgba(37, 99, 235, 0.2)) !important;
+}
+
+/* ═══════════════════ v0.5.82 — 워크스페이스 드롭다운 라이트 가독성 ═══════════════════
+ * 현재 선택(✓) 항목 색이 #c3d1d8(pale)라 흰 배경에서 거의 안 보였음. */
+body.light-mode .workspace-item {
+  color: #475569 !important; /* slate-600 */
+}
+body.light-mode .workspace-item.active {
+  color: #0f172a !important; /* slate-900 — 현재 워크스페이스는 또렷하게 */
+  font-weight: 600;
+}
+body.light-mode .workspace-item:hover {
+  background: #eef2f8 !important;
+  color: #0f172a !important;
+}
+body.light-mode .workspace-item.add {
+  color: #64748b !important;
+}
+body.light-mode .workspace-list {
+  background: #ffffff !important;
+  border-color: #cdd5e0 !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.10) !important;
 }

@@ -2122,7 +2122,20 @@ async function initSettings() {
   });
 
   // 워크스페이스 셀렉터 토글
-  els.workspaceCurrent?.addEventListener("click", () => {
+  // v0.5.82 — 열 때마다 fresh 조회 후 렌더. 기존엔 부팅 시점
+  // _settingsCache로 미리 렌더한 목록을 토글만 해서, 삭제/추가가
+  // 어떤 경로로 일어났든 (설정 모달, setup wizard, 재시작 경로)
+  // 캐시가 낡으면 삭제된 워크스페이스가 유령처럼 남았음.
+  els.workspaceCurrent?.addEventListener("click", async () => {
+    const opening = els.workspaceList?.classList.contains("hidden");
+    if (opening) {
+      try {
+        _settingsCache = await window.spiralSettings.get();
+        renderWorkspaceSelector();
+      } catch {
+        // 조회 실패 — 기존 캐시로라도 표시
+      }
+    }
     els.workspaceList?.classList.toggle("hidden");
   });
 
@@ -3153,6 +3166,27 @@ function initLookup() {
   // v0.5.49 — 창 축소 시 lookup 폭을 자동으로 줄여 chat 컬럼 최소 폭 유지
   window.addEventListener("resize", () => {
     if (!_lookupState.open) return;
+    // v0.5.82 — 반응형 자동 닫힘. 창이 좁아져 Look-up을 최소 폭(280px)으로
+    // 줄여도 chat 최소 폭(760px — 다듬기/Send 보장)을 만들 수 없으면
+    // 패널이 composer를 덮게 되므로 자동으로 닫음. 전체화면 모드는 의도적
+    // 상태라 제외. 창을 다시 넓히면 토글/문맥으로 재오픈 가능.
+    if (!document.body.classList.contains("lookup-fullscreen")) {
+      const headroom =
+        window.innerWidth - _currentSidebarPxForCap() - CHAT_MIN_CAP;
+      if (headroom < LOOKUP_MIN_CAP) {
+        closeLookupPanel();
+        setStatus(
+          "창이 좁아져 Look-up을 닫았어요 — 창을 넓히면 다시 열 수 있어요",
+          "info",
+        );
+        setTimeout(() => {
+          if (els.statusBar?.textContent?.startsWith("창이 좁아져")) {
+            setStatus("");
+          }
+        }, 3000);
+        return;
+      }
+    }
     const cur = parseInt(
       (document.body.style.getPropertyValue("--lookup-w") || "").trim(),
       10,
