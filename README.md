@@ -1,7 +1,7 @@
 # 🌀 Spiral Buddy — 🔵 Blue
 
 > Claude와 Obsidian을 잇는 **나선형 학습** 데스크톱 앱 — **개발 학습용 버디**.
-> [iq-spiral-galaxy](https://github.com/iq-spiral-galaxy) 패밀리: 🔵 Blue(개발) · 🔴 Red(AI/수학, 예정) · 🟠 Orange(실천적 지혜, 예정)
+> [iq-spiral-galaxy](https://github.com/iq-spiral-galaxy) 패밀리: 🔵 Blue(개발) · 🔴 Red(AI/수학) · 🟠 Orange(실천적 지혜)
 > 로드맵 따라가며 학습 → Claude(Buddy)와 Socratic 대화 → **8섹션 구조 노트**로 vault에 자동 축적 → 다음 세션 진입 시 이전 노트가 컨텍스트로 자동 합류.
 
 <p align="center">
