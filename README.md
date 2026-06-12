@@ -4,7 +4,7 @@
 > 로드맵 따라가며 학습 → Claude(Buddy)와 Socratic 대화 → **8섹션 구조 노트**로 vault에 자동 축적 → 다음 세션 진입 시 이전 노트가 컨텍스트로 자동 합류.
 
 <p align="center">
-  <a href="https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest"><img alt="latest release" src="https://img.shields.io/github/v/release/iq-agent-lab/iq-spiral-buddy?display_name=tag&style=flat-square"></a>
+  <a href="https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest"><img alt="latest release" src="https://img.shields.io/github/v/release/iq-spiral-galaxy/spiral-buddy-blue?display_name=tag&style=flat-square"></a>
   <img alt="platforms" src="https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-supported-blue?style=flat-square">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
 </p>
@@ -21,7 +21,7 @@
 ```bash
 osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
 cd /tmp && \
-curl -fL -o /tmp/spiral.dmg "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest-arm64.dmg" && \
+curl -fL -o /tmp/spiral.dmg "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest-arm64.dmg" && \
 MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
 rm -rf '/Applications/Spiral Buddy.app' && \
 cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
@@ -37,7 +37,7 @@ open '/Applications/Spiral Buddy.app'
 ```bash
 osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
 cd /tmp && \
-curl -fL -o /tmp/spiral.dmg "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest.dmg" && \
+curl -fL -o /tmp/spiral.dmg "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest.dmg" && \
 MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
 rm -rf '/Applications/Spiral Buddy.app' && \
 cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
@@ -54,7 +54,7 @@ open '/Applications/Spiral Buddy.app'
 $ErrorActionPreference = "Stop"
 Get-Process "Spiral Buddy" -EA SilentlyContinue | Stop-Process -Force
 $exe = "$env:TEMP\spiral-buddy-setup.exe"
-Invoke-WebRequest -Uri "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest-Setup.exe" -OutFile $exe
+Invoke-WebRequest -Uri "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest-Setup.exe" -OutFile $exe
 Start-Process -FilePath $exe -ArgumentList "/S" -Wait
 Remove-Item $exe -Force
 $app = "$env:LOCALAPPDATA\Programs\spiral-buddy\Spiral Buddy.exe"
@@ -63,7 +63,7 @@ if (Test-Path $app) { Start-Process $app }
 
 ### 🐧 Linux
 ```bash
-curl -fL -o ~/SpiralBuddy.AppImage "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest.AppImage"
+curl -fL -o ~/SpiralBuddy.AppImage "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest.AppImage"
 chmod +x ~/SpiralBuddy.AppImage
 ~/SpiralBuddy.AppImage
 ```

@@ -650,8 +650,12 @@ ipcMain.handle("app:open-external", (_e, url) => {
 // "받기" 누르면 detached bash로 install 스크립트 실행하고 앱 종료.
 // 플랫폼별로 다른 자산 사용: darwin-arm64 / darwin-x64 / win32 / linux
 
-const GH_OWNER = "iq-agent-lab";
-const GH_REPO = "iq-spiral-buddy";
+// v0.5.87 — iq-spiral-galaxy org로 이전 + spiral-buddy-blue로 rename.
+// 옛 주소(iq-agent-lab/iq-spiral-buddy)는 GitHub redirect가 살아있어
+// 구버전 클라이언트의 업데이트 체크/다운로드도 계속 동작함.
+// ⚠ 옛 주소에 새 레포를 만들면 redirect가 끊김 — 절대 재사용 금지.
+const GH_OWNER = "iq-spiral-galaxy";
+const GH_REPO = "spiral-buddy-blue";
 const APP_VERSION = require("../package.json").version;
 
 function fetchJson(url) {

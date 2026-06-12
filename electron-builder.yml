@@ -66,8 +66,9 @@ linux:
   category: Education
 
 # GitHub Releases 발행 (CI에서 환경변수 GH_TOKEN 사용)
+# v0.5.87 — iq-spiral-galaxy/spiral-buddy-blue로 이전
 publish:
   provider: github
-  owner: iq-agent-lab
-  repo: iq-spiral-buddy
+  owner: iq-spiral-galaxy
+  repo: spiral-buddy-blue
   releaseType: release

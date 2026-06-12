@@ -187,7 +187,7 @@ jobs:
           ```bash
           osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
           cd /tmp && \
-          curl -fL -o /tmp/spiral.dmg "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest-arm64.dmg" && \
+          curl -fL -o /tmp/spiral.dmg "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest-arm64.dmg" && \
           MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
           rm -rf '/Applications/Spiral Buddy.app' && \
           cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
@@ -204,7 +204,7 @@ jobs:
           ```bash
           osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
           cd /tmp && \
-          curl -fL -o /tmp/spiral.dmg "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest.dmg" && \
+          curl -fL -o /tmp/spiral.dmg "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest.dmg" && \
           MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
           rm -rf '/Applications/Spiral Buddy.app' && \
           cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
@@ -224,7 +224,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           Get-Process "Spiral Buddy" -EA SilentlyContinue | Stop-Process -Force
           $exe = "$env:TEMP\spiral-buddy-setup.exe"
-          Invoke-WebRequest -Uri "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest-Setup.exe" -OutFile $exe
+          Invoke-WebRequest -Uri "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest-Setup.exe" -OutFile $exe
           Start-Process -FilePath $exe -ArgumentList "/S" -Wait
           Remove-Item $exe -Force
           $app = "$env:LOCALAPPDATA\Programs\spiral-buddy\Spiral Buddy.exe"
@@ -236,7 +236,7 @@ jobs:
           <summary>🐧 <strong>Linux — AppImage</strong></summary>
 
           ```bash
-          curl -fL -o ~/SpiralBuddy.AppImage "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest/download/Spiral-Buddy-latest.AppImage"
+          curl -fL -o ~/SpiralBuddy.AppImage "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest.AppImage"
           chmod +x ~/SpiralBuddy.AppImage
           ~/SpiralBuddy.AppImage
           ```
@@ -276,7 +276,7 @@ jobs:
 
           ## 자세한 안내
 
-          [README](https://github.com/iq-agent-lab/iq-spiral-buddy/blob/main/README.md)
+          [README](https://github.com/iq-spiral-galaxy/spiral-buddy-blue/blob/main/README.md)
           EOF
           # ${TAG} 치환
           sed -i "s/\${TAG_PLACEHOLDER}/${TAG}/g" NOTES.md

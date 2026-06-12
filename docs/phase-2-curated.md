@@ -135,7 +135,7 @@ ROADMAP
 ## 첫 사용자 경험
 
 ```bash
-git clone https://github.com/iq-agent-lab/iq-spiral-buddy
+git clone https://github.com/iq-spiral-galaxy/spiral-buddy-blue
 cd iq-spiral-buddy
 pnpm install
 cp .env.example .env

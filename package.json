@@ -1,6 +1,6 @@
 {
   "name": "iq-spiral-buddy",
-  "version": "0.5.86",
+  "version": "0.5.87",
   "description": "Spiral learning companion that bridges Claude and Obsidian. Local web app — roadmap-driven sessions, auto-structured notes, spiral revisit detection.",
   "type": "module",
   "main": "electron/main.cjs",
