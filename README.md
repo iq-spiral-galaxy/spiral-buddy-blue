@@ -1,7 +1,7 @@
 # 🌀 Spiral Buddy — 🔵 Blue
 
 > AI 버디와 함께하는 **나선형 학습** 데스크톱 앱 — **개발 학습용 버디**.
-> [iq-spiral-galaxy](https://github.com/iq-spiral-galaxy) 패밀리: 🔵 Blue(개발) · 🔴 Red(AI/수학) · 🟢 Green(실천적 지혜)
+> [iq-spiral-galaxy](https://github.com/iq-spiral-galaxy) 패밀리: 🔴 Red(AI/수학) · 🟢 Green(실천적 지혜) · 🔵 Blue(개발)
 > 로드맵 따라가며 학습 → 버디(AI)와 Socratic 대화 → **8섹션 구조 노트**로 노트 보관함에 자동 축적 → 다음 세션 진입 시 이전 노트가 컨텍스트로 자동 합류.
 
 <p align="center">
