@@ -806,13 +806,14 @@ function updateModelTierBadge() {
 }
 
 // v0.5.89 — 레포 표시명 변환 (표시 전용 — id/경로/매칭에는 절대 사용 금지).
-//   "spring-core-deep-dive" → "Spring core"
-//   1) "-deep-dive" 접미사 제거  2) 하이픈 → 공백  3) 첫 글자 대문자
+//   "spring-core-deep-dive" → "Spring Core"
+//   1) "-deep-dive" 접미사 제거  2) 하이픈 → 공백
+//   3) v0.5.91 — 모든 단어의 첫 글자 대문자 (Title Case)
 function displayRepoName(name) {
   let s = String(name ?? "");
   s = s.replace(/-deep-dive$/i, "");
   s = s.replace(/-/g, " ");
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return s.replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
 }
 
 function renderRoadmapSelector() {
