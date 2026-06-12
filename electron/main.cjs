@@ -331,14 +331,37 @@ function uniqueId(base, taken) {
   return `${slug}-${Date.now()}`;
 }
 
-async function findFreePort() {
+// v0.5.86 — 고정 포트 우선.
+//
+// 기존엔 매 실행마다 랜덤 포트(listen(0))를 잡았는데, 렌더러의
+// localStorage는 origin(http://localhost:<port>) 단위로 격리되므로
+// 포트가 바뀔 때마다 테마(다크/라이트), 일시정지 목록, 사이드바/Look-up
+// 폭 등 클라이언트 설정이 전부 초기화됐음 ("화이트 모드로 해놔도
+// 껐다 켜면 다크로 돌아옴" 보고의 근본 원인).
+//
+// 고정 포트(4517)를 우선 시도하고, 점유 시 +1씩 10개까지, 그래도
+// 안 되면 기존처럼 랜덤. 같은 포트 = 같은 origin = 설정 유지.
+// (CLI 모드 기본 3737과 다른 번호라 dev 서버와 충돌 없음)
+const PREFERRED_PORT = 4517;
+
+function tryListen(port) {
   return new Promise((resolve) => {
     const srv = net.createServer();
-    srv.listen(0, "127.0.0.1", () => {
-      const port = srv.address().port;
-      srv.close(() => resolve(port));
+    srv.once("error", () => resolve(null));
+    srv.listen(port, "127.0.0.1", () => {
+      const p = srv.address().port;
+      srv.close(() => resolve(p));
     });
   });
+}
+
+async function findFreePort() {
+  for (let i = 0; i < 10; i++) {
+    const p = await tryListen(PREFERRED_PORT + i);
+    if (p) return p;
+  }
+  // 전부 점유 — 랜덤 fallback (이 경우만 origin이 바뀜)
+  return (await tryListen(0)) ?? 3737;
 }
 
 async function waitForServer(port, timeoutMs = 15000) {
