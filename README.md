@@ -1,8 +1,8 @@
 # 🌀 Spiral Buddy — 🔵 Blue
 
-> Claude와 Obsidian을 잇는 **나선형 학습** 데스크톱 앱 — **개발 학습용 버디**.
+> AI 버디와 함께하는 **나선형 학습** 데스크톱 앱 — **개발 학습용 버디**.
 > [iq-spiral-galaxy](https://github.com/iq-spiral-galaxy) 패밀리: 🔵 Blue(개발) · 🔴 Red(AI/수학) · 🟠 Orange(실천적 지혜)
-> 로드맵 따라가며 학습 → Claude(Buddy)와 Socratic 대화 → **8섹션 구조 노트**로 vault에 자동 축적 → 다음 세션 진입 시 이전 노트가 컨텍스트로 자동 합류.
+> 로드맵 따라가며 학습 → 버디(AI)와 Socratic 대화 → **8섹션 구조 노트**로 노트 보관함에 자동 축적 → 다음 세션 진입 시 이전 노트가 컨텍스트로 자동 합류.
 
 <p align="center">
   <a href="https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest"><img alt="latest release" src="https://img.shields.io/github/v/release/iq-spiral-galaxy/spiral-buddy-blue?display_name=tag&style=flat-square"></a>
@@ -91,7 +91,7 @@ chmod +x ~/SpiralBuddy.AppImage
 - **검색 강조** — idle 상태에서 breathing 애니메이션 + ⌘F 단축키 칩으로 검색 기능 존재 인지
 - **레포별 progress bar** + d1/d2/d3 배지
 
-### 💬 Claude Socratic 학습 세션
+### 💬 버디와의 Socratic 학습 세션
 - depth 1 (첫 학습) → depth 2 (복습) → depth 3 (심화) — 같은 챕터를 나선형으로 반복
 - 이전 노트가 자동으로 새 세션 컨텍스트에 포함
 - **스트리밍 응답** — 실시간 토큰 단위 표시
@@ -109,7 +109,7 @@ chmod +x ~/SpiralBuddy.AppImage
 - 👍/👎 만족도 피드백
 
 ### 📝 8섹션 구조 노트
-세션 종료 후 Claude가 대화 로그를 다음 8섹션으로 정돈:
+세션 종료 후 버디가 대화 로그를 다음 8섹션으로 정돈:
 1. 한 줄 요약
 2. 핵심 개념
 3. 직관 / 비유
@@ -117,7 +117,7 @@ chmod +x ~/SpiralBuddy.AppImage
 5. 헷갈렸던 / 확인이 필요한 지점
 6. 이전 학습과의 연결 (`[[note-title]]` 위키링크)
 7. 다음에 볼 것
-8. 🔍 학습 중 찾아본 표현 — Look-up 카드들이 Obsidian native callout으로 자동 첨부
+8. 🔍 학습 중 찾아본 표현 — Look-up 카드들이 callout 블록으로 자동 첨부 (Obsidian 호환)
 
 frontmatter도 정리됨: `repo` → `roadmap` → `chapter` → `depth` → `date` → `tags` → `summary` 순.
 
@@ -184,13 +184,13 @@ frontmatter도 정리됨: `repo` → `roadmap` → `chapter` → `depth` → `da
 
 ### 2. 첫 실행 시 Setup Wizard
 
-1. **Anthropic API Key 입력** — [console.anthropic.com](https://console.anthropic.com/)에서 발급한 `sk-ant-...` 키
-2. **Obsidian Vault 폴더 선택** — 노트가 저장될 vault (앱이 자동 감지 시도)
+1. **AI API Key 입력** — 현재 Anthropic 모델 지원, [console.anthropic.com](https://console.anthropic.com/)에서 발급한 `sk-ant-...` 키
+2. **노트 보관함 폴더 선택** — 노트가 저장될 폴더 (Obsidian vault 사용 시 자동 감지)
 3. *(선택)* **역할 프리셋으로 한 번에 받기** — 위 4종 중 하나 클릭 → 폴더 지정 → incremental git clone
 
 ### 3. 학습 시작
 
-좌측 사이드바에서 챕터 선택 → Claude(Buddy)와 대화 → `End & Save` 클릭 → 옵시디언에 노트 자동 생성.
+좌측 사이드바에서 챕터 선택 → 버디와 대화 → `End & Save` 클릭 → 노트 보관함에 자동 생성.
 
 ---
 
@@ -233,7 +233,7 @@ pnpm electron:build:linux  # Linux AppImage
 `.env` 파일 (개발 모드용):
 ```
 ANTHROPIC_API_KEY=sk-ant-...
-SPIRAL_VAULT_PATH=/Users/you/Documents/Obsidian Vault
+SPIRAL_VAULT_PATH=/Users/you/Documents/MyNotes
 SPIRAL_ROADMAP_ROOT=/path/to/your/roadmaps   # 선택
 SPIRAL_CURATED_ORG=iq-dev-lab                # 선택
 SPIRAL_MODEL=claude-sonnet-4-6               # 선택
@@ -259,7 +259,7 @@ Claude Desktop 설정에 추가:
       "args": ["/path/to/spiral-buddy-blue/dist/mcp.js"],
       "env": {
         "ANTHROPIC_API_KEY": "sk-ant-...",
-        "SPIRAL_VAULT_PATH": "/Users/you/Documents/Obsidian Vault"
+        "SPIRAL_VAULT_PATH": "/Users/you/Documents/MyNotes"
       }
     }
   }
@@ -288,7 +288,7 @@ src/
   ├ roadmap.ts         ─ discoverRoadmaps · loadRoadmapChapters
   ├ vault.ts           ─ 노트 R/W, listSpiralNotes, trash 관리
   ├ note-writer.ts     ─ 8섹션 구조화 + Look-up callout 첨부
-  ├ spiral.ts          ─ Claude suggest next chapter
+  ├ spiral.ts          ─ AI 기반 다음 챕터 추천
   ├ session-store.ts   ─ 세션 + lookups + pause state 인메모리 store
   ├ claude.ts          ─ Anthropic SDK wrapper (retry/backoff)
   ├ curated.ts         ─ GitHub 조직 레포 on-demand clone
