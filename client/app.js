@@ -805,9 +805,19 @@ function updateModelTierBadge() {
   els.modelTierBadge.title = model.description ?? "";
 }
 
+// v0.5.89 — 레포 표시명 변환 (표시 전용 — id/경로/매칭에는 절대 사용 금지).
+//   "spring-core-deep-dive" → "Spring core"
+//   1) "-deep-dive" 접미사 제거  2) 하이픈 → 공백  3) 첫 글자 대문자
+function displayRepoName(name) {
+  let s = String(name ?? "");
+  s = s.replace(/-deep-dive$/i, "");
+  s = s.replace(/-/g, " ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 function renderRoadmapSelector() {
   const active = state.roadmaps.find((r) => r.id === state.activeRoadmapId);
-  const activeName = active?.name ?? "선택된 로드맵 없음";
+  const activeName = active ? displayRepoName(active.name) : "선택된 로드맵 없음";
   const activeProgress = active
     ? `${active.visitedChapters}/${active.chapterCount}`
     : "";
@@ -1119,7 +1129,7 @@ function renderRoadmapSelector() {
               <button class="${repoClass} ${isFlatActive ? "active" : ""}" ${repoHeaderAttrs}>
                 ${!isSingleFlat ? `<span class="cat-caret">${repoCaret}</span>` : `<span class="cat-caret"> </span>`}
                 ${repoIconHtml()}
-                <span class="repo-name">${escapeHtml(repoName)}</span>
+                <span class="repo-name">${escapeHtml(displayRepoName(repoName))}</span>
                 ${repoDepthBadge}
                 <span class="cat-count">${isSingleFlat ? roadmaps[0].chapterCount : roadmaps.length}</span>
               </button>
