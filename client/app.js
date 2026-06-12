@@ -1078,7 +1078,9 @@ function renderRoadmapSelector() {
               .map((r, idx) => {
                 const isActive = r.id === state.activeRoadmapId;
                 const { sub } = parseHierarchy(r);
-                const displayName = sub ?? r.name;
+                // v0.5.90 — sub-roadmap도 레포(v0.5.89)와 동일한 표시 변환.
+                // 삭제 팝오버 제목(data-roadmap-title)도 표시 전용이라 함께 적용.
+                const displayName = displayRepoName(sub ?? r.name);
                 const lastDate = r.lastDate ?? "—";
                 const visited = (r.maxDepth ?? 0) > 0;
                 const depthBadge = visited
