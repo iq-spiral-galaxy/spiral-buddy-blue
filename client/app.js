@@ -1664,10 +1664,16 @@ async function switchRoadmap(roadmapId) {
  */
 function scrollToRecentChapter() {
   if (!Array.isArray(state.chapters) || state.chapters.length === 0) return;
-  const visited = state.chapters
-    .filter((c) => c.lastDate)
-    .sort((a, b) => (b.lastDate ?? "").localeCompare(a.lastDate ?? ""));
-  const target = visited[0];
+  // v0.5.98 — 진행 중 세션의 챕터 우선, 없으면 마지막 학습 챕터로 스크롤.
+  let target = state.session?.chapterId
+    ? state.chapters.find((c) => c.id === state.session.chapterId)
+    : null;
+  if (!target) {
+    const visited = state.chapters
+      .filter((c) => c.lastDate)
+      .sort((a, b) => (b.lastDate ?? "").localeCompare(a.lastDate ?? ""));
+    target = visited[0];
+  }
   if (!target) return;
   const tryScroll = () => {
     const el = els.chapterList?.querySelector(
@@ -1788,14 +1794,16 @@ function renderChapters() {
     els.chapterList.innerHTML = `<li class="empty">챕터 없음</li>`;
     return;
   }
-  // v0.5.51 — 가장 최근 학습한 챕터 id를 미리 뽑아두기.
-  // 재진입 시 사용자가 "어디까지 했더라" 바로 찾을 수 있게 강한 시각 표식.
+  // "마지막" 뱃지용 id — 마지막으로 end-save한 챕터(lastDate 기준). 진행 상태와 무관.
   const recentChapterId = (() => {
     const visited = state.chapters
       .filter((c) => c.lastDate)
       .sort((a, b) => (b.lastDate ?? "").localeCompare(a.lastDate ?? ""));
     return visited[0]?.id ?? null;
   })();
+  // v0.5.98 — 활성(accent bar) 표식은 "현재 진행 중인 세션의 챕터" 기준.
+  // 진행 중 세션이 없으면 마지막 학습 챕터로 폴백(재진입 시 "어디까지 했더라" 표식 유지).
+  const activeChapterId = state.session?.chapterId ?? recentChapterId;
   // 검색어가 있으면 필터링 (v0.5.51)
   const q = (state.sidebarQuery ?? "").trim().toLowerCase();
   const filtered = q
@@ -1813,6 +1821,8 @@ function renderChapters() {
     const visited = (ch.maxDepth ?? 0) > 0;
     const isRecent = ch.id === recentChapterId;
     if (isRecent) li.classList.add("chapter-item--recent");
+    const isActive = ch.id === activeChapterId;
+    if (isActive) li.classList.add("chapter-item--active");
     const badge = visited
       ? `<span class="chapter-depth-pill deletable" data-chapter-delete="${escapeAttr(ch.id)}" title="클릭하여 노트 삭제 · 마지막 학습: ${escapeAttr(ch.lastDate ?? "")} · 총 ${ch.visitCount}회">d${ch.maxDepth}</span>`
       : `<span class="chapter-depth-pill empty"></span>`;
@@ -4771,6 +4781,7 @@ async function startSession(chapterId) {
     refreshPausedList(); // 일시정지 목록 갱신
     updateTopbar();
     enableSessionUi(true);
+    renderChapters(); // v0.5.98 — 활성(accent) 표식을 방금 시작한 챕터로 이동
 
     const assistantEl = appendAssistantMessage("");
     await streamInto(res, assistantEl, handle);
@@ -5177,6 +5188,7 @@ async function pauseSession() {
   els.messages.innerHTML = "";
   enableSessionUi(false);
   updateTopbar();
+  renderChapters(); // v0.5.98 — 진행 중 세션 없음 → 활성 표식 마지막 학습 챕터로 폴백
   setStatus(`⏸ "${meta.chapterTitle}" 일시정지됨 — 좌측 PAUSED에서 언제든 이어가기`);
   setTimeout(() => {
     if (els.statusBar?.textContent?.startsWith("⏸")) setStatus("");
@@ -5252,6 +5264,8 @@ async function resumePausedSession(id) {
 
     enableSessionUi(true);
     updateTopbar();
+    renderChapters(); // v0.5.98 — 활성(accent) 표식을 재개한 챕터로 이동
+    scrollToRecentChapter(); // 재개한 챕터가 보이도록 사이드바 스크롤
     // resumed 항목은 paused 목록에서 제거
     writePausedList(readPausedList().filter((p) => p.id !== id));
     refreshPausedList();
