@@ -1,8 +1,7 @@
 name: DCO
 
-# PR의 모든 커밋이 DCO sign-off(Signed-off-by)를 포함하는지 검사.
-# CLA 동의의 자동 게이트 — sign-off 없는 외부 기여는 머지 전에 막힘.
-# pull_request 이벤트에만 동작하므로 main 직접 push / 릴리즈 태그와 무관.
+# PR의 모든 커밋에 Developer Certificate of Origin sign-off가 있는지 검사.
+# (release.yml과 무관 — pull_request에서만 동작, main 직접 push엔 영향 없음)
 
 on:
   pull_request:
@@ -15,34 +14,44 @@ jobs:
   dco-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout PR head
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Verify Signed-off-by on every commit
         shell: bash
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          # PR에 포함된 커밋만 검사 (base..head)
+          commits="$(git rev-list "$base..$head")"
+          if [ -z "$commits" ]; then
+            echo "검사할 커밋 없음 — 통과"
+            exit 0
+          fi
           missing=0
-          while read -r sha; do
-            [ -z "$sha" ] && continue
-            msg=$(git log -1 --format=%B "$sha")
-            who=$(git log -1 --format='%an <%ae>' "$sha")
-            if ! printf '%s\n' "$msg" | grep -qiE '^Signed-off-by: .+ <.+@.+>'; then
-              echo "::error::커밋 ${sha:0:8} 에 DCO Signed-off-by 가 없습니다 — 작성자: $who"
+          for c in $commits; do
+            # merge 커밋은 sign-off 면제
+            parents="$(git show -s --format='%P' "$c" | wc -w)"
+            if [ "$parents" -gt 1 ]; then continue; fi
+            if git show -s --format='%B' "$c" \
+              | grep -qiE '^Signed-off-by: .+ <.+@.+>'; then
+              echo "✓ $c"
+            else
+              subj="$(git show -s --format='%s' "$c")"
+              echo "::error::커밋 누락 — $c \"$subj\" 에 Signed-off-by 가 없습니다."
               missing=1
             fi
-          done < <(git rev-list "$BASE_SHA..$HEAD_SHA")
+          done
           if [ "$missing" -ne 0 ]; then
             echo ""
-            echo "기여 시 각 커밋에 sign-off 가 필요합니다:"
-            echo "  git commit -s        (새 커밋)"
-            echo "  git commit --amend -s   (마지막 커밋 보정)"
-            echo "  git rebase --signoff main   (여러 커밋 일괄)"
-            echo "자세한 내용: CONTRIBUTING.md"
+            echo "DCO 실패: 모든 커밋에 'Signed-off-by' 가 필요합니다."
+            echo "  · 새 커밋:  git commit -s"
+            echo "  · 마지막:   git commit --amend -s && git push -f"
+            echo "  · 여러 개:  git rebase --signoff <base> && git push -f"
+            echo "자세히: CONTRIBUTING.md"
             exit 1
           fi
-          echo "✓ 모든 커밋에 DCO sign-off 확인됨"
+          echo "✓ 모든 커밋 DCO 통과"
