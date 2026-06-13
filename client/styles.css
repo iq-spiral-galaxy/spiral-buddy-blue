@@ -404,7 +404,8 @@ body.light-mode mark.sidebar-search-hit {
   border-radius: 8px;
   outline: none;
   transition: border-color 0.12s, box-shadow 0.12s, background 0.2s;
-  animation: sidebar-search-breath 3.6s ease-in-out infinite;
+  /* 상시 breath(box-shadow 애니메이션=리페인트)는 body.motion-on 에서만.
+     기본은 정적 — hover/focus는 위 transition 으로 처리(idle 비용 0). */
 }
 .sidebar-search-input::placeholder {
   color: var(--text-dim, #a6b2bb);
@@ -1672,7 +1673,20 @@ body.light-mode .domain-header:hover {
 
 .spiral-rotate {
   transform-origin: 32px 32px;
-  animation: spiral-rotate 22s linear infinite reverse;
+  /* 기본: 진입 시 1회 스핀인 후 정지 (idle GPU 비용 0).
+     상시 회전은 body.motion-on 에서만 (styles.css 하단 모션 게이팅 참고). */
+  animation: spiral-intro 1s ease-out both;
+}
+
+@keyframes spiral-intro {
+  from {
+    transform: rotate(-140deg) scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: rotate(0deg) scale(1);
+    opacity: 1;
+  }
 }
 
 @keyframes spiral-rotate {
@@ -1686,7 +1700,7 @@ body.light-mode .domain-header:hover {
 
 .spiral-glow-pulse {
   transform-origin: center;
-  animation: spiral-glow-pulse 4s ease-in-out infinite;
+  /* 상시 글로우 펄스는 body.motion-on 에서만 (하단 모션 게이팅). 기본은 정적. */
 }
 
 @keyframes spiral-glow-pulse {
@@ -1703,7 +1717,7 @@ body.light-mode .domain-header:hover {
 
 .spiral-center-pulse {
   transform-origin: center;
-  animation: spiral-center-pulse 2.4s ease-in-out infinite;
+  /* 상시 센터 펄스(SVG r 애니메이션=리페인트)는 body.motion-on 에서만. 기본은 정적. */
 }
 
 @keyframes spiral-center-pulse {
@@ -5064,7 +5078,6 @@ body.lookup-fullscreen .lookup-panel-mini.icon-btn svg {
 /* tier 2 (3-6일): 가벼운 깜빡임 */
 .activity-streak[data-tier="2"] .streak-flame {
   color: #ff8a5b;
-  animation: streak-flicker 2.4s ease-in-out infinite;
 }
 .activity-streak[data-tier="2"] .streak-num {
   color: #ffb38d;
@@ -5078,7 +5091,6 @@ body.lookup-fullscreen .lookup-panel-mini.icon-btn svg {
 }
 .activity-streak[data-tier="3"] .streak-flame {
   color: #ff7a4d;
-  animation: streak-flicker 1.6s ease-in-out infinite;
   filter: drop-shadow(0 0 3px rgba(255, 122, 77, 0.5));
 }
 .activity-streak[data-tier="3"] .streak-num {
@@ -5091,11 +5103,9 @@ body.lookup-fullscreen .lookup-panel-mini.icon-btn svg {
   background: linear-gradient(135deg, rgba(156, 195, 255, 0.18), rgba(255, 138, 91, 0.14));
   border-radius: 999px;
   box-shadow: 0 0 12px rgba(156, 195, 255, 0.28);
-  animation: streak-glow-pulse 2.8s ease-in-out infinite;
 }
 .activity-streak[data-tier="4"] .streak-flame {
   color: #ff6b3d;
-  animation: streak-flicker 1.2s ease-in-out infinite;
   filter: drop-shadow(0 0 5px rgba(255, 107, 61, 0.7));
 }
 .activity-streak[data-tier="4"] .streak-num {
@@ -5111,11 +5121,9 @@ body.lookup-fullscreen .lookup-panel-mini.icon-btn svg {
   box-shadow:
     0 0 14px rgba(255, 197, 122, 0.5),
     inset 0 0 0 1px rgba(255, 220, 170, 0.45);
-  animation: streak-glow-pulse 2.2s ease-in-out infinite;
 }
 .activity-streak[data-tier="5"] .streak-flame {
   color: #ffb347;
-  animation: streak-flicker 0.9s ease-in-out infinite;
   filter: drop-shadow(0 0 7px rgba(255, 179, 71, 0.9));
 }
 .activity-streak[data-tier="5"] .streak-num {
@@ -5890,7 +5898,6 @@ body.composer-resizing {
   border-color: rgba(255, 197, 122, 0.55);
   color: #ffd2a0;
   box-shadow: 0 0 14px rgba(255, 165, 100, 0.28);
-  animation: quiz-pulse 1.8s ease-in-out infinite;
 }
 
 @keyframes quiz-pulse {
@@ -6177,11 +6184,13 @@ body.sidebar-collapsed:not(.lookup-open) .messages .message {
 
 /* 테마 선택 UI (설정 모달) */
 
-.theme-field {
+.theme-field,
+.motion-field {
   margin-bottom: 12px;
 }
 
-.theme-toggle {
+.theme-toggle,
+.motion-toggle {
   display: inline-flex;
   gap: 6px;
   background: var(--bg-elev-2, #19212c);
@@ -6190,7 +6199,8 @@ body.sidebar-collapsed:not(.lookup-open) .messages .message {
   padding: 4px;
 }
 
-.theme-opt {
+.theme-opt,
+.motion-opt {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -6210,17 +6220,20 @@ body.sidebar-collapsed:not(.lookup-open) .messages .message {
   height: 14px;
 }
 
-.theme-opt:hover {
+.theme-opt:hover,
+.motion-opt:hover {
   color: var(--text, #edf3f5);
 }
 
-.theme-opt.active {
+.theme-opt.active,
+.motion-opt.active {
   background: rgba(92, 184, 255, 0.16);
   color: var(--accent, #5cb8ff);
   box-shadow: inset 0 0 0 1px rgba(92, 184, 255, 0.32);
 }
 
-body.light-mode .theme-opt.active {
+body.light-mode .theme-opt.active,
+body.light-mode .motion-opt.active {
   background: rgba(60, 130, 246, 0.16);
   color: #2563eb;
   box-shadow: inset 0 0 0 1px rgba(60, 130, 246, 0.32);
@@ -9355,4 +9368,73 @@ body.light-mode .workspace-list {
  * 중앙 정렬. 실측 검증: 짧은 단락 카드 316px → 900px 고정. */
 .messages {
   width: 100%;
+}
+
+/* ═══════════════════════════════════════════════════════════
+ *   v0.5.98 — UI 모션 게이팅 (발열·배터리 절감)
+ * ───────────────────────────────────────────────────────────
+ *   배경: 상시(infinite) 장식 애니메이션은 ProMotion(120Hz)에서
+ *   컴포지터를 쉬지 않게 만들어, 합성 가능한 속성이어도 단독으로
+ *   GPU ~20%를 소모함. idle 상태인데도 GPU 42%+ / 발열 / 배터리.
+ *   (실측·근거: docs/perf-idle-animations.md)
+ *
+ *   처방: 상시 장식 애니메이션은 기본 OFF. 설정 "장식 모션"을 켜면
+ *   (body.motion-on) 아래 규칙으로만 재활성. 로딩 스피너 등 작업 중에만
+ *   잠깐 도는 것은 게이팅하지 않음(idle 비용 없음).
+ *   prefers-reduced-motion 은 토글보다 항상 우선해서 정지.
+ * ═══════════════════════════════════════════════════════════ */
+
+/* 로고 스파이럴: 상시 회전/글로우/센터 펄스 (기본은 진입 시 1회 스핀인만) */
+body.motion-on .spiral-rotate {
+  animation: spiral-rotate 22s linear infinite reverse;
+}
+body.motion-on .spiral-glow-pulse {
+  animation: spiral-glow-pulse 4s ease-in-out infinite;
+}
+body.motion-on .spiral-center-pulse {
+  animation: spiral-center-pulse 2.4s ease-in-out infinite;
+}
+
+/* 사이드바 검색창 breath (포커스 중엔 정지 — :focus 규칙의 animation:none 보존) */
+body.motion-on .sidebar-search-input:not(:focus) {
+  animation: sidebar-search-breath 3.6s ease-in-out infinite;
+}
+
+/* streak 뱃지 티어별 펄스/플리커 */
+body.motion-on .activity-streak[data-tier="2"] .streak-flame {
+  animation: streak-flicker 2.4s ease-in-out infinite;
+}
+body.motion-on .activity-streak[data-tier="3"] .streak-flame {
+  animation: streak-flicker 1.6s ease-in-out infinite;
+}
+body.motion-on .activity-streak[data-tier="4"] {
+  animation: streak-glow-pulse 2.8s ease-in-out infinite;
+}
+body.motion-on .activity-streak[data-tier="4"] .streak-flame {
+  animation: streak-flicker 1.2s ease-in-out infinite;
+}
+body.motion-on .activity-streak[data-tier="5"] {
+  animation: streak-glow-pulse 2.2s ease-in-out infinite;
+}
+body.motion-on .activity-streak[data-tier="5"] .streak-flame {
+  animation: streak-flicker 0.9s ease-in-out infinite;
+}
+
+/* quiz 버튼(level 4) 펄스 */
+body.motion-on .action-btn.quiz[data-quiz-level="4"] {
+  animation: quiz-pulse 1.8s ease-in-out infinite;
+}
+
+/* 접근성/배터리: 모션 감소 선호 시 모든 애니메이션·트랜지션 사실상 정지
+   (토글 ON 여부와 무관하게 우선). 0 대신 0.001ms로 두어 1회성 애니메이션의
+   animationend 핸들러는 정상 발화되게 함. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }

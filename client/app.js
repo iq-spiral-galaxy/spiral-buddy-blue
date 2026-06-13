@@ -283,6 +283,29 @@ function getStoredTheme() {
 // DOMContentLoaded 전에 미리 적용 — FOUC 방지
 applyTheme(getStoredTheme());
 
+// v0.5.98 — UI 장식 모션 토글 (기본 OFF: 발열·배터리 절감)
+// body.motion-on 일 때만 상시 장식 애니메이션 동작 (styles.css 모션 게이팅 참고).
+const MOTION_KEY = "spiral-buddy:motion";
+
+function applyMotion(on) {
+  document.body.classList.toggle("motion-on", !!on);
+  document.querySelectorAll(".motion-opt").forEach((b) => {
+    const active = (b.dataset.motion === "on") === !!on;
+    b.classList.toggle("active", active);
+    b.setAttribute("aria-checked", active ? "true" : "false");
+  });
+}
+
+function getStoredMotion() {
+  try {
+    return localStorage.getItem(MOTION_KEY) === "on";
+  } catch {
+    return false;
+  }
+}
+
+applyMotion(getStoredMotion());
+
 document.addEventListener("DOMContentLoaded", async () => {
   cacheEls();
   wireEvents();
@@ -294,6 +317,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         localStorage.setItem(THEME_KEY, t);
       } catch {}
       applyTheme(t);
+    });
+  });
+  applyMotion(getStoredMotion()); // 버튼 active 상태 동기화
+  document.querySelectorAll(".motion-opt").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const on = btn.dataset.motion === "on";
+      try {
+        localStorage.setItem(MOTION_KEY, on ? "on" : "off");
+      } catch {}
+      applyMotion(on);
     });
   });
   await loadInitial();
