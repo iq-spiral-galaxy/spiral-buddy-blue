@@ -175,7 +175,7 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           cat > NOTES.md <<'EOF'
-          # Spiral Buddy ${TAG_PLACEHOLDER}
+          # Spiral Buddy Blue ${TAG_PLACEHOLDER}
 
           ## ⚡ 30초 설치 (한 줄 명령)
 
@@ -185,16 +185,16 @@ jobs:
           <summary>🍎 <strong>macOS — Apple Silicon (M1/M2/M3/M4)</strong></summary>
 
           ```bash
-          osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
+          osascript -e 'tell application "Spiral Buddy Blue" to quit' 2>/dev/null; sleep 1; \
           cd /tmp && \
           curl -fL -o /tmp/spiral.dmg "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest-arm64.dmg" && \
           MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
-          rm -rf '/Applications/Spiral Buddy.app' && \
-          cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
+          rm -rf '/Applications/Spiral Buddy Blue.app' && \
+          cp -R "$MOUNT/Spiral Buddy Blue.app" /Applications/ && \
           hdiutil detach -quiet "$MOUNT" && \
-          xattr -cr '/Applications/Spiral Buddy.app' && \
+          xattr -cr '/Applications/Spiral Buddy Blue.app' && \
           rm -f /tmp/spiral.dmg && \
-          open '/Applications/Spiral Buddy.app'
+          open '/Applications/Spiral Buddy Blue.app'
           ```
           </details>
 
@@ -202,16 +202,16 @@ jobs:
           <summary>🍎 <strong>macOS — Intel</strong></summary>
 
           ```bash
-          osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
+          osascript -e 'tell application "Spiral Buddy Blue" to quit' 2>/dev/null; sleep 1; \
           cd /tmp && \
           curl -fL -o /tmp/spiral.dmg "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest.dmg" && \
           MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
-          rm -rf '/Applications/Spiral Buddy.app' && \
-          cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
+          rm -rf '/Applications/Spiral Buddy Blue.app' && \
+          cp -R "$MOUNT/Spiral Buddy Blue.app" /Applications/ && \
           hdiutil detach -quiet "$MOUNT" && \
-          xattr -cr '/Applications/Spiral Buddy.app' && \
+          xattr -cr '/Applications/Spiral Buddy Blue.app' && \
           rm -f /tmp/spiral.dmg && \
-          open '/Applications/Spiral Buddy.app'
+          open '/Applications/Spiral Buddy Blue.app'
           ```
           </details>
 
@@ -222,12 +222,12 @@ jobs:
 
           ```powershell
           $ErrorActionPreference = "Stop"
-          Get-Process "Spiral Buddy" -EA SilentlyContinue | Stop-Process -Force
+          Get-Process "Spiral Buddy Blue" -EA SilentlyContinue | Stop-Process -Force
           $exe = "$env:TEMP\spiral-buddy-setup.exe"
           Invoke-WebRequest -Uri "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest-Setup.exe" -OutFile $exe
           Start-Process -FilePath $exe -ArgumentList "/S" -Wait
           Remove-Item $exe -Force
-          $app = "$env:LOCALAPPDATA\Programs\spiral-buddy\Spiral Buddy.exe"
+          $app = "$env:LOCALAPPDATA\Programs\spiral-buddy-blue\Spiral Buddy Blue.exe"
           if (Test-Path $app) { Start-Process $app }
           ```
           </details>
@@ -248,10 +248,10 @@ jobs:
 
           | OS | 파일 |
           |---|---|
-          | macOS Apple Silicon | `Spiral.Buddy-*-arm64.dmg` |
-          | macOS Intel | `Spiral.Buddy-*.dmg` (arm64 아닌 것) |
-          | Windows | `Spiral.Buddy.Setup.*.exe` |
-          | Linux | `Spiral.Buddy-*.AppImage` |
+          | macOS Apple Silicon | `Spiral.Buddy.Blue-*-arm64.dmg` |
+          | macOS Intel | `Spiral.Buddy.Blue-*.dmg` (arm64 아닌 것) |
+          | Windows | `Spiral.Buddy.Blue.Setup.*.exe` |
+          | Linux | `Spiral.Buddy.Blue-*.AppImage` |
 
           ## ⚠️ macOS — "손상됨" 경고가 뜨면
 
@@ -259,7 +259,7 @@ jobs:
           위 한 줄 명령은 `xattr -cr`이 포함되어 자동 해결됩니다. 수동으로 받았다면:
 
           ```bash
-          xattr -cr "/Applications/Spiral Buddy.app"
+          xattr -cr "/Applications/Spiral Buddy Blue.app"
           ```
 
           ## ⚠️ Windows — SmartScreen 경고가 뜨면
