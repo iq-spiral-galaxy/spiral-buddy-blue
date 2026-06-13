@@ -2,6 +2,12 @@ appId: com.iq-lab.spiral-buddy
 productName: Spiral Buddy
 copyright: © 2026 iq-lab
 
+# v0.5.95 — macOS Helper 앱을 CFBundleName("Spiral Buddy Blue")에 맞춰 rename.
+# dock 호버 이름은 CFBundleName을 읽으므로 Blue로 띄우려면 CFBundleName을
+# 바꿔야 하는데, 그러면 Electron이 Helper를 못 찾아 크래시 → 이 훅이 Helper를
+# 같은 이름으로 rename해 일치시킨다. (자세한 배경: electron/after-pack.cjs)
+afterPack: ./electron/after-pack.cjs
+
 # 안전한 기본값: asar 끔. 자식 프로세스에서 dist/server.js를 process.execPath로 실행하므로
 # unpack 처리 신경 안 써도 됨. 사이즈 약간 늘지만 안정성 우선.
 asar: false
@@ -24,6 +30,7 @@ files:
   - "!.claude/**"
   - "!docs/**"
   - "!scripts/**"
+  - "!electron/after-pack.cjs" # 빌드 훅 — 앱 번들에 포함 불필요
 
 # extraResources에 둘 것 없음 — 모두 files에 포함
 
@@ -40,18 +47,17 @@ mac:
   identity: "-"
   hardenedRuntime: false
   gatekeeperAssess: false
-  # dock/Finder 표시명만 "Spiral Buddy Blue"로 — CFBundleDisplayName으로.
-  # productName 자체를 바꾸면 .app 파일명/설치 경로/dmg 볼륨명/asset 파일명이
-  # 전부 바뀌어 기존 사용자의 (이미 배포된) 업데이트 스크립트가 깨짐.
+  # dock 호버 이름은 CFBundleName을 읽는다(CFBundleDisplayName/.app 파일명 아님 —
+  # v0.5.92↔v0.5.94 대조로 확정). 따라서 "Spiral Buddy Blue"로 띄우려면
+  # CFBundleName을 바꿔야 한다.
   #
-  # ⚠ v0.5.94 — CFBundleName은 절대 바꾸지 말 것.
-  # v0.5.92에서 CFBundleName도 "Spiral Buddy Blue"로 바꿨더니, Electron이
-  # CFBundleName으로 Helper 앱 이름(<name> Helper.app)을 유추하는데 실제
-  # Helper는 productName 기준 "Spiral Buddy Helper.app"로 패키징되어 이름이
-  # 어긋남 → 런타임이 "Unable to find helper app" FATAL → Apple Silicon에서
-  # GUI 실행 즉시 EXC_BREAKPOINT 크래시 루프. 표시명은 CFBundleDisplayName
-  # 하나로 충분하므로 CFBundleName은 기본값(productName)을 유지한다.
+  # ⚠ CFBundleName을 바꾸면 Electron이 Helper를 "<CFBundleName> Helper.app"로
+  # 찾다가 실패해 크래시한다(v0.5.92→93의 EXC_BREAKPOINT 원인). 그래서
+  # afterPack 훅(electron/after-pack.cjs)이 Helper 앱들을 같은 이름으로 rename해
+  # 일치시킨다. CFBundleName과 afterPack은 항상 같이 가야 한다.
+  # productName/.app 파일명은 그대로라 자동 업데이트는 유지된다.
   extendInfo:
+    CFBundleName: Spiral Buddy Blue
     CFBundleDisplayName: Spiral Buddy Blue
 
 dmg:
