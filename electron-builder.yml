@@ -40,13 +40,19 @@ mac:
   identity: "-"
   hardenedRuntime: false
   gatekeeperAssess: false
-  # v0.5.92 — dock/Finder 표시명만 "Spiral Buddy Blue"로.
-  # productName 자체를 바꾸면 .app 파일명/설치 경로/dmg 볼륨명/asset
-  # 파일명이 전부 바뀌어 기존 사용자의 (이미 배포된) 업데이트 스크립트가
-  # 깨짐 — CFBundleDisplayName은 표시만 바꾸는 안전한 방법.
+  # dock/Finder 표시명만 "Spiral Buddy Blue"로 — CFBundleDisplayName으로.
+  # productName 자체를 바꾸면 .app 파일명/설치 경로/dmg 볼륨명/asset 파일명이
+  # 전부 바뀌어 기존 사용자의 (이미 배포된) 업데이트 스크립트가 깨짐.
+  #
+  # ⚠ v0.5.94 — CFBundleName은 절대 바꾸지 말 것.
+  # v0.5.92에서 CFBundleName도 "Spiral Buddy Blue"로 바꿨더니, Electron이
+  # CFBundleName으로 Helper 앱 이름(<name> Helper.app)을 유추하는데 실제
+  # Helper는 productName 기준 "Spiral Buddy Helper.app"로 패키징되어 이름이
+  # 어긋남 → 런타임이 "Unable to find helper app" FATAL → Apple Silicon에서
+  # GUI 실행 즉시 EXC_BREAKPOINT 크래시 루프. 표시명은 CFBundleDisplayName
+  # 하나로 충분하므로 CFBundleName은 기본값(productName)을 유지한다.
   extendInfo:
     CFBundleDisplayName: Spiral Buddy Blue
-    CFBundleName: Spiral Buddy Blue
 
 dmg:
   title: Spiral Buddy ${version}
