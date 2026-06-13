@@ -78,9 +78,16 @@ export async function startServer(): Promise<{ url: string; port: number }> {
   });
 
   const port = Number(process.env.PORT ?? 3737);
-  const url = `http://localhost:${port}`;
+  const url = `http://127.0.0.1:${port}`;
 
-  serve({ fetch: app.fetch, port }, async () => {
+  // v0.5.93 — 반드시 127.0.0.1(IPv4 loopback)에 명시 바인딩.
+  // 기본값은 `::`(IPv6 전체)라, Electron main의 빈 포트 검사(tryListen은
+  // 127.0.0.1만 확인)와 주소 패밀리가 어긋났음. 점유된 포트가 :::PORT로
+  // 잡혀 있어도 127.0.0.1 검사는 "비었다"고 오판 → 실제 bind에서
+  // EADDRINUSE(:::PORT) 크래시. 같은 앱(예: Green)을 두 번 켜면 발생.
+  // 검사·연결(waitForServer)·창 로딩이 모두 127.0.0.1이므로 여기서 통일.
+  // 부가 효과: 로컬 전용 앱의 외부 네트워크 노출 제거 (보안↑).
+  serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, async () => {
     console.log();
     console.log(chalk.bold.cyan("  🌀 iq-spiral-buddy"));
     console.log(chalk.gray("  spiral learning · Claude × Obsidian"));

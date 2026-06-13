@@ -58,6 +58,14 @@ function _logFatal(kind, err) {
   return msg;
 }
 
+// v0.5.93 — 부팅 단계(창 생성 전) 치명 에러는 single-instance 락을 쥔 채
+// 좀비로 남으면 안 됨. 락만 보유하고 창이 없는 프로세스가 되면, 이후 모든
+// 재실행이 "락 못 얻음 → quit, 기존 창 focus 시도 → 창 없음 → 무반응"으로
+// 앱이 실행 불가가 됨. 부팅 전이면 quit해서 락을 반드시 해제한다.
+function _isPreWindowBoot() {
+  return !serverStarted && BrowserWindow.getAllWindows().length === 0;
+}
+
 process.on("uncaughtException", (err) => {
   const msg = _logFatal("UNCAUGHT", err);
   if (!_crashDialogShown) {
@@ -69,12 +77,19 @@ process.on("uncaughtException", (err) => {
       );
     } catch {}
   }
-  // 종료하지 않음 — 이벤트 핸들러 안 에러는 대부분 앱 전체를 죽일 이유가 없음.
-  // 진짜 복구 불능이면 어차피 후속 동작이 실패하고 사용자가 재시작함.
+  // 부팅 전이면 종료(락 해제). 그 외(정상 가동 중 이벤트 핸들러 에러)는
+  // 앱 전체를 죽이지 않음 — 후속 동작 실패 시 사용자가 재시작.
+  if (_isPreWindowBoot()) {
+    try { app.quit(); } catch {}
+  }
 });
 
 process.on("unhandledRejection", (reason) => {
   _logFatal("UNHANDLED-REJECTION", reason);
+  // 부팅 전 비동기 거부(findFreePort/loadURL 등)도 좀비 락 방지를 위해 종료.
+  if (_isPreWindowBoot()) {
+    try { app.quit(); } catch {}
+  }
 });
 
 function displayWorkspaceName(nameOrPath) {
@@ -334,7 +349,7 @@ function uniqueId(base, taken) {
 // v0.5.86 — 고정 포트 우선.
 //
 // 기존엔 매 실행마다 랜덤 포트(listen(0))를 잡았는데, 렌더러의
-// localStorage는 origin(http://localhost:<port>) 단위로 격리되므로
+// localStorage는 origin(http://127.0.0.1:<port>) 단위로 격리되므로
 // 포트가 바뀔 때마다 테마(다크/라이트), 일시정지 목록, 사이드바/Look-up
 // 폭 등 클라이언트 설정이 전부 초기화됐음 ("화이트 모드로 해놔도
 // 껐다 켜면 다크로 돌아옴" 보고의 근본 원인).
@@ -533,7 +548,7 @@ async function bootWithConfig(cfg) {
   if (!ready) {
     dialog.showErrorBox(
       "Spiral Buddy — 서버 시작 실패",
-      `서버가 localhost:${serverPort}에서 응답하지 않습니다.\n\n로그 파일: ${SERVER_LOG_PATH}`,
+      `서버가 127.0.0.1:${serverPort}에서 응답하지 않습니다.\n\n로그 파일: ${SERVER_LOG_PATH}`,
     );
     app.quit();
     return;
@@ -1816,18 +1831,67 @@ async function bootOrSetup() {
   createSetupWindow();
 }
 
-app.whenReady().then(async () => {
-  // macOS 기본 메뉴 유지 (Cmd+Q 등)
-  if (process.platform === "darwin") {
-    Menu.setApplicationMenu(Menu.getApplicationMenu());
+// v0.5.93 — single-instance 락.
+// 기존엔 같은 앱을 두 번 켤 수 있었고, 둘째 인스턴스가 같은 포트(예: Blue
+// 4517)를 잡으려다 EADDRINUSE로 크래시했음. 락을 못 얻으면(=이미 실행 중)
+// 둘째 인스턴스는 조용히 종료하고, 첫째 인스턴스의 창을 앞으로 가져옴.
+//
+// 공존(Blue·Red·Green 동시 실행): Electron의 락은 appId가 아니라
+// userData 경로(= app.name = productName) 기준이다. 패키징 빌드에서는
+// productName이 색마다 다르므로("Spiral Buddy" / "Spiral Buddy Red" /
+// "Spiral Buddy Green") userData가 분리 → 세 버디 동시 실행 가능.
+// (Blue 자체 appId는 com.iq-lab.spiral-buddy — 색 접미사 없음.)
+// 단, 소스에서 직접 실행(dev)하면 package.json name을 공유할 수 있어
+// userData가 겹칠 수 있음 — 공존 보장은 "패키징 빌드" 한정.
+function focusExistingWindow() {
+  const win =
+    (mainWindow && !mainWindow.isDestroyed() && mainWindow) ||
+    (setupWindow && !setupWindow.isDestroyed() && setupWindow) ||
+    BrowserWindow.getAllWindows()[0];
+  if (win) {
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
   }
+}
 
-  // v0.5.74 — 직전 업데이트 시도의 성공/실패 판정.
-  // 실패 시 다이얼로그로 알리고 수동 설치 경로 안내 (기존엔 조용히 실패).
-  checkPendingUpdateOutcome();
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    focusExistingWindow();
+  });
 
-  await bootOrSetup();
-});
+  app.whenReady()
+    .then(async () => {
+      // macOS 기본 메뉴 유지 (Cmd+Q 등)
+      if (process.platform === "darwin") {
+        Menu.setApplicationMenu(Menu.getApplicationMenu());
+      }
+
+      // v0.5.74 — 직전 업데이트 시도의 성공/실패 판정.
+      // 실패 시 다이얼로그로 알리고 수동 설치 경로 안내 (기존엔 조용히 실패).
+      checkPendingUpdateOutcome();
+
+      await bootOrSetup();
+    })
+    .catch((err) => {
+      // v0.5.93 — 부팅 실패가 여기로 떨어지면(findFreePort/loadURL 등
+      // bootWithConfig try/catch 밖) 락만 쥔 창 없는 좀비가 됨. 반드시
+      // 알리고 quit해서 락을 해제 → 다음 실행이 정상 부팅 시도 가능.
+      const msg = _logFatal("BOOT", err);
+      if (!_crashDialogShown) {
+        _crashDialogShown = true;
+        try {
+          dialog.showErrorBox(
+            "Spiral Buddy 시작 실패",
+            `앱을 시작하지 못했어요.\n\n${msg.split("\n")[0]}\n\n자세한 내용: ${SERVER_LOG_PATH}`,
+          );
+        } catch {}
+      }
+      try { app.quit(); } catch {}
+    });
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
