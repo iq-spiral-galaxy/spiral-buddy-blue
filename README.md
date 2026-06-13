@@ -20,32 +20,32 @@
 터미널에 그대로 붙여넣기 — 실행 중이면 자동 종료 → 최신 버전 받기 → 설치 → 재실행까지 한 번에:
 
 ```bash
-osascript -e 'tell application "Spiral Buddy Blue" to quit' 2>/dev/null; sleep 1; \
+osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
 cd /tmp && \
 curl -fL -o /tmp/spiral.dmg "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest-arm64.dmg" && \
 MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
-rm -rf '/Applications/Spiral Buddy Blue.app' && \
-cp -R "$MOUNT/Spiral Buddy Blue.app" /Applications/ && \
+rm -rf '/Applications/Spiral Buddy.app' && \
+cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
 hdiutil detach -quiet "$MOUNT" && \
-xattr -cr '/Applications/Spiral Buddy Blue.app' && \
+xattr -cr '/Applications/Spiral Buddy.app' && \
 rm -f /tmp/spiral.dmg && \
-open '/Applications/Spiral Buddy Blue.app'
+open '/Applications/Spiral Buddy.app'
 ```
 
 ### 🍎 macOS — Intel
 터미널에 그대로 붙여넣기:
 
 ```bash
-osascript -e 'tell application "Spiral Buddy Blue" to quit' 2>/dev/null; sleep 1; \
+osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
 cd /tmp && \
 curl -fL -o /tmp/spiral.dmg "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest.dmg" && \
 MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
-rm -rf '/Applications/Spiral Buddy Blue.app' && \
-cp -R "$MOUNT/Spiral Buddy Blue.app" /Applications/ && \
+rm -rf '/Applications/Spiral Buddy.app' && \
+cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
 hdiutil detach -quiet "$MOUNT" && \
-xattr -cr '/Applications/Spiral Buddy Blue.app' && \
+xattr -cr '/Applications/Spiral Buddy.app' && \
 rm -f /tmp/spiral.dmg && \
-open '/Applications/Spiral Buddy Blue.app'
+open '/Applications/Spiral Buddy.app'
 ```
 
 ### 🪟 Windows (PowerShell)
@@ -53,12 +53,12 @@ open '/Applications/Spiral Buddy Blue.app'
 
 ```powershell
 $ErrorActionPreference = "Stop"
-Get-Process "Spiral Buddy Blue" -EA SilentlyContinue | Stop-Process -Force
+Get-Process "Spiral Buddy" -EA SilentlyContinue | Stop-Process -Force
 $exe = "$env:TEMP\spiral-buddy-setup.exe"
 Invoke-WebRequest -Uri "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest-Setup.exe" -OutFile $exe
 Start-Process -FilePath $exe -ArgumentList "/S" -Wait
 Remove-Item $exe -Force
-$app = "$env:LOCALAPPDATA\Programs\spiral-buddy-blue\Spiral Buddy Blue.exe"
+$app = "$env:LOCALAPPDATA\Programs\spiral-buddy\Spiral Buddy.exe"
 if (Test-Path $app) { Start-Process $app }
 ```
 
@@ -71,7 +71,7 @@ chmod +x ~/SpiralBuddy.AppImage
 
 > ⚙️ 앱 안에서도 **설정 > 일반 > "새 버전 사용 가능"** 배너에서 한 번 클릭으로 업데이트 가능 (macOS / Windows).
 >
-> 첫 실행 시 macOS Gatekeeper 경고("'손상되었기 때문에 열 수 없습니다") — 위 명령의 `xattr -cr`이 해결. 노트·설정·워크스페이스는 vault 또는 `~/Library/Application Support/iq-spiral-buddy/`에 저장돼서 재설치해도(파일명이 바뀌어도) 안 사라집니다.
+> 첫 실행 시 macOS Gatekeeper 경고("'손상되었기 때문에 열 수 없습니다") — 위 명령의 `xattr -cr`이 해결. 노트·설정·워크스페이스는 vault 또는 `~/Library/Application Support/Spiral Buddy/`에 저장돼서 재설치해도 안 사라집니다.
 
 ---
 
@@ -180,7 +180,7 @@ frontmatter도 정리됨: `repo` → `roadmap` → `chapter` → `depth` → `da
 
 ### 1. 다운로드 후 첫 실행
 
-위 한 줄 설치 명령으로 받았다면 자동 실행됨. 그렇지 않으면 `Spiral Buddy Blue.app`을 더블클릭.
+위 한 줄 설치 명령으로 받았다면 자동 실행됨. 그렇지 않으면 `Spiral Buddy.app`을 더블클릭.
 
 ### 2. 첫 실행 시 Setup Wizard
 

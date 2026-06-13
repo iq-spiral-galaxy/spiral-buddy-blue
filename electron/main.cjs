@@ -813,19 +813,18 @@ function buildInstallScript(version, logPath) {
   if (platform === "darwin") {
     const dmgName =
       arch === "arm64"
-        ? `Spiral.Buddy.Blue-${version}-arm64.dmg`
-        : `Spiral.Buddy.Blue-${version}.dmg`;
+        ? `Spiral.Buddy-${version}-arm64.dmg`
+        : `Spiral.Buddy-${version}.dmg`;
     const url = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/v${version}/${dmgName}`;
     // 모든 출력을 logPath로 — 디버깅 가능.
     // set -e는 사용 X (한 단계 실패해도 다음 시도하고 마지막에 open). 단계마다 echo로 진행 로깅.
-    // v0.5.96 — productName="Spiral Buddy Blue"라 .app/볼륨/asset 이름 모두 Blue.
     return `#!/bin/bash
 exec > "${logPath}" 2>&1
-echo "=== Spiral Buddy Blue update start (v${version}) ==="
+echo "=== Spiral Buddy update start (v${version}) ==="
 date
 
 echo "-- step 1: quitting current app"
-osascript -e 'tell application "Spiral Buddy Blue" to quit' 2>/dev/null || true
+osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null || true
 sleep 2.5
 
 echo "-- step 2: downloading dmg from ${url}"
@@ -842,20 +841,20 @@ if ! hdiutil attach -nobrowse -quiet /tmp/spiral.dmg; then
 fi
 
 echo "-- step 4: replacing app in /Applications"
-rm -rf '/Applications/Spiral Buddy Blue.app'
-if ! cp -R "/Volumes/Spiral Buddy Blue ${version}/Spiral Buddy Blue.app" /Applications/; then
+rm -rf '/Applications/Spiral Buddy.app'
+if ! cp -R "/Volumes/Spiral Buddy ${version}/Spiral Buddy.app" /Applications/; then
   echo "ERROR: copy failed — /Applications 권한이 부족할 수 있음"
-  hdiutil detach -quiet "/Volumes/Spiral Buddy Blue ${version}" 2>/dev/null || true
+  hdiutil detach -quiet "/Volumes/Spiral Buddy ${version}" 2>/dev/null || true
   exit 1
 fi
 
 echo "-- step 5: unmount + cleanup"
-hdiutil detach -quiet "/Volumes/Spiral Buddy Blue ${version}" 2>/dev/null || true
-xattr -cr '/Applications/Spiral Buddy Blue.app' 2>/dev/null || true
+hdiutil detach -quiet "/Volumes/Spiral Buddy ${version}" 2>/dev/null || true
+xattr -cr '/Applications/Spiral Buddy.app' 2>/dev/null || true
 rm -f /tmp/spiral.dmg
 
 echo "-- step 6: opening updated app"
-open '/Applications/Spiral Buddy Blue.app'
+open '/Applications/Spiral Buddy.app'
 echo "=== done ==="
 `;
   }
@@ -1003,7 +1002,7 @@ ipcMain.handle("app:install-update", async (_e, { version }) => {
   //      — Node https 다운로드는 mark-of-the-web이 안 붙어 SmartScreen 차단 없음
   //   3. 그 후에만 앱 종료. 설치 실패는 v0.5.74 marker가 다음 부팅 때 감지.
   if (process.platform === "win32") {
-    const exeName = `Spiral.Buddy.Blue.Setup.${version}.exe`;
+    const exeName = `Spiral.Buddy.Setup.${version}.exe`;
     const url = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/v${version}/${exeName}`;
     const dest = path.join(os.tmpdir(), `spiral-buddy-setup-${version}.exe`);
     const log = (msg) => {
