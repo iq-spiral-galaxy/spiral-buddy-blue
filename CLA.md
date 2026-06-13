@@ -1,68 +1,109 @@
-# Contributor License Agreement (CLA)
+# 기여자 라이선스 계약 (Contributor License Agreement, CLA)
 
-> ⚠️ **This is a standard template, not legal advice.** Before relying on it
-> for a commercial venture, have it reviewed by a qualified attorney in your
-> jurisdiction (한국 포함). The project owner is referred to below as the
-> "Project" / "we" / "us" (currently: Donghee Han / iq-lab, the maintainer of
-> the iq-spiral-galaxy repositories).
+**버전 1.0 — Spiral Buddy Blue 프로젝트**
 
-By submitting a contribution (a pull request, patch, code, documentation, or
-any other material — a "Contribution") to this repository, **You** agree to the
-terms below for that and all future Contributions to this Project.
+이 문서는 Spiral Buddy Blue(이하 "프로젝트")에 코드·문서·기타 자료를 기여하는 분과
+프로젝트 소유자 사이의 법적 합의입니다. **풀 리퀘스트(PR) 등으로 기여물을 제출하면, 그
+기여물에 대해 아래 조건에 동의한 것으로 간주됩니다.** 동의할 수 없다면 기여물을 제출하지
+마세요.
 
-## 1. You keep your copyright
-You retain ownership of the copyright in your Contribution. This agreement does
-**not** transfer ownership to us — it grants us the licenses described below.
+> ⚠️ 이 CLA는 널리 쓰이는 오픈소스 CLA(Apache iCLA 등) 형식을 따른 표준 템플릿입니다.
+> 실제 법적 효력·세부 문구는 관할 법률에 따라 달라질 수 있으니, 상업화 등 이해관계가 큰
+> 경우 프로젝트 소유자는 변호사 검토를 받는 것을 권장합니다.
 
-## 2. Copyright license grant
-You grant the Project and recipients of software distributed by the Project a
-**perpetual, worldwide, non-exclusive, royalty-free, irrevocable** copyright
-license to reproduce, prepare derivative works of, publicly display, publicly
-perform, sublicense, and distribute your Contribution and such derivative works.
+---
 
-This license **expressly includes the right to relicense and to use the
-Contribution in proprietary, closed-source, and commercial products**, under
-the MIT License or under different license terms of the Project's choosing.
+## 1. 정의
 
-## 3. Patent license grant
-You grant the Project and recipients a perpetual, worldwide, non-exclusive,
-royalty-free, irrevocable (except as stated below) patent license to make, use,
-sell, offer to sell, import, and otherwise transfer the Contribution, where such
-license applies only to patent claims you can license that are necessarily
-infringed by your Contribution alone or by combination of your Contribution with
-the Project. If any entity brings patent litigation alleging the Contribution or
-the Project constitutes patent infringement, the patent licenses granted to that
-entity under this agreement terminate.
+- **"프로젝트"** — Spiral Buddy Blue 및 그 소스 코드 저장소(`iq-spiral-galaxy/spiral-buddy-blue`)와 파생물.
+- **"프로젝트 소유자"** — 위 저장소를 관리하는 주체(현재 관리자) **및 그 승계인(successor)과 양수인(assignee)**.
+  프로젝트 소유자가 향후 법인을 설립하거나 권리를 양도하는 경우, 본 계약상 부여된 모든 권리는
+  그 법인 또는 양수인에게 자동으로 승계됩니다.
+- **"기여자"** — 프로젝트에 기여물을 제출하는 개인 또는 법인(귀하).
+- **"기여물(Contribution)"** — 기여자가 프로젝트에 제출하는 모든 저작물. 코드, 문서, 설정,
+  디자인, 번역, 버그 수정 등 형태를 불문하며, 그에 대한 수정·추가본을 포함합니다.
 
-## 4. Your representations
-You represent that:
-- Each Contribution is your **original creation**, or you have the right to
-  submit it under these terms;
-- Your Contribution does not knowingly violate any third party's copyright,
-  patent, trademark, trade secret, or other rights;
-- If your employer has rights to intellectual property you create, you have
-  received permission to make the Contribution on behalf of that employer, or
-  your employer has waived such rights, or your employer is the contributing
-  entity and has authorized you to agree to this CLA;
-- You are legally entitled to grant the above licenses.
+## 2. 저작권 라이선스 부여
 
-## 5. No obligation
-You understand the Project is under no obligation to accept, merge, or use your
-Contribution. The Project may decline or remove any Contribution at its sole
-discretion.
+기여자는 프로젝트 소유자에게, 기여물에 대하여 **영구적이고(perpetual), 전 세계적이며
+(worldwide), 비독점적이고(non-exclusive), 무상이며(royalty-free), 취소 불가능한
+(irrevocable)** 다음 권리를 부여합니다:
 
-## 6. As-is
-Unless required by law or agreed in writing, you provide your Contribution on an
-"AS IS" basis, without warranties of any kind.
+- 기여물을 복제, 수정, 2차적 저작물 작성, 공중송신, 전시, 배포하는 권리
+- 위 권리를 **재라이선스(sublicense)** 하는 권리
+- 기여물을 단독으로 또는 프로젝트의 다른 부분과 결합하여 이용하는 권리
 
-## How to agree
-Agreeing is required **before** a Contribution is merged. You may agree by
-either (or both):
+## 3. 재라이선싱 및 상업적 이용 권한
 
-1. **Sign-off (DCO)** — add a `Signed-off-by` line to each commit:
-   `git commit -s` (certifies the [DCO](./DCO) with your real name + email).
-2. **CLA acknowledgement** — comment on your pull request:
-   > I have read the CLA at CLA.md and I agree to it for this and future contributions.
+기여자는 프로젝트 소유자가 기여물을 **임의의 라이선스 조건으로 제3자에게 제공**할 수 있음에
+동의합니다. 여기에는 다음이 포함되되 이에 한정되지 않습니다:
 
-For organizational/corporate contributions, contact the maintainer to arrange an
-entity-level agreement before submitting.
+- 오픈소스 라이선스(MIT, Apache 2.0 등)로의 배포
+- **상업용·독점(proprietary) 라이선스로의 배포**
+- **이중 라이선스(dual licensing)** 및 유료 제품·서비스로의 편입
+
+즉, 프로젝트 소유자는 기여물을 본 프로젝트의 사업화·상업화 과정에서 자유롭게 사용·라이선스할
+수 있으며, 기여자는 이에 대해 별도의 동의를 추가로 요구하지 않습니다.
+
+## 4. 특허 라이선스 부여
+
+기여자는 프로젝트 소유자 및 기여물 이용자에게, 기여물(또는 기여물과 프로젝트의 결합)에 의해
+필연적으로 침해되는 기여자 보유 특허 청구항에 대하여, **영구적·전 세계적·비독점적·무상·취소
+불가능한** 특허 라이선스를 부여합니다. 다만 기여자가 기여물이 자신의 특허를 침해한다고 주장하며
+프로젝트 또는 그 이용자를 상대로 특허 소송을 제기하는 경우, 본 조에 따라 그 기여자에게 부여된
+특허 라이선스는 해당 소송 제기일에 종료됩니다.
+
+## 5. 기여자의 진술 및 보증
+
+기여자는 다음을 진술하고 보증합니다:
+
+1. 기여물은 **기여자 본인의 창작물**이거나, 기여자가 이를 제출하고 위 라이선스를 부여할 적법한
+   권한을 보유하고 있습니다.
+2. 기여물은 기여자가 아는 한 **제3자의 저작권·특허·영업비밀·기타 지식재산권을 침해하지
+   않습니다.**
+3. 기여자가 **고용 관계 또는 도급 관계**에 있고 그 업무 범위에서 기여물을 작성한 경우,
+   고용주/도급인으로부터 본 라이선스를 부여할 권한을 확보했거나, 고용주/도급인이 해당 권리를
+   포기했습니다. (해당 시 법인용 CLA 또는 고용주 서면 동의가 필요할 수 있습니다.)
+4. 기여물에 제3자의 자료(라이선스가 다른 코드 등)가 포함된 경우, 기여자는 이를 명확히 표시하고
+   관련 라이선스·출처를 함께 제출합니다.
+
+## 6. 기여자가 보유하는 권리
+
+본 라이선스는 **비독점적**입니다. 기여자는 자신의 기여물에 대한 저작권을 그대로 보유하며,
+기여물을 다른 프로젝트나 목적에 자유롭게 사용·재라이선스할 수 있습니다. 본 계약은 기여물에 대한
+기여자의 권리를 박탈하지 않고, 프로젝트 소유자에게 위와 같은 폭넓은 이용·재라이선스 권리를
+부여하는 것입니다.
+
+## 7. 지분·보상·고용과의 무관계
+
+기여는 **자발적이고 무상**으로 이루어집니다. 기여자는 기여를 이유로 다음 어떠한 권리도
+가지지 않으며, 이를 청구하지 않을 것에 동의합니다:
+
+- 프로젝트 소유자 또는 그 법인에 대한 **지분(주식·출자지분) 또는 그에 준하는 권리**
+- 금전적 보상, 로열티, 수익 배분
+- 고용·위임·파트너십 등 어떠한 계약상 지위
+
+코드 기여는 저작권법 영역의 행위이며, 회사의 지분 구조는 회사법(법인 설립·정관·주주간계약 등)
+영역에서 별도로 정해집니다. 본 조는 이 두 영역이 서로 무관함을 확인합니다.
+
+## 8. 보증의 한계 및 채택 의무 없음
+
+기여물은 "있는 그대로(as is)" 제공되며, 명시적·묵시적 보증을 수반하지 않습니다. 프로젝트
+소유자는 어떤 기여물도 프로젝트에 포함하거나 유지할 의무가 없습니다.
+
+## 9. 동의 방법
+
+다음에 해당하면 기여자는 본 CLA에 동의한 것으로 봅니다:
+
+1. 프로젝트 저장소에 PR(풀 리퀘스트)을 제출하고,
+2. **CLA Assistant** 봇의 요청에 따라 PR에 서명 문구(`CLA 문서를 읽었으며 이에 동의하고
+   서명합니다`)를 댓글로 작성하여 서명하며,
+3. 각 커밋에 [개발자 원산지 증명(DCO)](CONTRIBUTING.md#dco) `Signed-off-by:` 라인을
+   포함하는 행위.
+
+2번의 서명 기록(GitHub 사용자명·시각·동의한 CLA 버전)은 저장소의 `cla-signatures`
+브랜치에 보존됩니다. 자세한 절차는 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
+
+---
+
+*Spiral Buddy Blue은 [iq-spiral-galaxy](https://github.com/iq-spiral-galaxy) 패밀리의 일부입니다.*

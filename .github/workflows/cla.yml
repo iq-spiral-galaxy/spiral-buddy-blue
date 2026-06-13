@@ -1,20 +1,18 @@
 name: CLA Assistant
 
-# 외부 기여(PR) 머지 전에 CLA 동의를 강제하고, 서명 기록을 이 레포 안에 저장한다.
-# (CLA Assistant Lite — 외부 서비스/GitHub App 의존 없음. 기존 DCO와 같은 self-contained 방식.)
+# 외부 기여자가 PR을 열면 CLA 동의를 요청하고, 서명(아래 문구를 PR에 댓글로
+# 작성)을 받으면 그 기록을 이 레포의 cla-signatures 브랜치에 저장한다.
+# 서명 전까지 PR은 머지 차단됨. 외부 서비스/GitHub App 설치 불필요 —
+# Action만으로 동작(=CLA Assistant Lite). 서명 DB도 이 레포 안에 남는다.
 #
-# 동작:
-#  - PR이 열리면 봇이 미서명 기여자에게 CLA 동의를 요청하는 코멘트를 남김.
-#  - 기여자가 PR에 지정 문구를 코멘트하면 서명으로 기록 (이름 + 시각 + CLA 버전을
-#    signatures/version1/cla.json 에 커밋).
-#  - 모든 기여자가 서명해야 CLA 체크가 통과(머지 가능 상태).
-#  - 서명 후 CLA.md가 바뀌면 'recheck' 코멘트로 재검사 가능.
+# pull_request_target 은 fork PR에서도 쓰기 토큰을 갖기 위해 필요. 이 액션은
+# PR 코드를 체크아웃/실행하지 않으므로 안전(액션 공식 권장 사용법).
 
 on:
   issue_comment:
     types: [created]
   pull_request_target:
-    types: [opened, closed, synchronize]
+    types: [opened, synchronize, reopened]
 
 permissions:
   actions: write
@@ -27,19 +25,27 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: CLA Assistant
-        if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
+        if: >-
+          (github.event.comment.body == 'recheck' ||
+           github.event.comment.body == 'CLA 문서를 읽었으며 이에 동의하고 서명합니다') ||
+          github.event_name == 'pull_request_target'
         uses: contributor-assistant/github-action@v2.6.1
         env:
-          # 같은 레포에 서명을 저장하므로 내장 토큰으로 충분 (PAT 불필요).
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          path-to-signatures: 'signatures/version1/cla.json'
-          path-to-document: 'https://github.com/iq-spiral-galaxy/spiral-buddy-blue/blob/main/CLA.md'
-          branch: 'main'
-          # 메인테이너 본인 + 봇은 서명 면제
-          allowlist: dongheeHan,*[bot]
+          # 서명 기록 저장 위치 (cla-signatures 브랜치 안)
+          path-to-signatures: signatures/version1/cla.json
+          branch: cla-signatures
+          # 기여자가 읽을 CLA 문서
+          path-to-document: https://github.com/iq-spiral-galaxy/spiral-buddy-blue/blob/main/CLA.md
+          # 서명 면제 — 프로젝트 소유자 + 봇 계정
+          allowlist: e9ua1,*[bot]
+          # 머지 후 PR 대화 잠금 비활성 (closed 트리거도 안 받음)
+          lock-pullrequest-aftermerge: false
+          # 기여자가 서명할 때 PR에 작성해야 하는 정확한 문구
+          custom-pr-sign-comment: CLA 문서를 읽었으며 이에 동의하고 서명합니다
           custom-notsigned-prcomment: |
-            기여 고마워요! 🙏 머지하려면 [CLA](https://github.com/iq-spiral-galaxy/spiral-buddy-blue/blob/main/CLA.md)에 한 번 동의가 필요해요.
-            아래 문구를 **이 PR에 그대로 코멘트**로 남겨주시면 서명됩니다 (이름·시각·CLA 버전이 기록돼요):
-          custom-pr-sign-comment: 'I have read the CLA Document and I hereby sign the CLA'
-          custom-allsigned-prcomment: '✅ 모든 기여자가 CLA에 서명했어요 — 고마워요! 리뷰 진행할게요.'
+            이 PR에 기여해주셔서 감사합니다. 머지하려면 **기여자 라이선스 계약(CLA)** 에 동의가 필요합니다.
+            아래 [CLA 문서](https://github.com/iq-spiral-galaxy/spiral-buddy-blue/blob/main/CLA.md)를 읽고,
+            이 PR에 **다음 문구를 그대로 댓글로 작성**해 서명해주세요 (서명은 향후 PR에도 자동 적용됩니다):
+          custom-allsigned-prcomment: ✅ 모든 기여자가 CLA에 서명했습니다. 감사합니다!
