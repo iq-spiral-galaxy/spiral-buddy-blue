@@ -158,6 +158,40 @@ export function renderLookupsSection(lookups: LookupEntry[]): string {
   return `\n\n## 🔍 학습 중 찾아본 표현 (${lookups.length})\n\n${items}\n`;
 }
 
+/**
+ * 세션 전체 대화를 **접이식 Obsidian callout**으로 변환.
+ *
+ * 사용자 제보: 구조화 노트만 남고 실제 대화 내용은 사라져 다시 볼 수 없어 아쉽다.
+ *   → 전체 대화를 collapsed callout(`> [!quote]-`)로 노트 끝에 보존.
+ *     기본 접힘이라 노트를 어지럽히지 않고, 펼치면 대화 전체를 쭉 다시 읽을 수 있음.
+ *   (Look-up과 동일하게 `<details>` 대신 callout을 쓰는 이유는 renderLookupsSection
+ *    주석 참고 — reading view에서 내부 마크다운/코드/볼드가 정상 처리됨.)
+ */
+export function renderTranscriptSection(transcript: ClaudeMessage[]): string {
+  // 첫 메시지는 초기 컨텍스트 주입 블록 — 실제 대화가 아니므로 제외.
+  const msgs = (transcript ?? []).slice(1);
+  if (msgs.length === 0) return "";
+  const blocks = msgs.map((m) => {
+    const who = m.role === "user" ? "🙋 나" : "🤖 버디";
+    const content =
+      typeof m.content === "string"
+        ? m.content
+        : m.content
+            .filter((b) => b.type === "text")
+            .map((b) => (b as { text: string }).text)
+            .join("\n");
+    // callout 안에 들어가도록 각 줄 앞에 `> ` (빈 줄은 `>`).
+    const indented = content
+      .split("\n")
+      .map((line) => (line.length ? `> ${line}` : ">"))
+      .join("\n");
+    return `> **${who}**\n${indented}`;
+  });
+  // 메시지 사이는 callout 내부 빈 줄(`>`)로 구분.
+  const inner = blocks.join("\n>\n");
+  return `\n\n## 💬 전체 대화\n\n> [!quote]- 펼쳐서 대화 전체 다시 보기 (${msgs.length}개 메시지)\n${inner}\n`;
+}
+
 export async function generateNote(
   client: ClaudeClient,
   args: {
@@ -242,7 +276,8 @@ Now produce the structured note JSON.`;
       ? parsed.body
       : "(note body generation failed)";
   const { patchedBody } = validateAndPatchSections(rawBody);
-  const bodyWithLookups = patchedBody + lookupsSection;
+  const bodyWithLookups =
+    patchedBody + lookupsSection + renderTranscriptSection(args.transcript);
 
   const rawSummary =
     typeof parsed.summary === "string" ? parsed.summary : "(no summary)";
