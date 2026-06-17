@@ -241,13 +241,13 @@ ${transcriptText}
 
 Now produce the structured note JSON.`;
 
-  // 8000 — 챕터 본문/대화 길이가 InnoDB Buffer Pool 같은 케이스에서 8섹션 모두
-  // 채우면 4096을 넘기는 경우가 있었음. JSON이 잘리면 safeJsonParse가 실패해
-  // fallback path (raw transcript) 로 빠지므로 충분히 여유 둠.
+  // 16000 — WAL/Buffer Pool 같이 챕터 본문·대화가 긴 케이스는 8섹션을 모두 채우면
+  // 8000도 넘겨 JSON이 잘림 → safeJsonParse 실패 → fallback(구조화 없는 노트)로 빠졌음
+  // (사용자 제보). 출력이 잘리지 않도록 여유를 더 둔다.
   const { text } = await completeOnce(client, {
     system: STRUCTURE_SYSTEM,
     messages: [{ role: "user", content: userMsg }],
-    maxTokens: 8000,
+    maxTokens: 16000,
   });
 
   const lookupsSection = renderLookupsSection(args.lookups ?? []);
@@ -266,7 +266,11 @@ Now produce the structured note JSON.`;
       depth: args.depth,
       tags: ["fallback"],
       summary: "Auto-structuring failed; raw transcript saved.",
-      body: `> ⚠ Note structuring failed. Raw transcript below.\n\n${transcriptText}${lookupsSection}`,
+      // 구조화(8섹션)는 실패했어도 대화 원문은 "전체 대화" 토글로 보기 좋게 보존.
+      // (옛 동작은 transcript를 flat하게 + Learner/Claude 라벨로 덤프 → 첫 컨텍스트
+      //  블록까지 쏟아져 가독성이 나빴음. renderTranscriptSection이 컨텍스트 제외 +
+      //  나/버디 라벨 + 접이식 callout으로 처리.)
+      body: `> [!warning] 자동 구조화에 실패했어요 — 8섹션 정리는 생략됐지만, 아래 **💬 전체 대화** 토글에서 원문을 그대로 볼 수 있어요.${lookupsSection}${renderTranscriptSection(args.transcript)}`,
       relatedNotePaths: args.related.map((r) => r.filePath),
     };
   }
