@@ -645,7 +645,14 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
 
 // v0.5.77 — 프로토콜 whitelist. 렌더러가 XSS 등으로 오염돼도
 // file:// / javascript: 같은 위험 URL은 못 열게.
-const OPEN_EXTERNAL_PROTOCOLS = new Set(["http:", "https:", "obsidian:"]);
+const OPEN_EXTERNAL_PROTOCOLS = new Set([
+  "http:",
+  "https:",
+  "obsidian:",
+  // v0.5.102 — 음성 입력 안내에서 OS 받아쓰기 설정을 바로 열기 위해 허용.
+  "x-apple.systempreferences:", // macOS 시스템 설정(받아쓰기)
+  "ms-settings:", // Windows 설정(음성)
+]);
 
 ipcMain.handle("app:open-external", (_e, url) => {
   if (typeof url !== "string") return false;

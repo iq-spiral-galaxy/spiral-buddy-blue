@@ -198,6 +198,8 @@ function cacheEls() {
   els.pauseBtn = $("pause-btn");
   els.input = $("input");
   els.sendBtn = $("send-btn");
+  els.micBtn = $("mic-btn");
+  els.micGuide = $("mic-guide");
   els.refineBtn = $("refine-btn");
   els.refineBar = $("refine-bar");
   els.refineBarText = document.querySelector("#refine-bar .refine-bar-text");
@@ -392,6 +394,12 @@ function wireEvents() {
   }
   if (els.refineUndo) {
     els.refineUndo.addEventListener("click", () => undoRefine());
+  }
+  if (els.micBtn) {
+    els.micBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleMicGuide();
+    });
   }
   els.endBtn.addEventListener("click", endSession);
 
@@ -1724,6 +1732,119 @@ function scrollToRecentChapter() {
       if (!tryScroll()) setTimeout(tryScroll, 80);
     });
   });
+}
+
+// v0.5.102 — 음성 입력: OS 받아쓰기(macOS Dictation / Windows Win+H)로 입력칸에
+// 말하도록 안내. 별도 STT API·음성 훈련 없이 OS 기본 기능을 유도하는 방식.
+const MIC_GUIDE_DISMISS_KEY = "spiral-buddy:mic-guide-dismissed";
+
+function detectOS() {
+  const s = `${navigator.platform || ""} ${navigator.userAgent || ""}`;
+  if (/Mac/i.test(s)) return "mac";
+  if (/Win/i.test(s)) return "win";
+  return "other";
+}
+
+function micGuideHTML(os) {
+  if (os === "mac") {
+    const settingsBtn = window.spiralSetup?.openExternal
+      ? `<button type="button" class="primary" data-mic-action="settings">받아쓰기 설정 열기</button>`
+      : "";
+    return `
+      <div class="mic-guide-title">🎤 음성으로 입력하기 (macOS 받아쓰기)</div>
+      <ol>
+        <li>입력칸이 활성화됐어요 — 커서가 깜빡이는지 확인하세요.</li>
+        <li><b>받아쓰기 단축키</b>를 누르고 말하면 그대로 입력돼요.<br>
+          <span class="dim">보통 <kbd>🎤</kbd>(F5) 키 또는 <kbd>⌃ Control</kbd> 두 번 — 단축키는 설정에서 확인/변경.</span></li>
+      </ol>
+      <div class="mic-guide-note">처음이면 한 번만 켜주세요: <b>시스템 설정 → 키보드 → 받아쓰기 → 켜기</b> (음성 훈련·등록 필요 없음)</div>
+      <div class="mic-guide-actions">${settingsBtn}<button type="button" data-mic-action="close">닫기</button></div>
+      <label class="mic-guide-dismiss"><input type="checkbox" data-mic-action="dontshow"> 다시 안 보기</label>`;
+  }
+  if (os === "win") {
+    return `
+      <div class="mic-guide-title">🎤 음성으로 입력하기 (Windows)</div>
+      <ol>
+        <li>입력칸이 활성화됐어요.</li>
+        <li><kbd>⊞ Win</kbd> + <kbd>H</kbd> 를 누르고 말하면 그대로 입력돼요.<br>
+          <span class="dim">설정·설치·음성 훈련 전부 필요 없어요.</span></li>
+      </ol>
+      <div class="mic-guide-actions"><button type="button" data-mic-action="close">닫기</button></div>
+      <label class="mic-guide-dismiss"><input type="checkbox" data-mic-action="dontshow"> 다시 안 보기</label>`;
+  }
+  return `
+    <div class="mic-guide-title">🎤 음성으로 입력하기</div>
+    <ol><li>입력칸이 활성화됐어요.</li>
+    <li>사용하는 OS의 <b>음성 입력(받아쓰기)</b>을 켜고 입력칸에 말하면 돼요.</li></ol>
+    <div class="mic-guide-actions"><button type="button" data-mic-action="close">닫기</button></div>
+    <label class="mic-guide-dismiss"><input type="checkbox" data-mic-action="dontshow"> 다시 안 보기</label>`;
+}
+
+function _micOutsideClick(e) {
+  if (!els.micGuide || els.micGuide.classList.contains("hidden")) return;
+  if (els.micGuide.contains(e.target) || els.micBtn?.contains(e.target)) return;
+  hideMicGuide();
+}
+
+function hideMicGuide() {
+  if (!els.micGuide) return;
+  els.micGuide.classList.add("hidden");
+  els.micGuide.innerHTML = "";
+  els.micBtn?.classList.remove("active");
+  document.removeEventListener("click", _micOutsideClick);
+}
+
+function toggleMicGuide() {
+  if (!els.micGuide) return;
+  if (!els.micGuide.classList.contains("hidden")) {
+    hideMicGuide();
+    return;
+  }
+  const os = detectOS();
+  try {
+    els.input?.focus(); // 세션 중이면 바로 받아쓰기 가능
+  } catch {}
+  let dismissed = false;
+  try {
+    dismissed = localStorage.getItem(MIC_GUIDE_DISMISS_KEY) === "1";
+  } catch {}
+  if (dismissed) {
+    const hint =
+      os === "mac"
+        ? "받아쓰기 단축키(🎤 또는 ⌃ 두 번)를 눌러 말하세요"
+        : os === "win"
+          ? "Win + H 를 눌러 말하세요"
+          : "OS 음성 입력으로 말하세요";
+    setStatus(`🎤 ${hint}`, "info");
+    setTimeout(() => {
+      if (els.statusBar?.textContent?.startsWith("🎤")) setStatus("");
+    }, 4000);
+    return;
+  }
+  els.micGuide.innerHTML = micGuideHTML(os);
+  els.micGuide.classList.remove("hidden");
+  els.micBtn?.classList.add("active");
+  els.micGuide.onclick = (e) => {
+    const act = e.target.closest("[data-mic-action]")?.dataset.micAction;
+    if (act === "close") hideMicGuide();
+    else if (act === "settings") {
+      const url =
+        os === "mac"
+          ? "x-apple.systempreferences:com.apple.Keyboard-Settings.extension"
+          : "ms-settings:speech";
+      try {
+        window.spiralSetup?.openExternal?.(url);
+      } catch {}
+    }
+  };
+  els.micGuide.onchange = (e) => {
+    if (e.target.closest("[data-mic-action='dontshow']")) {
+      try {
+        localStorage.setItem(MIC_GUIDE_DISMISS_KEY, e.target.checked ? "1" : "0");
+      } catch {}
+    }
+  };
+  setTimeout(() => document.addEventListener("click", _micOutsideClick), 0);
 }
 
 // v0.5.51 — 사이드바 검색 wire-up.

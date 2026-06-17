@@ -9443,3 +9443,101 @@ body.motion-on .action-btn.quiz[data-quiz-level="4"] {
     scroll-behavior: auto !important;
   }
 }
+
+/* ═══ v0.5.102 — 음성 입력(OS 받아쓰기) 버튼 + 안내 popover ═══ */
+.composer {
+  position: relative; /* mic-guide popover 앵커 */
+}
+.mic-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 92px;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.16) 0%, rgba(94, 234, 212, 0.12) 100%);
+  color: #7fe3d0;
+  border: 1px solid rgba(45, 212, 191, 0.4);
+  border-radius: 10px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.mic-btn:hover {
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.28) 0%, rgba(94, 234, 212, 0.2) 100%);
+  border-color: rgba(45, 212, 191, 0.65);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(45, 212, 191, 0.2);
+}
+.mic-btn:active { transform: translateY(0); }
+.mic-btn.active {
+  background: linear-gradient(135deg, rgba(45, 212, 191, 0.34) 0%, rgba(94, 234, 212, 0.26) 100%);
+  border-color: rgba(45, 212, 191, 0.8);
+}
+.mic-guide {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  right: 0;
+  z-index: 40;
+  width: min(360px, calc(100vw - 40px));
+  background: var(--bg-elev-2, #19212c);
+  border: 1px solid var(--border, #30363d);
+  border-radius: 12px;
+  padding: 14px 16px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.45);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text, #edf3f5);
+}
+.mic-guide .mic-guide-title { font-weight: 700; font-size: 13.5px; margin-bottom: 8px; }
+.mic-guide ol { margin: 0 0 8px; padding-left: 18px; }
+.mic-guide ol li { margin-bottom: 5px; }
+.mic-guide kbd {
+  background: var(--bg-elev-1, #11171f);
+  border: 1px solid var(--border, #30363d);
+  border-radius: 5px;
+  padding: 1px 6px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.mic-guide .dim { color: var(--text-dim, #8b98a5); font-size: 12px; }
+.mic-guide .mic-guide-note {
+  background: rgba(45, 212, 191, 0.08);
+  border-left: 3px solid rgba(45, 212, 191, 0.5);
+  padding: 7px 10px;
+  border-radius: 6px;
+  font-size: 12.5px;
+  margin: 8px 0;
+}
+.mic-guide .mic-guide-actions { display: flex; gap: 8px; margin-top: 10px; }
+.mic-guide .mic-guide-actions button {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border, #30363d);
+  background: var(--bg-elev-1, #11171f);
+  color: var(--text, #edf3f5);
+  transition: filter 0.12s;
+}
+.mic-guide .mic-guide-actions button.primary {
+  background: rgba(45, 212, 191, 0.18);
+  border-color: rgba(45, 212, 191, 0.5);
+  color: #7fe3d0;
+}
+.mic-guide .mic-guide-actions button:hover { filter: brightness(1.18); }
+.mic-guide .mic-guide-dismiss {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--text-dim, #8b98a5);
+  cursor: pointer;
+}
+body.light-mode .mic-guide { background: #fff; color: #1a2230; }
+body.light-mode .mic-guide kbd { background: #f0f3f6; border-color: #d4dae0; }
