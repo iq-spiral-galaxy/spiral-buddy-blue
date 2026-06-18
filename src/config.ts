@@ -10,6 +10,7 @@ const __envDirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__envDirname, "../.env") });
 
 export interface Config {
+  // OAuth 모드에서는 사용 안 함. 빈 문자열이면 claude -p 서브프로세스 경로 사용.
   apiKey: string;
   model: string;
   maxTokens: number;
@@ -50,10 +51,12 @@ function findObsidianVaultRoot(startPath: string | null): string | null {
 }
 
 export function loadConfig(): Config {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    throw new Error(
-      "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and add your key.",
+  // OAuth 모드: API 키 없이 claude -p 서브프로세스로 실행.
+  // ANTHROPIC_API_KEY가 있으면 경고만 출력 (무시해도 무방).
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? "";
+  if (apiKey) {
+    console.warn(
+      "[spiral-buddy-oauth] ANTHROPIC_API_KEY가 설정되어 있지만 이 빌드는 Claude Code OAuth를 사용합니다. API 키는 무시됩니다.",
     );
   }
 
