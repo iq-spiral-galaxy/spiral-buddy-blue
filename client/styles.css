@@ -2872,6 +2872,36 @@ body.sidebar-collapsed .messages {
   color: var(--accent, #5cb8ff);
 }
 
+.settings-auth-radios {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-auth-radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--bg-elev, #15191f);
+  border: 1px solid var(--border, rgba(148,169,190,0.22));
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text);
+}
+
+.settings-auth-radio:has(input:checked) {
+  border-color: var(--accent, #5cb8ff);
+  background: rgba(90, 184, 255, 0.06);
+}
+
+.settings-auth-radio input[type="radio"] {
+  flex-shrink: 0;
+  margin: 0;
+  accent-color: var(--accent, #5cb8ff);
+}
+
 .settings-hint code {
   background: var(--bg-elev-2);
   padding: 1px 5px;

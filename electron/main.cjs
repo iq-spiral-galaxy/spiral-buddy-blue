@@ -428,7 +428,14 @@ async function startServerInProcess(cfg) {
     ws?.vaultSubDir || "default",
   );
 
-  const serverEntry = path.join(APP_ROOT, "dist", "server.js");
+  // APP_ROOT가 electron/ 으로 잡히는 케이스 대비:
+  // __dirname은 항상 electron/ 이므로 한 단계 위가 프로젝트 루트.
+  // packaged 빌드에서는 APP_ROOT가 올바름 — 양쪽 모두 존재하는 쪽 사용.
+  const entryFromAppRoot = path.join(APP_ROOT, "dist", "server.js");
+  const entryFromDirname = path.join(__dirname, "..", "dist", "server.js");
+  const serverEntry = fs.existsSync(entryFromAppRoot)
+    ? entryFromAppRoot
+    : entryFromDirname;
 
   // 진단용 로그 — 패키지 앱에서 사용자가 확인 가능
   fs.mkdirSync(LOG_DIR, { recursive: true });
@@ -1224,6 +1231,7 @@ ipcMain.handle("settings:get", () => {
   if (!cfg) return null;
   // API 키는 마스킹해서 반환 (UI 표시용). 수정 시 별도 IPC 사용.
   return {
+    authMode: cfg.authMode ?? "oauth",
     apiKeyMasked: cfg.anthropicApiKey
       ? cfg.anthropicApiKey.slice(0, 7) + "..." + cfg.anthropicApiKey.slice(-4)
       : null,
@@ -1234,6 +1242,14 @@ ipcMain.handle("settings:get", () => {
     workspaces: cfg.workspaces ?? [],
     githubToken: cfg.githubToken ? "(set)" : null,
   };
+});
+
+ipcMain.handle("app:relaunch", () => {
+  setTimeout(() => {
+    app.relaunch();
+    app.exit(0);
+  }, 100);
+  return { ok: true };
 });
 
 /**
@@ -1248,6 +1264,29 @@ ipcMain.handle("settings:open-setup-wizard", () => {
   }
   createSetupWindow();
   return { ok: true };
+});
+
+ipcMain.handle("settings:update-auth-mode", (_e, { authMode, apiKey }) => {
+  const cfg = loadConfig();
+  if (!cfg) return { ok: false, error: "config not found" };
+  if (authMode !== "oauth" && authMode !== "apikey") {
+    return { ok: false, error: "authMode는 'oauth' 또는 'apikey'여야 합니다." };
+  }
+  if (authMode === "apikey") {
+    const key = (apiKey ?? "").trim();
+    if (key && !key.startsWith("sk-")) {
+      return { ok: false, error: "API 키는 'sk-'로 시작해야 합니다." };
+    }
+    if (key) cfg.anthropicApiKey = key;
+    else if (!cfg.anthropicApiKey) {
+      return { ok: false, error: "API 키를 입력하세요." };
+    }
+  } else {
+    cfg.anthropicApiKey = "";
+  }
+  cfg.authMode = authMode;
+  saveConfig(cfg);
+  return { ok: true, restartNeeded: true };
 });
 
 ipcMain.handle("settings:update-api-key", (_e, { apiKey: _apiKey }) => {

@@ -500,8 +500,29 @@
           </div>
 
           <div class="settings-field">
-            <label>인증</label>
-            <div class="settings-hint" id="settings-auth-status">확인 중…</div>
+            <label>인증 방식</label>
+            <div class="settings-auth-radios" id="settings-auth-radios">
+              <label class="settings-auth-radio">
+                <input type="radio" name="settings-auth-mode" value="oauth" />
+                <span><strong>Claude Code OAuth</strong> — 구독(Pro/Max) 사용</span>
+              </label>
+              <label class="settings-auth-radio">
+                <input type="radio" name="settings-auth-mode" value="apikey" />
+                <span><strong>API Key</strong> — Anthropic Console 키 직접 입력</span>
+              </label>
+            </div>
+            <div class="settings-hint" id="settings-auth-status" style="margin-top:6px"></div>
+            <div id="settings-apikey-block" class="hidden" style="margin-top:8px">
+              <div class="settings-row">
+                <input id="settings-api-key" type="password" placeholder="sk-ant-..." autocomplete="off" style="flex:1" />
+                <button id="settings-save-api-key" class="settings-save-btn primary" type="button">저장</button>
+              </div>
+              <div class="settings-hint" id="settings-api-key-status"></div>
+            </div>
+            <div style="margin-top:10px">
+              <button id="settings-save-auth-mode" class="settings-save-btn primary" type="button">인증 방식 변경 적용</button>
+              <span class="settings-hint" id="settings-auth-mode-status" style="display:inline-block;margin-left:8px"></span>
+            </div>
           </div>
 
           <div class="settings-field">

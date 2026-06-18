@@ -301,6 +301,19 @@
         margin-top: 8px; padding: 6px 2px;
       }
       .setup-presets-hint strong { color: rgba(159, 179, 193, 0.95); }
+
+      .auth-mode-selector { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+      .auth-radio {
+        display: flex; align-items: center; gap: 8px;
+        padding: 8px 10px;
+        background: var(--bg-elev); border: 1px solid var(--border);
+        border-radius: 6px; cursor: pointer; font-size: 12px; color: var(--text);
+      }
+      .auth-radio:has(input:checked) { border-color: rgba(138,232,255,0.6); background: rgba(138,232,255,0.06); }
+      .auth-radio input[type="radio"] { flex-shrink: 0; margin: 0; accent-color: #7ee2ff; }
+      .auth-radio-label { display: flex; flex-direction: column; gap: 1px; }
+      .auth-radio-desc { font-size: 11px; color: var(--text-faint); }
+      .auth-status-block { margin-top: 6px; font-size: 11px; color: var(--text-faint); }
     </style>
   </head>
   <body>

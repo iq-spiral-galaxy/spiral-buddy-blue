@@ -59,6 +59,9 @@ contextBridge.exposeInMainWorld("spiralSettings", {
   removeWorkspace: (args) =>
     ipcRenderer.invoke("settings:remove-workspace", args),
   addWorkspace: (args) => ipcRenderer.invoke("settings:add-workspace", args),
+  updateAuthMode: (args) =>
+    ipcRenderer.invoke("settings:update-auth-mode", args),
+  relaunch: () => ipcRenderer.invoke("app:relaunch"),
   openSetupWizard: () => ipcRenderer.invoke("settings:open-setup-wizard"),
   pickDirectory: (opts) => ipcRenderer.invoke("setup:pick-directory", opts),
   pickParentDir: () => ipcRenderer.invoke("setup:pick-parent-dir"),

@@ -2344,10 +2344,16 @@ async function initSettings() {
   });
 
   // 일반 설정 액션들
+  document.getElementById("settings-save-auth-mode")?.addEventListener("click", saveAuthMode);
   document.getElementById("settings-save-api-key")?.addEventListener("click", saveApiKey);
   document.getElementById("settings-save-vault")?.addEventListener("click", saveVault);
   document.getElementById("settings-pick-vault")?.addEventListener("click", pickVault);
   document.getElementById("settings-save-model")?.addEventListener("click", saveModel);
+
+  // 인증 라디오 버튼 변경 시 UI 갱신
+  document.querySelectorAll('input[name="settings-auth-mode"]').forEach((r) => {
+    r.addEventListener("change", () => _refreshSettingsAuthUI(r.value));
+  });
 
   // 워크스페이스 액션
   document
@@ -2527,35 +2533,11 @@ function openSettingsModal() {
   // v0.5.45: 도메인 그리드 상태 갱신
   refreshCuratedZone().catch(() => {});
 
-  // 인증 방식 표시
-  const authStatusEl = document.getElementById("settings-auth-status");
-  if (authStatusEl) {
-    const authMode = _settingsCache.authMode ?? "oauth";
-    if (authMode === "oauth") {
-      // OAuth 상태를 /api/auth-status 에서 가져옴
-      authStatusEl.innerHTML = `<span style="color:var(--text-muted)">확인 중…</span>`;
-      fetch("/api/auth-status")
-        .then((r) => r.json())
-        .then((info) => {
-          if (!info.loggedIn) {
-            authStatusEl.innerHTML = `⚠️ 로그인 필요 — 터미널에서 <code>claude /login</code>`;
-          } else if (info.expired) {
-            authStatusEl.innerHTML = `⚠️ 토큰 만료 — <code>claude /login</code>으로 재인증`;
-          } else {
-            const tier = info.subscriptionType
-              ? info.subscriptionType.charAt(0).toUpperCase() + info.subscriptionType.slice(1)
-              : "구독";
-            authStatusEl.innerHTML = `✅ 로그인됨 · <strong>${tier}</strong>`;
-          }
-        })
-        .catch(() => { authStatusEl.innerHTML = `<span style="color:var(--text-muted)">상태 확인 불가</span>`; });
-    } else {
-      const masked = _settingsCache.apiKeyMasked;
-      authStatusEl.innerHTML = masked
-        ? `🔑 API Key: <code>${escapeHtml(masked)}</code>`
-        : `⚠️ API 키 없음`;
-    }
-  }
+  // 인증 방식 라디오 버튼 초기화
+  const authMode = _settingsCache.authMode ?? "oauth";
+  const authRadio = document.querySelector(`input[name="settings-auth-mode"][value="${authMode}"]`);
+  if (authRadio) authRadio.checked = true;
+  _refreshSettingsAuthUI(authMode);
 
   document.getElementById("settings-vault-path").value =
     _settingsCache.vaultPath ?? "";
@@ -2576,6 +2558,74 @@ function openSettingsModal() {
 
 function closeSettingsModal() {
   els.settingsModal?.classList.add("hidden");
+}
+
+function _refreshSettingsAuthUI(mode) {
+  const authStatusEl = document.getElementById("settings-auth-status");
+  const apikeyBlock = document.getElementById("settings-apikey-block");
+  if (apikeyBlock) {
+    apikeyBlock.classList.toggle("hidden", mode !== "apikey");
+  }
+  if (!authStatusEl) return;
+  if (mode === "oauth") {
+    authStatusEl.innerHTML = `<span style="color:var(--text-muted)">확인 중…</span>`;
+    fetch("/api/auth-status")
+      .then((r) => r.json())
+      .then((info) => {
+        if (!info.loggedIn) {
+          authStatusEl.innerHTML = `⚠️ 로그인 필요 — 터미널에서 <code>claude /login</code>`;
+        } else if (info.expired) {
+          authStatusEl.innerHTML = `⚠️ 토큰 만료 — <code>claude /login</code>으로 재인증`;
+        } else {
+          const tier = info.subscriptionType
+            ? info.subscriptionType.charAt(0).toUpperCase() + info.subscriptionType.slice(1)
+            : "구독";
+          authStatusEl.innerHTML = `✅ 로그인됨 · <strong>${tier}</strong>`;
+        }
+      })
+      .catch(() => { authStatusEl.innerHTML = `<span style="color:var(--text-muted)">상태 확인 불가</span>`; });
+  } else {
+    const masked = _settingsCache?.apiKeyMasked;
+    authStatusEl.innerHTML = masked
+      ? `🔑 API Key: <code>${escapeHtml(masked)}</code>`
+      : `⚠️ API 키 없음 — 아래에서 입력`;
+  }
+}
+
+async function saveAuthMode() {
+  const selected = document.querySelector('input[name="settings-auth-mode"]:checked')?.value ?? "oauth";
+  const statusEl = document.getElementById("settings-auth-mode-status");
+  const btn = document.getElementById("settings-save-auth-mode");
+  const apiKeyInput = document.getElementById("settings-api-key");
+  if (btn) { btn.disabled = true; btn.textContent = "저장 중…"; }
+
+  let apiKey = "";
+  if (selected === "apikey") {
+    apiKey = (apiKeyInput?.value ?? "").trim();
+    if (!apiKey && !_settingsCache?.apiKeyMasked) {
+      if (statusEl) statusEl.textContent = "API 키를 입력하세요.";
+      if (btn) { btn.disabled = false; btn.textContent = "인증 방식 변경 적용"; }
+      return;
+    }
+  }
+
+  const res = await window.spiralSettings.updateAuthMode({ authMode: selected, apiKey });
+  if (btn) { btn.disabled = false; btn.textContent = "인증 방식 변경 적용"; }
+  if (res.ok) {
+    _settingsCache = await window.spiralSettings.get();
+    if (apiKeyInput) apiKeyInput.value = "";
+    if (statusEl) statusEl.textContent = "✓ 저장됨 — 재시작 후 적용";
+    _refreshSettingsAuthUI(selected);
+    if (res.restartNeeded) {
+      setTimeout(() => {
+        if (confirm("인증 방식이 변경됐습니다. 지금 재시작할까요?")) {
+          window.spiralSettings.relaunch?.();
+        }
+      }, 300);
+    }
+  } else {
+    if (statusEl) statusEl.textContent = `✗ ${res.error ?? "저장 실패"}`;
+  }
 }
 
 async function saveApiKey() {
