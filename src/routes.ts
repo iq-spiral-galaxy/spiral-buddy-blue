@@ -3,6 +3,7 @@ import { streamText } from "hono/streaming";
 import path from "node:path";
 
 import type { Config } from "./config.js";
+import { readClaudeOAuthInfo } from "./config.js";
 import {
   createClient,
   completeOnce,
@@ -143,6 +144,26 @@ export function createApi(config: Config) {
     const all = await getInstalledRoadmaps();
     return all.find((r) => r.name === roadmapId) ?? null;
   }
+
+  // ─────────────────────────────────────────────────────
+  // 0. Auth status
+  // ─────────────────────────────────────────────────────
+
+  app.get("/auth-status", (c) => {
+    if (config.authMode === "oauth") {
+      const info = readClaudeOAuthInfo();
+      return c.json({
+        mode: "oauth",
+        loggedIn: info.loggedIn,
+        subscriptionType: info.subscriptionType ?? null,
+        expired: info.expired ?? false,
+      });
+    }
+    const masked = config.apiKey
+      ? config.apiKey.slice(0, 7) + "..." + config.apiKey.slice(-4)
+      : null;
+    return c.json({ mode: "apikey", masked });
+  });
 
   // ─────────────────────────────────────────────────────
   // 1. Config

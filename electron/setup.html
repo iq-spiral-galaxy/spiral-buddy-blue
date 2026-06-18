@@ -339,10 +339,36 @@
 
     <div class="field">
       <label>인증 방식</label>
-      <div class="hint" style="padding: 8px 0;">
-        ✅ <strong>Claude Code OAuth</strong> — API 키 불필요.<br>
-        <code>claude</code> CLI가 로그인된 상태면 구독(Pro/Max)으로 자동 실행됩니다.<br>
-        로그인: 터미널에서 <code>claude /login</code>
+      <div class="auth-mode-selector">
+        <label class="auth-radio">
+          <input type="radio" name="auth-mode" value="oauth" checked />
+          <span class="auth-radio-label">
+            <strong>Claude Code OAuth</strong>
+            <span class="auth-radio-desc">구독(Pro/Max) 사용 · API 키 불필요</span>
+          </span>
+        </label>
+        <label class="auth-radio">
+          <input type="radio" name="auth-mode" value="apikey" />
+          <span class="auth-radio-label">
+            <strong>API Key</strong>
+            <span class="auth-radio-desc">Anthropic Console 키 직접 입력</span>
+          </span>
+        </label>
+      </div>
+
+      <!-- OAuth 상태 표시 -->
+      <div id="oauth-status-block" class="auth-status-block">
+        <div id="oauth-status-text" class="hint">계정 상태 확인 중…</div>
+      </div>
+
+      <!-- API Key 입력 (apikey 모드일 때만 표시) -->
+      <div id="apikey-block" class="hidden">
+        <div class="input-row" style="margin-top: 8px;">
+          <input id="api-key" type="password" placeholder="sk-ant-..." autocomplete="off" />
+        </div>
+        <div class="hint">
+          <a id="link-console" data-href="https://console.anthropic.com/settings/keys">console.anthropic.com</a>에서 발급
+        </div>
       </div>
     </div>
 

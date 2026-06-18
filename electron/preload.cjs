@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld("spiralSetup", {
   checkGit: () => ipcRenderer.invoke("setup:check-git"),
   pickParentDir: () => ipcRenderer.invoke("setup:pick-parent-dir"),
   downloadCurated: (args) => ipcRenderer.invoke("setup:download-curated", args),
+  getAuthStatus: () => ipcRenderer.invoke("setup:get-auth-status"),
   onDownloadProgress: (callback) => {
     const wrapper = (_e, payload) => callback(payload);
     ipcRenderer.on("setup:download-progress", wrapper);

@@ -2527,24 +2527,35 @@ function openSettingsModal() {
   // v0.5.45: 도메인 그리드 상태 갱신
   refreshCuratedZone().catch(() => {});
 
-  // API 키: 입력은 비움(보안). 저장된 키는 별도 status 라인에 명확히 표시.
-  const apiInput = document.getElementById("settings-api-key");
-  const apiStatus = document.getElementById("settings-api-key-status");
-  const apiSaveBtn = document.getElementById("settings-save-api-key");
-  apiInput.value = "";
-  apiInput.placeholder = "새 키 입력 (변경할 때만)";
-  if (_settingsCache.apiKeyMasked) {
-    apiStatus.innerHTML = `✓ <strong>저장된 키:</strong> <code>${escapeHtml(_settingsCache.apiKeyMasked)}</code> · 변경하려면 위에 새 키 입력`;
-    apiStatus.classList.add("ok");
-  } else {
-    apiStatus.textContent = "키가 저장되어 있지 않습니다.";
-    apiStatus.classList.remove("ok");
+  // 인증 방식 표시
+  const authStatusEl = document.getElementById("settings-auth-status");
+  if (authStatusEl) {
+    const authMode = _settingsCache.authMode ?? "oauth";
+    if (authMode === "oauth") {
+      // OAuth 상태를 /api/auth-status 에서 가져옴
+      authStatusEl.innerHTML = `<span style="color:var(--text-muted)">확인 중…</span>`;
+      fetch("/api/auth-status")
+        .then((r) => r.json())
+        .then((info) => {
+          if (!info.loggedIn) {
+            authStatusEl.innerHTML = `⚠️ 로그인 필요 — 터미널에서 <code>claude /login</code>`;
+          } else if (info.expired) {
+            authStatusEl.innerHTML = `⚠️ 토큰 만료 — <code>claude /login</code>으로 재인증`;
+          } else {
+            const tier = info.subscriptionType
+              ? info.subscriptionType.charAt(0).toUpperCase() + info.subscriptionType.slice(1)
+              : "구독";
+            authStatusEl.innerHTML = `✅ 로그인됨 · <strong>${tier}</strong>`;
+          }
+        })
+        .catch(() => { authStatusEl.innerHTML = `<span style="color:var(--text-muted)">상태 확인 불가</span>`; });
+    } else {
+      const masked = _settingsCache.apiKeyMasked;
+      authStatusEl.innerHTML = masked
+        ? `🔑 API Key: <code>${escapeHtml(masked)}</code>`
+        : `⚠️ API 키 없음`;
+    }
   }
-  // 빈 input일 땐 저장 버튼 disabled — 의도치 않게 빈 키로 덮어쓰는 사고 방지
-  apiSaveBtn.disabled = true;
-  apiInput.oninput = () => {
-    apiSaveBtn.disabled = apiInput.value.trim().length === 0;
-  };
 
   document.getElementById("settings-vault-path").value =
     _settingsCache.vaultPath ?? "";
@@ -2568,6 +2579,8 @@ function closeSettingsModal() {
 }
 
 async function saveApiKey() {
+  // authMode가 apikey가 아니면 no-op
+  if ((_settingsCache.authMode ?? "oauth") !== "apikey") return;
   const input = document.getElementById("settings-api-key");
   const status = document.getElementById("settings-api-key-status");
   const saveBtn = document.getElementById("settings-save-api-key");

@@ -322,13 +322,16 @@ function activeWorkspace(cfg) {
 }
 
 function hasRequiredConfig(cfg) {
-  // OAuth 모드: API 키 불필요. vault + workspace만 있으면 시작.
-  return Boolean(
-    cfg &&
-      typeof cfg.vaultPath === "string" &&
-      cfg.vaultPath.length > 0 &&
-      activeWorkspace(cfg),
-  );
+  if (!cfg) return false;
+  const hasVault = typeof cfg.vaultPath === "string" && cfg.vaultPath.length > 0;
+  const hasWorkspace = Boolean(activeWorkspace(cfg));
+  const authMode = cfg.authMode ?? "oauth";
+  if (authMode === "apikey") {
+    const hasKey = typeof cfg.anthropicApiKey === "string" && cfg.anthropicApiKey.startsWith("sk-");
+    return hasVault && hasWorkspace && hasKey;
+  }
+  // oauth: vault + workspace만 있으면 됨
+  return hasVault && hasWorkspace;
 }
 
 function uniqueId(base, taken) {
@@ -397,8 +400,14 @@ async function waitForServer(port, timeoutMs = 15000) {
 async function startServerInProcess(cfg) {
   const port = serverPort;
   const ws = activeWorkspace(cfg);
-  // process.env에 active workspace 기반으로 주입
-  // OAuth 모드: API 키 주입 없음. claude -p 서브프로세스가 Claude Code OAuth 사용.
+  // authMode에 따라 인증 방식 결정
+  const authMode = cfg.authMode ?? "oauth";
+  process.env.SPIRAL_AUTH_MODE = authMode;
+  if (authMode === "apikey" && cfg.anthropicApiKey) {
+    process.env.ANTHROPIC_API_KEY = cfg.anthropicApiKey;
+  } else {
+    delete process.env.ANTHROPIC_API_KEY;
+  }
   process.env.SPIRAL_VAULT_PATH = cfg.vaultPath;
   process.env.PORT = String(port);
   process.env.NO_OPEN = "1";
@@ -571,7 +580,11 @@ ipcMain.handle("setup:pick-directory", async (_e, opts) => {
 });
 
 ipcMain.handle("setup:validate-and-save", async (_e, input) => {
-  // OAuth 모드: API 키 검증 없음.
+  const authMode = input?.authMode ?? "oauth";
+
+  if (authMode === "apikey" && !input?.anthropicApiKey?.startsWith("sk-")) {
+    return { ok: false, error: "API 키는 'sk-'로 시작해야 합니다." };
+  }
   if (!input?.vaultPath || !fs.existsSync(input.vaultPath)) {
     return { ok: false, error: "Vault 경로가 존재하지 않습니다." };
   }
@@ -580,12 +593,10 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
   }
 
   // v0.5.85 — 기존 config가 있으면 merge (덮어쓰기 금지).
-  // 기존엔 wizard 재진입(경로 복구 등) 시 전체 config를 새로 만들어서
-  // 멀티 워크스페이스 사용자의 다른 워크스페이스가 전부 사라졌음.
-  // vault 이동 복구 흐름이 wizard로 유도되므로 보존이 필수.
   const existing = loadConfig();
   if (existing && Array.isArray(existing.workspaces) && existing.workspaces.length > 0) {
-    existing.anthropicApiKey = input.anthropicApiKey;
+    existing.authMode = authMode;
+    existing.anthropicApiKey = authMode === "apikey" ? (input.anthropicApiKey ?? "") : "";
     existing.vaultPath = input.vaultPath;
     if (input.vaultName) existing.vaultName = input.vaultName;
     const ws = activeWorkspace(existing);
@@ -1172,6 +1183,24 @@ ipcMain.handle("setup:detect-vault", async () => {
 });
 
 // ─── git 존재 확인 ───────────────────────────────────────────
+
+ipcMain.handle("setup:get-auth-status", () => {
+  try {
+    const credPath = path.join(os.homedir(), ".claude", ".credentials.json");
+    const raw = fs.readFileSync(credPath, "utf8");
+    const cred = JSON.parse(raw);
+    const oauth = cred?.claudeAiOauth;
+    if (!oauth?.accessToken) return { loggedIn: false };
+    const expired = typeof oauth.expiresAt === "number" ? Date.now() > oauth.expiresAt : false;
+    return {
+      loggedIn: true,
+      subscriptionType: oauth.subscriptionType ?? null,
+      expired,
+    };
+  } catch {
+    return { loggedIn: false };
+  }
+});
 
 ipcMain.handle("setup:check-git", () => {
   try {
