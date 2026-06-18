@@ -177,9 +177,13 @@ export async function startServer(): Promise<{ url: string; port: number }> {
 }
 
 // 이 파일이 직접 실행됐을 때만 자동 시작 (Electron에서 import할 땐 skip)
+// Windows: process.argv[1]은 backslash 경로, import.meta.url은 file:///C:/... 형식이라
+// 단순 문자열 비교가 실패함. path.resolve로 정규화해서 비교.
+const __serverFile = fileURLToPath(import.meta.url);
 const isMainModule =
-  import.meta.url === `file://${process.argv[1]}` ||
-  process.argv[1]?.endsWith("/server.ts") === true;
+  path.resolve(process.argv[1] ?? "") === path.resolve(__serverFile) ||
+  process.argv[1]?.endsWith("/server.ts") === true ||
+  process.argv[1]?.endsWith("\\server.ts") === true;
 if (isMainModule) {
   startServer().catch((err) => {
     console.error(

@@ -338,10 +338,11 @@
     </header>
 
     <div class="field">
-      <label for="api-key">Anthropic API Key</label>
-      <input id="api-key" type="password" placeholder="sk-ant-..." autocomplete="off" />
-      <div class="hint">
-        <a id="link-console" data-href="https://console.anthropic.com/settings/keys">console.anthropic.com</a>에서 발급
+      <label>인증 방식</label>
+      <div class="hint" style="padding: 8px 0;">
+        ✅ <strong>Claude Code OAuth</strong> — API 키 불필요.<br>
+        <code>claude</code> CLI가 로그인된 상태면 구독(Pro/Max)으로 자동 실행됩니다.<br>
+        로그인: 터미널에서 <code>claude /login</code>
       </div>
     </div>
 

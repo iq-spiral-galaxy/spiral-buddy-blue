@@ -1,7 +1,7 @@
 // Setup wizard 클라이언트. window.spiralSetup IPC만 사용 (preload).
 
 const $ = (id) => document.getElementById(id);
-const apiKey = $("api-key");
+// OAuth 모드: API 키 필드 없음.
 const vaultPath = $("vault-path");
 const roadmapRoot = $("roadmap-root");
 const errorMsg = $("error-msg");
@@ -18,7 +18,6 @@ let downloadDone = false;
 
 async function init() {
   const cfg = await window.spiralSetup.getCurrentConfig();
-  if (cfg.anthropicApiKey) apiKey.value = cfg.anthropicApiKey;
   if (cfg.vaultPath) vaultPath.value = cfg.vaultPath;
   if (cfg.roadmapRoot) roadmapRoot.value = cfg.roadmapRoot;
 
@@ -217,7 +216,7 @@ saveBtn.addEventListener("click", async () => {
   saveBtn.disabled = true;
   saveBtn.textContent = "검증 중…";
   const cfg = {
-    anthropicApiKey: apiKey.value.trim(),
+    anthropicApiKey: "",
     vaultPath: vaultPath.value.trim(),
     roadmapRoot: roadmapRoot.value.trim() || null,
   };
@@ -231,7 +230,7 @@ saveBtn.addEventListener("click", async () => {
 });
 
 // Enter로도 저장
-[apiKey, vaultPath, roadmapRoot].forEach((el) => {
+[vaultPath, roadmapRoot].forEach((el) => {
   el.addEventListener("keydown", (e) => {
     if (e.key === "Enter") saveBtn.click();
   });

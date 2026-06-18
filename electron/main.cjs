@@ -322,10 +322,9 @@ function activeWorkspace(cfg) {
 }
 
 function hasRequiredConfig(cfg) {
+  // OAuth 모드: API 키 불필요. vault + workspace만 있으면 시작.
   return Boolean(
     cfg &&
-      typeof cfg.anthropicApiKey === "string" &&
-      cfg.anthropicApiKey.length > 0 &&
       typeof cfg.vaultPath === "string" &&
       cfg.vaultPath.length > 0 &&
       activeWorkspace(cfg),
@@ -399,7 +398,7 @@ async function startServerInProcess(cfg) {
   const port = serverPort;
   const ws = activeWorkspace(cfg);
   // process.env에 active workspace 기반으로 주입
-  process.env.ANTHROPIC_API_KEY = cfg.anthropicApiKey;
+  // OAuth 모드: API 키 주입 없음. claude -p 서브프로세스가 Claude Code OAuth 사용.
   process.env.SPIRAL_VAULT_PATH = cfg.vaultPath;
   process.env.PORT = String(port);
   process.env.NO_OPEN = "1";
@@ -572,10 +571,7 @@ ipcMain.handle("setup:pick-directory", async (_e, opts) => {
 });
 
 ipcMain.handle("setup:validate-and-save", async (_e, input) => {
-  // 최소 검증
-  if (!input?.anthropicApiKey?.startsWith("sk-")) {
-    return { ok: false, error: "API 키는 'sk-'로 시작해야 합니다." };
-  }
+  // OAuth 모드: API 키 검증 없음.
   if (!input?.vaultPath || !fs.existsSync(input.vaultPath)) {
     return { ok: false, error: "Vault 경로가 존재하지 않습니다." };
   }
@@ -1225,15 +1221,9 @@ ipcMain.handle("settings:open-setup-wizard", () => {
   return { ok: true };
 });
 
-ipcMain.handle("settings:update-api-key", (_e, { apiKey }) => {
-  if (!apiKey?.startsWith("sk-")) {
-    return { ok: false, error: "API 키는 'sk-'로 시작해야 합니다." };
-  }
-  const cfg = loadConfig();
-  if (!cfg) return { ok: false, error: "config not found" };
-  cfg.anthropicApiKey = apiKey;
-  saveConfig(cfg);
-  return { ok: true };
+ipcMain.handle("settings:update-api-key", (_e, { apiKey: _apiKey }) => {
+  // OAuth 모드: API 키 불필요 — no-op.
+  return { ok: true, noop: true };
 });
 
 ipcMain.handle("settings:update-vault", (_e, { vaultPath }) => {
