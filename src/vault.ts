@@ -76,13 +76,39 @@ async function listSpiralNotesUncached(
   return notes;
 }
 
+/**
+ * 노트의 frontmatter만 빠르게 파싱한다. 파일 전체를 읽지 않고 앞부분(16KB)만 읽음.
+ *
+ * v0.5.100+에서 노트 본문에 전체 대화 transcript가 들어가 노트가 수십~수백 KB로
+ * 커졌는데, listSpiralNotes가 모든 노트를 fs.readFile로 전부 읽고 matter()로
+ * 파싱하면서 cold-start(앱 실행 시 첫 /api/roadmaps)가 느려졌음 — 사이드바가
+ * 장시간 "loading…"에 머무는 회귀. frontmatter는 맨 앞 작은 YAML 블록이라
+ * 앞부분만 읽어도 동일하게 파싱된다(본문 transcript는 어차피 안 씀).
+ */
+async function readFrontmatter(filePath: string) {
+  const HEAD = 16384; // frontmatter는 보통 <1KB — 넉넉한 상한
+  const fh = await fs.open(filePath, "r");
+  try {
+    const buf = Buffer.alloc(HEAD);
+    const { bytesRead } = await fh.read(buf, 0, HEAD, 0);
+    let head = buf.subarray(0, bytesRead).toString("utf-8");
+    // 안전장치: head가 꽉 찼는데(파일이 16KB↑) 닫는 `---`가 안 보이면 frontmatter가
+    // 16KB를 넘는 비정상 케이스 → 전체를 읽어 폴백(정상 노트에선 발생 안 함).
+    if (bytesRead === HEAD && !/\n---[ \t]*(\r?\n|$)/.test(head.slice(3))) {
+      head = await fs.readFile(filePath, "utf-8");
+    }
+    return matter(head);
+  } finally {
+    await fh.close();
+  }
+}
+
 async function readNote(
   abs: string,
   relativePath: string,
 ): Promise<SpiralNote | null> {
   try {
-    const raw = await fs.readFile(abs, "utf-8");
-    const parsed = matter(raw);
+    const parsed = await readFrontmatter(abs);
     const fm = parsed.data as Record<string, unknown>;
     // 새 스키마 (v0.5.22+): chapter, repo, roadmap 우선. 옛 스키마 (title/topic/chapter_id/roadmap_id) 호환.
     const newChapter = (fm.chapter as string | undefined) ?? null;
@@ -439,8 +465,7 @@ export async function listTrash(vaultPath: string): Promise<TrashEntry[]> {
     let depth: number | null = null;
     let date: string | null = null;
     try {
-      const raw = await fs.readFile(filePath, "utf-8");
-      const parsed = matter(raw);
+      const parsed = await readFrontmatter(filePath);
       const fm = parsed.data as Record<string, unknown>;
       title = (fm.title as string | undefined) ?? null;
       topic = (fm.topic as string | undefined) ?? null;
