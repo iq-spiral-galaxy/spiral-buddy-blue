@@ -154,6 +154,34 @@ async function readNote(
   }
 }
 
+/**
+ * 노트 한 개의 frontmatter + 본문 "전체"를 읽는다.
+ * listSpiralNotes/readNote는 성능을 위해 앞 16KB만 읽어 본문이 잘리므로
+ * (긴 transcript 포함 노트), 본문 전체가 필요한 경우(과거 대화 다시보기)엔 이걸 쓴다.
+ *
+ * 보안: relativePath는 vault의 spiral 디렉토리(spiralRoot) 기준 상대경로여야 하며,
+ * 디렉토리 밖으로 탈출(../ 등)하거나 .md가 아니면 null을 반환한다.
+ */
+export async function readFullNote(
+  vaultPath: string,
+  relativePath: string,
+): Promise<{ data: Record<string, unknown>; body: string } | null> {
+  const spiralRoot = path.resolve(vaultPath, SPIRAL_DIR);
+  const abs = path.resolve(spiralRoot, relativePath);
+  if (abs !== spiralRoot && !abs.startsWith(spiralRoot + path.sep)) return null;
+  if (!abs.toLowerCase().endsWith(".md")) return null;
+  try {
+    const raw = await fs.readFile(abs, "utf-8");
+    const parsed = matter(raw);
+    return {
+      data: parsed.data as Record<string, unknown>,
+      body: parsed.content,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export interface NewNote {
   /** 챕터 표시명 (예: "05. Fixtures & SetUp") — frontmatter `chapter:`로 기록 */
   topic: string;

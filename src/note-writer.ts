@@ -192,6 +192,53 @@ export function renderTranscriptSection(transcript: ClaudeMessage[]): string {
   return `\n\n## 💬 전체 대화\n\n> [!quote]- 펼쳐서 대화 전체 다시 보기 (${msgs.length}개 메시지)\n${inner}\n`;
 }
 
+/**
+ * renderTranscriptSection이 만든 "## 💬 전체 대화" callout을 다시 메시지 배열로 파싱.
+ * 과거 세션 대화를 앱 안에서 다시 보여줄 때 사용(/api/note/conversation).
+ * 형식을 renderTranscriptSection과 1:1로 맞춤: callout 안 각 줄은 `> `로 시작,
+ * 화자는 `> **🙋 나**` / `> **🤖 버디**`, 메시지 사이는 빈 quote줄(`>`).
+ * transcript 섹션이 없으면(옛 노트·구조화 실패) 빈 배열.
+ */
+export function parseTranscriptSection(
+  body: string,
+): { role: "user" | "assistant"; content: string }[] {
+  const header = "## 💬 전체 대화";
+  // transcript 섹션은 본문 맨 끝에 추가되므로 lastIndexOf — 요약/예제에 같은
+  // 문자열이 우연히 먼저 나와도 진짜 섹션을 잡는다.
+  const hIdx = body.lastIndexOf(header);
+  if (hIdx === -1) return [];
+  const lines = body.slice(hIdx + header.length).split("\n");
+  const calloutStart = lines.findIndex((l) => /^>\s*\[!quote\]/.test(l));
+  if (calloutStart === -1) return [];
+
+  // callout 본문 줄만 수집(`>`로 시작). `>`로 시작 안 하는 줄을 만나면 callout 끝.
+  const inner: string[] = [];
+  for (let i = calloutStart + 1; i < lines.length; i++) {
+    const l = lines[i]!;
+    if (!l.startsWith(">")) break;
+    inner.push(l.replace(/^>[ \t]?/, ""));
+  }
+
+  const messages: { role: "user" | "assistant"; content: string }[] = [];
+  let cur: { role: "user" | "assistant"; content: string } | null = null;
+  const flush = () => {
+    if (cur && cur.content.trim()) {
+      messages.push({ role: cur.role, content: cur.content.trim() });
+    }
+  };
+  for (const line of inner) {
+    const m = line.match(/^\*\*(🙋 나|🤖 버디)\*\*[ \t]*$/);
+    if (m) {
+      flush();
+      cur = { role: m[1] === "🙋 나" ? "user" : "assistant", content: "" };
+    } else if (cur) {
+      cur.content += (cur.content ? "\n" : "") + line;
+    }
+  }
+  flush();
+  return messages;
+}
+
 export async function generateNote(
   client: ClaudeClient,
   args: {

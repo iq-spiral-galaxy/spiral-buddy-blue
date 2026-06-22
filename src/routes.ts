@@ -28,11 +28,12 @@ import {
   moveNotesToTrash,
   noteBelongsToRoadmap,
   noteMatchesChapter,
+  readFullNote,
   restoreFromTrash,
   writeNewNote,
 } from "./vault.js";
 import { suggestNext } from "./spiral.js";
-import { generateNote } from "./note-writer.js";
+import { generateNote, parseTranscriptSection } from "./note-writer.js";
 import {
   SESSION_SYSTEM,
   buildInitialContext,
@@ -860,6 +861,33 @@ export function createApi(config: Config) {
         obsidianUri: obsidianUri(n.relativePath),
       })),
     );
+  });
+
+  // 과거 세션 대화 다시보기 — 저장된 노트의 "💬 전체 대화" callout을 파싱해
+  // {topic, date, depth, messages[]}로 반환. 클라가 메인창에 read-only로 띄움.
+  // (전체 파일을 읽음 — readNote는 앞 16KB만 읽어 긴 transcript가 잘리므로 부적합.)
+  app.get("/note/conversation", async (c) => {
+    if (!config.vaultPath) {
+      return c.json({ error: "No vault configured" }, 400);
+    }
+    const rel = c.req.query("path");
+    if (!rel) return c.json({ error: "path required" }, 400);
+    const note = await readFullNote(config.vaultPath, rel);
+    if (!note) return c.json({ error: "Note not found" }, 404);
+    const fm = note.data;
+    return c.json({
+      topic:
+        typeof fm.topic === "string"
+          ? fm.topic
+          : typeof fm.chapter === "string"
+            ? fm.chapter
+            : typeof fm.title === "string"
+              ? fm.title
+              : "",
+      date: typeof fm.date === "string" ? fm.date : "",
+      depth: typeof fm.depth === "number" ? fm.depth : 1,
+      messages: parseTranscriptSection(note.body),
+    });
   });
 
   // ─────────────────────────────────────────────────────

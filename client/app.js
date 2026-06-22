@@ -335,6 +335,18 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function wireEvents() {
+  // v0.5.106 — obsidian:// 링크는 렌더러를 navigate시키지 않고 OS로 외부 오픈.
+  // 기존엔 <a href="obsidian://">나 location.href 할당이 렌더러를 navigate해서,
+  // 학습 세션 중엔 beforeunload→will-prevent-unload 네이티브 모달("진행 중인
+  // 세션")이 떠 노트 열기가 막혔음. Obsidian은 별개 앱이라 세션과 무관하게 열려야 함.
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest('a[href^="obsidian:"]');
+    if (!a) return;
+    e.preventDefault();
+    const href = a.getAttribute("href");
+    if (href) window.spiralSetup?.openExternal?.(href);
+  });
+
   els.form.addEventListener("submit", (e) => {
     e.preventDefault();
     submitMessage();
@@ -2103,9 +2115,9 @@ function renderChapters() {
 function openChapterNotePopover(anchorEl, chapter) {
   const links = Array.isArray(chapter.noteLinks) ? chapter.noteLinks : [];
   if (links.length === 0) return;
-  // 1개면 바로 열기
+  // 1개면 바로 열기 (외부 오픈 — 렌더러 navigate 금지: 세션 중에도 안전)
   if (links.length === 1) {
-    window.location.href = links[0].url;
+    window.spiralSetup?.openExternal?.(links[0].url);
     return;
   }
   // 여러 개면 팝오버
@@ -4710,7 +4722,7 @@ async function activateSearchSelection() {
     startSession(item.payload.chapterId);
   } else if (item.kind === "note") {
     if (item.payload.obsidianUrl) {
-      window.location.href = item.payload.obsidianUrl;
+      window.spiralSetup?.openExternal?.(item.payload.obsidianUrl);
     }
   }
 }
@@ -4850,20 +4862,115 @@ function renderHistory() {
   state.history.forEach((note) => {
     const li = document.createElement("li");
     li.className = "history-item";
-    const topicHtml = note.obsidianUri
-      ? `<a class="topic-link" href="${escapeAttr(note.obsidianUri)}" title="옵시디언에서 열기">${escapeHtml(note.topic)}</a>`
-      : `<span class="topic">${escapeHtml(note.topic)}</span>`;
+    // v0.5.106 — 아이템 클릭 = 그때 나눈 대화를 메인창에 read-only로 다시보기.
+    // (Obsidian으로 가는 건 옆 📖 버튼으로 분리.)
+    li.setAttribute("role", "button");
+    li.tabIndex = 0;
+    li.title = "클릭하면 이 세션의 대화를 다시 봅니다";
+    const obsidianBtn = note.obsidianUri
+      ? `<button class="history-obsidian-btn" data-obsidian="${escapeAttr(note.obsidianUri)}" title="Obsidian에서 노트 열기" aria-label="Obsidian에서 열기">📖</button>`
+      : "";
     li.innerHTML = `
       <div class="row1">
         <span class="depth-pill">d${note.depth}</span>
-        ${topicHtml}
+        <span class="topic">${escapeHtml(note.topic)}</span>
+        ${obsidianBtn}
       </div>
       <div class="row2">
         <span class="date">${escapeHtml(note.date)}</span>
         ${note.summary ? `<span class="summary">${escapeHtml(note.summary)}</span>` : ""}
       </div>
     `;
+    const obtn = li.querySelector(".history-obsidian-btn");
+    if (obtn) {
+      obtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.spiralSetup?.openExternal?.(obtn.dataset.obsidian);
+      });
+    }
+    li.addEventListener("click", () => openPastConversation(note));
+    li.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        openPastConversation(note);
+      }
+    });
     els.historyList.appendChild(li);
+  });
+}
+
+// v0.5.106 — 과거 세션 대화 다시보기. /api/note/conversation에서 저장된 노트의
+// "💬 전체 대화"를 파싱해 받아, 메인창 위에 read-only 모달로 띄운다. 진행 중인
+// 세션을 건드리지 않으므로(비파괴) 세션 중에도 안전하게 열람 가능.
+async function openPastConversation(note) {
+  const rel = note?.relativePath;
+  if (!rel) {
+    setStatus("이 노트의 경로를 찾을 수 없어요", "error");
+    return;
+  }
+  setStatus("대화 불러오는 중…");
+  let data;
+  try {
+    const res = await fetch(
+      `/api/note/conversation?path=${encodeURIComponent(rel)}`,
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (err) {
+    setStatus(`대화를 불러오지 못했어요: ${err.message}`, "error");
+    return;
+  }
+  setStatus("");
+  showPastConversationModal(note, data);
+}
+
+function showPastConversationModal(note, data) {
+  const msgs = Array.isArray(data?.messages) ? data.messages : [];
+  const bubbles = msgs.length
+    ? msgs
+        .map((m) => {
+          const who = m.role === "user" ? "나" : "버디";
+          const cls = m.role === "user" ? "user" : "assistant";
+          const content =
+            m.role === "assistant"
+              ? renderMarkdown(String(m.content ?? ""))
+              : `<p class="past-user-line">${escapeHtml(String(m.content ?? ""))}</p>`;
+          return `<div class="message ${cls}"><div class="role">${who}</div><div class="content">${content}</div></div>`;
+        })
+        .join("")
+    : `<div class="empty">이 노트엔 저장된 대화 기록이 없어요. (옛 노트이거나 구조화 실패 노트 — 📖로 Obsidian에서 전체 노트를 볼 수 있어요.)</div>`;
+  const obsidianBtn = note.obsidianUri
+    ? `<a class="modal-btn" href="${escapeAttr(note.obsidianUri)}">📖 Obsidian에서 열기</a>`
+    : "";
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay transcript-overlay";
+  overlay.innerHTML = `
+    <div class="modal transcript-modal">
+      <div class="modal-title transcript-modal-title">
+        <span class="depth-pill">d${data?.depth ?? note.depth ?? 1}</span>
+        <span class="t">💬 ${escapeHtml(data?.topic || note.topic || "이전 대화")}</span>
+        <span class="date">${escapeHtml(data?.date || note.date || "")}</span>
+      </div>
+      <div class="transcript-modal-body">${bubbles}</div>
+      <div class="modal-actions">
+        ${obsidianBtn}
+        <button class="modal-btn primary" data-action="close">닫기</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  function cleanup() {
+    overlay.remove();
+    document.removeEventListener("keydown", onKey);
+  }
+  function onKey(e) {
+    if (e.key === "Escape") cleanup();
+  }
+  document.addEventListener("keydown", onKey);
+  overlay.addEventListener("click", (e) => {
+    if (e.target === overlay || e.target.closest('[data-action="close"]')) {
+      cleanup();
+    }
   });
 }
 
