@@ -37,6 +37,10 @@ let mainWindow = null;
 let setupWindow = null;
 let serverPort = null;
 let serverStarted = false;
+// v0.5.105 — setupWindow.close()와 mainWindow 준비 사이의 "부팅 중" 구간 표시.
+// 이 구간엔 윈도우가 0개가 되는 순간이 있어, closed/window-all-closed 핸들러가
+// app.quit()을 발사해 첫 실행이 그냥 종료됐음(레이스). 이 플래그로 그 종료를 막는다.
+let launchingMain = false;
 
 // ─── v0.5.77 — main process 크래시 가시화 ─────────────────────
 //
@@ -468,8 +472,8 @@ function createSetupWindow() {
   setupWindow.loadFile(path.join(__dirname, "setup.html"));
   setupWindow.on("closed", () => {
     setupWindow = null;
-    if (!mainWindow && !serverStarted) {
-      // 사용자가 설정 안 하고 닫음 → 앱 종료
+    if (!launchingMain && !mainWindow && !serverStarted) {
+      // 사용자가 설정 안 하고 닫음 → 앱 종료. (부팅 중 close는 launchingMain로 제외)
       app.quit();
     }
   });
@@ -521,6 +525,9 @@ async function createMainWindow() {
   mainWindow.on("closed", () => {
     mainWindow = null;
   });
+
+  // 메인 윈도우가 떴으니 "부팅 중" 해제 — 이후 윈도우를 닫으면 정상 종료되어야 함.
+  launchingMain = false;
 }
 
 async function bootWithConfig(cfg) {
@@ -604,6 +611,7 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
       }
     }
     saveConfig(existing);
+    launchingMain = true; // close()로 발사될 종료를 막고 부팅으로 전환
     if (setupWindow && !setupWindow.isDestroyed()) {
       setupWindow.close();
     }
@@ -636,6 +644,7 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
     ],
   };
   saveConfig(cfg);
+  launchingMain = true; // close()로 발사될 종료를 막고 부팅으로 전환
   if (setupWindow && !setupWindow.isDestroyed()) {
     setupWindow.close();
   }
@@ -1901,6 +1910,9 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 app.on("window-all-closed", () => {
+  // v0.5.105 — 부팅 중 setup창 close로 윈도우가 잠깐 0개가 되는 구간은 무시.
+  // (안 그러면 Win/Linux에서 첫 실행이 부팅 도중 종료됨 — closed 핸들러와 같은 레이스.)
+  if (launchingMain) return;
   if (process.platform !== "darwin") app.quit();
 });
 

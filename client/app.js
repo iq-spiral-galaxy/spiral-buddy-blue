@@ -1543,12 +1543,28 @@ async function installCuratedRepo(repoName) {
   }
 }
 
+let _interruptInFlight = false;
+
 /**
  * 진행 중인 세션이 있을 때 다른 곳으로 이동하기 전 처리.
  * @returns 'continue' (세션 없음 또는 사용자가 저장/폐기 선택 후 이동 OK)
  *          'cancel'   (사용자가 취소함 — 호출자는 이동을 멈춰야 함)
+ *
+ * v0.5.105 — 재진입 가드 래퍼. end 스트림 저장이 도는 중 다른 챕터를 또 누르면
+ * 같은 세션에 /end가 중복 발사돼 렌더러가 데드락처럼 멈췄음 → 한 번에 하나만 진행.
  */
 async function handleSessionInterruption() {
+  if (!state.session) return "continue";
+  if (_interruptInFlight) return "cancel";
+  _interruptInFlight = true;
+  try {
+    return await _handleSessionInterruptionBody();
+  } finally {
+    _interruptInFlight = false;
+  }
+}
+
+async function _handleSessionInterruptionBody() {
   if (!state.session) return "continue";
 
   const action = await sessionInterruptPrompt();
@@ -1561,21 +1577,25 @@ async function handleSessionInterruption() {
     els.messages.appendChild(card);
     scrollToBottom();
 
+    // v0.5.105 — end 스트림을 createStreamHandle+pumpStream으로 소비.
+    // 기존엔 타임아웃/abort 없는 raw reader 루프라, 노트 생성 중 연결이 terminal
+    // SSE 프레임 없이 멈추면 await reader.read()가 영구 대기 → state.pending이
+    // true로 고착돼 입력/전송이 잠겼음. pumpStream은 STREAM_INACTIVITY_MS 후
+    // abort + throw하므로 절대 영구 hang하지 않고, handle 등록으로 abort 가능해짐.
+    const endHandle = createStreamHandle("session");
     try {
       const res = await fetch(`/api/session/${state.session.id}/end`, {
         method: "POST",
+        signal: endHandle.controller.signal,
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
       const reader = res.body.getReader();
-      const decoder = new TextDecoder();
       let buffer = "";
       let result = null;
 
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
+      await pumpStream(reader, endHandle, (chunk) => {
+        buffer += chunk;
         let idx;
         while ((idx = buffer.indexOf("\n\n")) !== -1) {
           const rawMsg = buffer.slice(0, idx);
@@ -1591,7 +1611,7 @@ async function handleSessionInterruption() {
             throw new Error(parsed.data.message ?? "unknown");
           }
         }
-      }
+      });
 
       if (!result) throw new Error("저장 완료 신호를 받지 못함");
 
@@ -1600,6 +1620,11 @@ async function handleSessionInterruption() {
       setStatus("✓ 저장 완료 — 이동합니다", "success");
       setTimeout(() => setStatus(""), 2500);
     } catch (err) {
+      // 새 세션 시작 등으로 의도적 abort된 경우엔 조용히 취소
+      if (isIntentionalAbort(err, endHandle)) {
+        setPending(false);
+        return "cancel";
+      }
       card.classList.add("error");
       const titleEl = card.querySelector(".end-progress-card-title");
       if (titleEl)
@@ -1607,6 +1632,8 @@ async function handleSessionInterruption() {
       setStatus(`저장 실패: ${err.message}`, "error");
       setPending(false);
       return "cancel";
+    } finally {
+      finishStreamHandle(endHandle);
     }
     setPending(false);
   } else if (action === "discard") {
@@ -1621,6 +1648,14 @@ async function handleSessionInterruption() {
   enableSessionUi(false);
   updateTopbar();
   els.messages.innerHTML = `<div class="placeholder"><p>왼쪽에서 챕터를 골라 세션을 시작하세요.</p></div>`;
+  // v0.5.105 — "저장하고 이동" 후에도 사이드바 "마지막"/depth 배지를 즉시 갱신.
+  // (endSession 경로는 loadRoadmapData로 갱신하지만 이 경로는 roadmaps만 갱신해
+  //  방금 저장한 챕터가 재시작 전까지 stale로 남았음.) session=null 이후라 방금
+  //  끝낸 챕터가 recent로 잡히고, 이어지는 startSession이 accent를 새 챕터로 옮긴다.
+  if (action === "save" && state.activeRoadmapId) {
+    await loadRoadmapData();
+    refreshActivityBadge();
+  }
   return "continue";
 }
 
@@ -4881,6 +4916,9 @@ async function startSession(chapterId) {
   // (abortStreams/resetQuiz 등)에서 예외가 나면 플래그가 영구 true로
   // 남아 이후 모든 챕터 클릭이 "시작 중" 안내만 받는 잠금 상태가 됐음.
   _sessionStartInFlight = true;
+  // v0.5.105 — 직전 세션의 end/message 스트림이 아직 열려 있으면 강제 종료.
+  // (새 handle 생성 전에 호출해야 방금 만든 핸들까지 끊기지 않음.)
+  abortStreams("session");
   const handle = createStreamHandle("session");
   try {
     els.messages.innerHTML = "";
