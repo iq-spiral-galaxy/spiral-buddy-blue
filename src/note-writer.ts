@@ -5,17 +5,16 @@ import type { LookupEntry } from "./session-store.js";
 
 const STRUCTURE_SYSTEM = `You convert a learning conversation into a structured Obsidian note.
 
-Output STRICT JSON only (no prose, no markdown fences):
-{
-  "summary": string,
-  "tags": string[],
-  "body": string
-}
+Output PLAIN MARKDOWN — NOT JSON. Do not wrap the note in a JSON object, and do not wrap the whole thing in code fences. Write the note as real markdown directly.
 
-The "body" must follow this exact structure with these EXACT headings:
+Start with ONE tags line (3-6 topical tags, comma-separated, no '#'), then a blank line:
+
+TAGS: redis-memory, cow-semantics, fork-internals
+
+Then the note body, using this exact structure with these EXACT headings (in this order):
 
 ## 한 줄 요약
-(2-3 lines max)
+(2-3 lines max — this section also serves as the note summary)
 
 ## 핵심 개념
 (bullet list of the core concepts the learner engaged with this session)
@@ -36,12 +35,13 @@ The "body" must follow this exact structure with these EXACT headings:
 (specific, actionable next steps — what to revisit, what to push deeper, what blocks this unblocks)
 
 Rules:
+- Output everything as real markdown directly — NEVER as a JSON string, never escaped, never wrapped in fences. Code examples go in normal triple-backtick fenced blocks inside the relevant section.
 - Write in the SAME LANGUAGE as the conversation (likely Korean).
 - Be ruthlessly concrete. Quote the learner's own framings when possible.
 - Don't fabricate content that wasn't in the conversation.
 - If a section has nothing real to put in it, write a single italicized line like "_이번 세션에서 다루지 않음._".
 - Tags should reflect topic, not meta ("redis-memory", "cow-semantics", not "learning", "study").
-- **Summary**: write a clean topical summary. Do NOT start with the chapter number (e.g., write "Fixtures & SetUp 첫 스파이럴…" not "05. Fixtures & SetUp 첫 스파이럴…"). The chapter title is recorded separately.`;
+- The "## 한 줄 요약" section doubles as the note summary. Do NOT start it with the chapter number (write "Fixtures & SetUp 첫 스파이럴…" not "05. Fixtures & SetUp 첫 스파이럴…"). The chapter title is recorded separately.`;
 
 /** 8섹션 헤딩 — save_note 검증/보충 시 사용 */
 export const REQUIRED_SECTIONS = [
@@ -239,11 +239,11 @@ ${relatedText}
 # Session transcript
 ${transcriptText}
 
-Now produce the structured note JSON.`;
+Now produce the structured note in the markdown format described above (TAGS line first, then the sections). Output markdown only — no JSON, no surrounding fences.`;
 
-  // 16000 — WAL/Buffer Pool 같이 챕터 본문·대화가 긴 케이스는 8섹션을 모두 채우면
-  // 8000도 넘겨 JSON이 잘림 → safeJsonParse 실패 → fallback(구조화 없는 노트)로 빠졌음
-  // (사용자 제보). 출력이 잘리지 않도록 여유를 더 둔다.
+  // 16000 — 8섹션을 모두 채우면 길어질 수 있어 여유를 둔다. (마크다운 직접 출력
+  // 방식이라 설령 여기서 잘려도 부분 마크다운이 그대로 유효 → validateAndPatchSections가
+  // 누락 섹션만 채워 graceful하게 degrade됨. 옛 JSON 방식은 잘리면 통째로 fallback이었음.)
   const { text } = await completeOnce(client, {
     system: STRUCTURE_SYSTEM,
     messages: [{ role: "user", content: userMsg }],
@@ -254,7 +254,7 @@ Now produce the structured note JSON.`;
 
   const { repo, roadmap } = splitRepoAndRoadmap(args.chapter.roadmapId);
 
-  const parsed = safeJsonParse(text);
+  const parsed = parseStructuredNote(text);
   if (!parsed) {
     return {
       topic: args.chapter.title,
@@ -275,18 +275,14 @@ Now produce the structured note JSON.`;
     };
   }
 
-  const rawBody =
-    typeof parsed.body === "string"
-      ? parsed.body
-      : "(note body generation failed)";
-  const { patchedBody } = validateAndPatchSections(rawBody);
+  const { patchedBody } = validateAndPatchSections(parsed.body);
   const bodyWithLookups =
     patchedBody + lookupsSection + renderTranscriptSection(args.transcript);
 
-  const rawSummary =
-    typeof parsed.summary === "string" ? parsed.summary : "(no summary)";
-  // 모델이 무시하고 "05. Foo" 처럼 prefix를 넣은 경우 한 번 더 정리
-  const cleanSummary = stripChapterNumberPrefix(rawSummary);
+  // summary = '## 한 줄 요약' 섹션. 모델이 "05. Foo" prefix를 넣었으면 정리하고,
+  // 비어 있으면 챕터 제목으로 폴백.
+  const cleanSummary =
+    stripChapterNumberPrefix(parsed.summary) || args.chapter.title;
 
   return {
     topic: args.chapter.title,
@@ -296,11 +292,7 @@ Now produce the structured note JSON.`;
     repo,
     roadmap,
     depth: args.depth,
-    tags: Array.isArray(parsed.tags)
-      ? (parsed.tags as unknown[]).filter(
-          (x): x is string => typeof x === "string",
-        )
-      : [],
+    tags: parsed.tags,
     summary: cleanSummary,
     body: bodyWithLookups,
     relatedNotePaths: args.related.map((r) => r.filePath),
@@ -317,6 +309,91 @@ function safeJsonParse(s: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * 구조화 출력 파서 — 모델이 마크다운을 그대로 출력하게 하고 그것을 파싱한다.
+ *
+ * 왜 JSON이 아니라 마크다운인가:
+ *   옛 방식은 8섹션 마크다운 본문(코드블록·따옴표·줄바꿈 포함)을 JSON 문자열
+ *   필드에 넣게 시켰다. 모델이 그 큰 문자열의 escaping(\n, \", \\)을 완벽히
+ *   못 하거나 maxTokens에서 잘리면 JSON.parse가 실패 → "자동 구조화 실패"
+ *   fallback으로 빠졌다(간헐적). 마크다운을 그대로 받으면:
+ *     1) escaping 자체가 없으니 그 원인이 원천 차단되고,
+ *     2) 잘려도 부분 마크다운은 여전히 유효 → validateAndPatchSections가
+ *        누락 섹션만 채워 graceful하게 degrade된다.
+ *   tags만 짧은 'TAGS:' 헤더로 받는다(짧고 맨 위 → 거의 안 잘림/안 깨짐).
+ *
+ * 호환: 모델이 옛 습관대로 JSON으로 응답해도 그 경로로 수용한다.
+ *
+ * 반환 null = 섹션(## …)이 하나도 없는 진짜 실패 → 호출부가 fallback 처리.
+ */
+function parseStructuredNote(
+  text: string,
+): { tags: string[]; summary: string; body: string } | null {
+  let s = text.trim();
+
+  // (호환) 옛 방식대로 JSON으로 응답한 경우 — body가 들어있으면 그대로 수용
+  if (s.startsWith("{")) {
+    const j = safeJsonParse(s);
+    if (j && typeof j.body === "string") {
+      return {
+        tags: Array.isArray(j.tags)
+          ? (j.tags as unknown[]).filter(
+              (x): x is string => typeof x === "string",
+            )
+          : [],
+        summary:
+          typeof j.summary === "string" && j.summary.trim()
+            ? j.summary
+            : extractSection(j.body, "한 줄 요약"),
+        body: j.body,
+      };
+    }
+    // JSON처럼 보였지만 파싱 실패 → 아래 마크다운 파서로 폴스루
+  }
+
+  // 모델이 전체를 ```markdown … ``` 펜스로 감쌌으면 제거
+  s = s
+    .replace(/^```(?:markdown|md)?\s*\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .trim();
+
+  const lines = s.split("\n");
+  const firstHeadingIdx = lines.findIndex((l) => /^##\s+/.test(l));
+  if (firstHeadingIdx === -1) return null; // 섹션 자체가 없음 → 진짜 실패
+
+  const header = lines.slice(0, firstHeadingIdx).join("\n");
+  const body = lines.slice(firstHeadingIdx).join("\n").trim();
+
+  // TAGS: a, b, c  (헤더 우선, 없으면 전체에서 한 번 더)
+  const tagsMatch =
+    header.match(/^[ \t>*-]*TAGS[ \t]*[:：][ \t]*(.+)$/im) ??
+    s.match(/^[ \t>*-]*TAGS[ \t]*[:：][ \t]*(.+)$/im);
+  const tags = tagsMatch
+    ? tagsMatch[1]!
+        .split(/[,，]/)
+        .map((t) => t.trim().replace(/^#/, ""))
+        .filter(Boolean)
+    : [];
+
+  const summary = extractSection(body, "한 줄 요약");
+
+  return { tags, summary, body };
+}
+
+/** body에서 '## <heading>' 섹션 본문을 한 줄로 추출(요약용). 없으면 "". */
+function extractSection(body: string, heading: string): string {
+  const lines = body.split("\n");
+  const esc = heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const start = lines.findIndex((l) =>
+    new RegExp(`^##\\s+${esc}\\s*$`).test(l),
+  );
+  if (start === -1) return "";
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((l) => /^##\s+/.test(l));
+  const sectionLines = end === -1 ? rest : rest.slice(0, end);
+  return sectionLines.join(" ").replace(/\s+/g, " ").trim();
 }
 
 function truncate(s: string, max: number): string {
