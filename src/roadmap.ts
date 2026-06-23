@@ -254,6 +254,19 @@ async function loadRoadmapChaptersUncached(
   return chapters;
 }
 
+/**
+ * 표시 제목 앞의 "Chapter01" / "Ch1" / "챕터1" 같은 챕터 prefix 제거.
+ * (순서 번호는 사이드바가 따로 매기므로 제목에서 중복 — 노출만 정리.)
+ * "Ch"/"Chapter" 바로 뒤에 숫자가 올 때만 — "Chrome"·"Channel"처럼 숫자 없는
+ * 단어는 건드리지 않는다. id(파일 경로)는 그대로라 노트 매칭/depth에는 영향 없음.
+ */
+function stripChapterPrefix(title: string): string {
+  const stripped = title
+    .replace(/^\s*(?:chapter|챕터|ch)\s*\d+\s*[-:.)\]]*\s*/i, "")
+    .trim();
+  return stripped.length > 0 ? stripped : title.trim();
+}
+
 async function loadChapterFile(
   abs: string,
   roadmap: Roadmap,
@@ -266,7 +279,7 @@ async function loadChapterFile(
     typeof parsed.data.title === "string" ? parsed.data.title : null;
   const firstHeading = parsed.content.match(/^#\s+(.+)$/m)?.[1]?.trim();
   const fallback = path.basename(abs, ".md");
-  const title = fmTitle ?? firstHeading ?? fallback;
+  const title = stripChapterPrefix(fmTitle ?? firstHeading ?? fallback);
 
   return {
     id: relativeToRoadmap,
