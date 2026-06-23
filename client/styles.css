@@ -658,9 +658,11 @@ body.light-mode .sidebar-search-input:focus {
 }
 
 /* v0.5.106 — 과거 대화 다시보기 모달 (read-only, 세션 비파괴) */
-.transcript-modal {
-  width: min(860px, 94vw);
-  max-width: 94vw;
+/* .modal.transcript-modal — specificity를 .modal(0,1,0)보다 높여(.modal.transcript-modal
+   = 0,2,0) 뒤에 정의된 .modal{max-width:460px}를 확실히 이김. 메인 채팅창처럼 넓게. */
+.modal.transcript-modal {
+  width: min(1080px, 95vw);
+  max-width: 95vw;
   text-align: left;
 }
 .transcript-modal-title {
@@ -681,7 +683,7 @@ body.light-mode .sidebar-search-input:focus {
   font-weight: 400;
 }
 .transcript-modal-body {
-  max-height: 64vh;
+  max-height: 74vh;
   overflow-y: auto;
   margin: 12px 0;
   padding-right: 6px;
