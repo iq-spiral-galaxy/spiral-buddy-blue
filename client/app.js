@@ -866,6 +866,9 @@ function displayRepoName(name) {
   let s = String(name ?? "");
   s = s.replace(/-deep-dive$/i, "");
   s = s.replace(/-/g, " ");
+  // v0.5.109 — sub-roadmap/레포 이름 앞 "Chapter01"/"Ch1"/"챕터1" prefix 제거(표시 전용).
+  // Ch/Chapter 바로 뒤 숫자일 때만 — Chrome/Channel 등 오탐 방지. 정렬 순서는 sortKey가 따로 보존.
+  s = s.replace(/^\s*(?:chapter|챕터|ch)\s*\d+\s*[-:.)\]]*\s*/i, "").trim() || s;
   return s.replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
 }
 
