@@ -12,7 +12,10 @@
 
 ---
 
-## ⚡ 30초 설치 (한 줄 명령)
+<details>
+<summary>⚡ <b>30초 설치 — 한 줄 명령으로 바로 받기</b> &nbsp;(클릭해서 펼치기)</summary>
+
+<br/>
 
 > 💡 **API 호출 X — 어떤 버전인지 신경 X.** 아래 명령들은 GitHub Releases의 고정된 `latest` 별칭 URL을 사용해 다운로드합니다. 시간당 제한(rate-limit) 걸리지 않습니다.
 
@@ -72,6 +75,8 @@ chmod +x ~/SpiralBuddy.AppImage
 > ⚙️ 앱 안에서도 **설정 > 일반 > "새 버전 사용 가능"** 배너에서 한 번 클릭으로 업데이트 가능 (macOS / Windows).
 >
 > 첫 실행 시 macOS Gatekeeper 경고("'손상되었기 때문에 열 수 없습니다") — 위 명령의 `xattr -cr`이 해결. 노트·설정·워크스페이스는 vault 또는 `~/Library/Application Support/Spiral Buddy/`에 저장돼서 재설치해도 안 사라집니다.
+
+</details>
 
 ---
 
