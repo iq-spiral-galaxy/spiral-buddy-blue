@@ -1559,6 +1559,12 @@ async function installCuratedRepo(repoName) {
 }
 
 let _interruptInFlight = false;
+// 세션 epoch — 새 세션이 성립될 때마다 ++. 느린 비동기 op(endSession, 인터럽트 저장)이
+// 진입 시 epoch를 캡처하고, 종료 정리(state.session=null + enableSessionUi(false)) 직전에
+// _sessionEpoch === myEpoch 인지 확인한다. 다르면 그 사이 새 세션이 시작된 것이므로
+// 새 세션의 입력/세션을 건드리지 않는다. (느린 Windows에서 늦게 끝난 end-op이 새 세션을
+// clobber해 입력이 비활성되던 버그 fix.)
+let _sessionEpoch = 0;
 
 /**
  * 진행 중인 세션이 있을 때 다른 곳으로 이동하기 전 처리.
@@ -1581,6 +1587,7 @@ async function handleSessionInterruption() {
 
 async function _handleSessionInterruptionBody() {
   if (!state.session) return "continue";
+  const myEpoch = _sessionEpoch; // 진입 시 세션 세대 캡처
 
   const action = await sessionInterruptPrompt();
   if (action === "cancel") return "cancel";
@@ -1658,18 +1665,22 @@ async function _handleSessionInterruptionBody() {
     );
   }
 
-  state.session = null;
-  state.messages = [];
-  enableSessionUi(false);
-  updateTopbar();
-  els.messages.innerHTML = `<div class="placeholder"><p>왼쪽에서 챕터를 골라 세션을 시작하세요.</p></div>`;
-  // v0.5.105 — "저장하고 이동" 후에도 사이드바 "마지막"/depth 배지를 즉시 갱신.
-  // (endSession 경로는 loadRoadmapData로 갱신하지만 이 경로는 roadmaps만 갱신해
-  //  방금 저장한 챕터가 재시작 전까지 stale로 남았음.) session=null 이후라 방금
-  //  끝낸 챕터가 recent로 잡히고, 이어지는 startSession이 accent를 새 챕터로 옮긴다.
-  if (action === "save" && state.activeRoadmapId) {
-    await loadRoadmapData();
-    refreshActivityBadge();
+  // 저장/await 동안 새 세션 B가 시작됐다면(epoch 변동) B의 세션/입력을 건드리지
+  // 않는다. 그래도 호출자에겐 "continue"를 돌려줘 흐름은 잇는다.
+  if (_sessionEpoch === myEpoch) {
+    state.session = null;
+    state.messages = [];
+    enableSessionUi(false);
+    updateTopbar();
+    els.messages.innerHTML = `<div class="placeholder"><p>왼쪽에서 챕터를 골라 세션을 시작하세요.</p></div>`;
+    // v0.5.105 — "저장하고 이동" 후에도 사이드바 "마지막"/depth 배지를 즉시 갱신.
+    // (endSession 경로는 loadRoadmapData로 갱신하지만 이 경로는 roadmaps만 갱신해
+    //  방금 저장한 챕터가 재시작 전까지 stale로 남았음.) session=null 이후라 방금
+    //  끝낸 챕터가 recent로 잡히고, 이어지는 startSession이 accent를 새 챕터로 옮긴다.
+    if (action === "save" && state.activeRoadmapId) {
+      await loadRoadmapData();
+      refreshActivityBadge();
+    }
   }
   return "continue";
 }
@@ -5080,6 +5091,7 @@ async function startSession(chapterId) {
       roadmapId: decodeURIComponent(roadmapIdEnc),
       roadmapName: decodeURIComponent(roadmapNameEnc),
     };
+    _sessionEpoch++; // 새 세션 성립 → 진행 중인 옛 end-op의 늦은 정리를 무효화
     refreshPausedList(); // 일시정지 목록 갱신
     updateTopbar();
     enableSessionUi(true);
@@ -5550,6 +5562,7 @@ async function resumePausedSession(id) {
       roadmapId: data.chapter.roadmapId,
       roadmapName: data.chapter.roadmapName,
     };
+    _sessionEpoch++; // 재개도 새 세션 성립 → 옛 end-op의 늦은 정리 무효화
     state.messages = (data.messages ?? []).map((m) => ({
       role: m.role,
       content: m.content,
@@ -5600,6 +5613,7 @@ async function endSession() {
   if (!state.session || state.pending) return;
   if (!confirm("세션 종료하고 옵시디언에 노트 생성할까?")) return;
   const endingSessionId = state.session.id;
+  const myEpoch = _sessionEpoch; // 진입 시점의 세션 세대 캡처
 
   setPending(true);
 
@@ -5608,9 +5622,14 @@ async function endSession() {
   els.messages.appendChild(card);
   scrollToBottom();
 
+  // end 스트림을 handle로 등록해 abort 가능하게. 이전엔 raw reader라 _activeStreams에
+  // 없어서 startSession의 abortStreams("session")가 못 끊었고, 느린 노트 생성이 끝까지
+  // 돌다 새 세션 B를 null + 입력 비활성으로 덮어썼다(윈도우 입력잠금 버그).
+  const endHandle = createStreamHandle("session");
   try {
-    const res = await fetch(`/api/session/${state.session.id}/end`, {
+    const res = await fetch(`/api/session/${endingSessionId}/end`, {
       method: "POST",
+      signal: endHandle.controller.signal,
     });
     if (!res.ok) {
       const text = await res.text();
@@ -5619,15 +5638,11 @@ async function endSession() {
 
     // SSE 파싱 - reader로 직접 청크 읽기 (EventSource는 GET 전용이라 못 씀)
     const reader = res.body.getReader();
-    const decoder = new TextDecoder();
     let buffer = "";
     let result = null;
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-
+    await pumpStream(reader, endHandle, (chunk) => {
+      buffer += chunk;
       // SSE 메시지 단위 (빈 줄로 구분)
       let idx;
       while ((idx = buffer.indexOf("\n\n")) !== -1) {
@@ -5644,32 +5659,45 @@ async function endSession() {
           throw new Error(parsed.data.message ?? "unknown");
         }
       }
-    }
+    });
 
     if (!result) throw new Error("저장 완료 신호를 받지 못함");
 
-    state.session = null;
-    state.messages = [];
-    enableSessionUi(false);
-    updateTopbar();
-    // 같은 세션이 일시정지 목록에 있었다면 정리
+    // 노트는 항상 저장됐으니 paused 목록 정리는 무조건 수행 (UI 소유권과 무관).
     writePausedList(readPausedList().filter((p) => p.id !== endingSessionId));
     refreshPausedList();
 
-    // 진도 + 활동 streak 갱신
-    const roadmaps = await fetch("/api/roadmaps").then((r) => r.json());
-    state.roadmaps = Array.isArray(roadmaps) ? roadmaps : [];
-    renderRoadmapSelector();
-    await loadRoadmapData();
-    refreshActivityBadge();
-    setStatus("");
+    // 그 사이 새 세션 B가 시작됐다면(epoch 변동) B의 세션/입력을 건드리지 않는다.
+    // 내가 종료한 세션이 여전히 현재 세션일 때만 정리 + 로드맵 갱신.
+    if (_sessionEpoch === myEpoch && state.session?.id === endingSessionId) {
+      state.session = null;
+      state.messages = [];
+      enableSessionUi(false);
+      updateTopbar();
+
+      // 진도 + 활동 streak 갱신
+      const roadmaps = await fetch("/api/roadmaps").then((r) => r.json());
+      state.roadmaps = Array.isArray(roadmaps) ? roadmaps : [];
+      renderRoadmapSelector();
+      await loadRoadmapData();
+      refreshActivityBadge();
+      setStatus("");
+    }
   } catch (err) {
+    // 새 세션 시작 등으로 의도적 abort된 경우엔 에러 UI를 띄우지 않고 조용히 종료.
+    if (isIntentionalAbort(err, endHandle)) {
+      if (_sessionEpoch === myEpoch) setPending(false);
+      return;
+    }
     card.classList.add("error");
     const titleEl = card.querySelector(".end-progress-card-title");
     if (titleEl) titleEl.innerHTML = `<span style="color:#f85149">❌ 저장 실패</span>`;
     setStatus(`End failed: ${err.message}`, "error");
   } finally {
-    setPending(false);
+    finishStreamHandle(endHandle);
+    // 늦게 끝난 end-op이 새 세션 B의 pending 상태를 뒤엎지 않도록, 내가 여전히
+    // 현재 세대일 때만 pending 해제.
+    if (_sessionEpoch === myEpoch) setPending(false);
   }
 }
 
