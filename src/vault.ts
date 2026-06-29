@@ -72,7 +72,12 @@ async function listSpiralNotesUncached(
     const note = await readNote(abs, rel);
     if (note) notes.push(note);
   }
-  notes.sort((a, b) => b.date.localeCompare(a.date));
+  // date desc, 동일 날짜는 relativePath로 안정 정렬(결정성).
+  notes.sort(
+    (a, b) =>
+      b.date.localeCompare(a.date) ||
+      a.relativePath.localeCompare(b.relativePath),
+  );
   return notes;
 }
 
