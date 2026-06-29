@@ -210,6 +210,81 @@ async function parseCuratedRepoBody(
   return { org: body.org ?? config.curatedOrg, repoName: body.repo_name };
 }
 
+// /curated/* 라우트 (available + install/refresh/uninstall). createApi에서 분리.
+function registerCuratedRoutes(app: Hono, config: Config) {
+  app.get("/curated/available", async (c) => {
+    if (!config.curatedOrg) {
+      return c.json({ error: "curated source disabled" }, 400);
+    }
+    const force = c.req.query("refresh") === "1";
+    try {
+      const repos = await listCuratedRepos({
+        org: config.curatedOrg,
+        token: config.githubToken ?? undefined,
+        forceRefresh: force,
+      });
+      const groups = await groupReposByCategory(config.curatedOrg, repos);
+      return c.json({
+        org: config.curatedOrg,
+        repos,
+        groups: groups.map((g) => ({
+          name: g.category.name,
+          emoji: g.category.emoji,
+          color: g.category.color,
+          repos: g.repos,
+        })),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return c.json({ error: msg }, 502);
+    }
+  });
+
+  // install/refresh/uninstall — 공통 가드 parseCuratedRepoBody로 early-return.
+  app.post("/curated/install", async (c) => {
+    const p = await parseCuratedRepoBody(c, config);
+    if ("err" in p) return p.err;
+    const { org, repoName } = p;
+    try {
+      const result = await installCuratedRepo({ org, repoName });
+      return c.json({
+        installed: true,
+        alreadyInstalled: result.alreadyInstalled,
+        cachePath: result.cachePath,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return c.json({ error: msg }, 500);
+    }
+  });
+
+  app.post("/curated/refresh", async (c) => {
+    const p = await parseCuratedRepoBody(c, config);
+    if ("err" in p) return p.err;
+    const { org, repoName } = p;
+    try {
+      await refreshCuratedRepo({ org, repoName });
+      return c.json({ ok: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return c.json({ error: msg }, 500);
+    }
+  });
+
+  app.post("/curated/uninstall", async (c) => {
+    const p = await parseCuratedRepoBody(c, config);
+    if ("err" in p) return p.err;
+    const { org, repoName } = p;
+    try {
+      await uninstallCuratedRepo({ org, repoName });
+      return c.json({ ok: true });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return c.json({ error: msg }, 500);
+    }
+  });
+}
+
 export function createApi(config: Config) {
   const app = new Hono();
   const client = createClient(config);
@@ -296,78 +371,7 @@ export function createApi(config: Config) {
   // 2-b. Curated repos (available + installed)
   // ─────────────────────────────────────────────────────
 
-  app.get("/curated/available", async (c) => {
-    if (!config.curatedOrg) {
-      return c.json({ error: "curated source disabled" }, 400);
-    }
-    const force = c.req.query("refresh") === "1";
-    try {
-      const repos = await listCuratedRepos({
-        org: config.curatedOrg,
-        token: config.githubToken ?? undefined,
-        forceRefresh: force,
-      });
-      const groups = await groupReposByCategory(config.curatedOrg, repos);
-      return c.json({
-        org: config.curatedOrg,
-        repos,
-        groups: groups.map((g) => ({
-          name: g.category.name,
-          emoji: g.category.emoji,
-          color: g.category.color,
-          repos: g.repos,
-        })),
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return c.json({ error: msg }, 502);
-    }
-  });
-
-  // curated install/refresh/uninstall 공통 가드 — curatedOrg 활성 + body 파싱 + repo_name 검증.
-  // 성공 시 {org, repoName}, 실패 시 {err: Response}(400) 반환 → 호출부에서 early return.
-  app.post("/curated/install", async (c) => {
-    const p = await parseCuratedRepoBody(c, config);
-    if ("err" in p) return p.err;
-    const { org, repoName } = p;
-    try {
-      const result = await installCuratedRepo({ org, repoName });
-      return c.json({
-        installed: true,
-        alreadyInstalled: result.alreadyInstalled,
-        cachePath: result.cachePath,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return c.json({ error: msg }, 500);
-    }
-  });
-
-  app.post("/curated/refresh", async (c) => {
-    const p = await parseCuratedRepoBody(c, config);
-    if ("err" in p) return p.err;
-    const { org, repoName } = p;
-    try {
-      await refreshCuratedRepo({ org, repoName });
-      return c.json({ ok: true });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return c.json({ error: msg }, 500);
-    }
-  });
-
-  app.post("/curated/uninstall", async (c) => {
-    const p = await parseCuratedRepoBody(c, config);
-    if ("err" in p) return p.err;
-    const { org, repoName } = p;
-    try {
-      await uninstallCuratedRepo({ org, repoName });
-      return c.json({ ok: true });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return c.json({ error: msg }, 500);
-    }
-  });
+  registerCuratedRoutes(app, config);
 
   // ─────────────────────────────────────────────────────
   // 3. Chapters (로드맵별)
