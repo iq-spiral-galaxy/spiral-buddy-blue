@@ -757,7 +757,7 @@ export function createApi(config: Config) {
     let notes = await listSpiralNotes(config.vaultPath);
 
     if (roadmapId) {
-      const roadmap = await resolveRoadmap(config,roadmapId);
+      const roadmap = await resolveRoadmap(config, roadmapId);
       if (roadmap) {
         notes = notes.filter((n) =>
           noteBelongsToRoadmap(n, {
@@ -765,6 +765,9 @@ export function createApi(config: Config) {
             roadmapName: roadmap.name,
           }),
         );
+      } else {
+        // 미지 roadmap_id로 필터 요청 → 빈 결과 (전체 노트 누출 방지).
+        notes = [];
       }
     }
 

@@ -332,14 +332,36 @@ describe("GET /history", () => {
     assert.deepEqual(body, []);
   });
 
-  test("unknown roadmap_id filter still returns 200 (filter is a no-op when roadmap unresolved)", async () => {
-    const app = createApi(baseConfig());
-    const res = await app.request("/history?roadmap_id=nope");
-    // resolveRoadmap returns null -> the if(roadmap) branch is skipped ->
-    // notes returned unfiltered (empty here), still 200.
-    assert.equal(res.status, 200);
-    const body = await res.json();
-    assert.deepEqual(body, []);
+  test("UNKNOWN roadmap_id filters out everything (no full-vault leak)", async () => {
+    // v0.5.114 fix: 미지 roadmap_id로 필터 요청 시 빈 결과여야 함.
+    // (옛 버전은 resolveRoadmap null → 필터 스킵 → 전체 노트 누출.)
+    // 공유 vault 오염 방지를 위해 이 테스트만의 임시 vault 사용.
+    const { writeNewNote } = await import("../src/vault.js");
+    const v = await fs.mkdtemp(path.join(os.tmpdir(), "spiral-hist-"));
+    try {
+      await writeNewNote(v, {
+        topic: "Chapter One",
+        chapterId: "01-x.md",
+        roadmapId: "jvm-deep-dive/foo",
+        roadmapName: "foo",
+        repo: "jvm-deep-dive",
+        roadmap: "foo",
+        depth: 1,
+        tags: [],
+        summary: "",
+        body: "b",
+        relatedNotePaths: [],
+      });
+      const app = createApi(baseConfig({ vaultPath: v }));
+      const all = await (await app.request("/history")).json();
+      assert.equal(all.length, 1); // 필터 없으면 노트가 보임
+      const res = await app.request("/history?roadmap_id=nope");
+      assert.equal(res.status, 200);
+      const filtered = await res.json();
+      assert.deepEqual(filtered, []); // 미지 id → 빈 결과 (노트 누출 X)
+    } finally {
+      await fs.rm(v, { recursive: true, force: true });
+    }
   });
 });
 
