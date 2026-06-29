@@ -1453,11 +1453,6 @@ body.light-mode .domain-header:hover {
   flex-shrink: 0;
 }
 
-.cat-emoji {
-  font-size: 13px;
-  flex-shrink: 0;
-}
-
 .cat-name {
   flex: 1;
   font-weight: 600;
@@ -1528,12 +1523,6 @@ body.light-mode .domain-header:hover {
 .repo-header.flat-roadmap.active {
   background: rgba(92, 184, 255, 0.12);
   color: var(--accent);
-}
-
-.repo-emoji {
-  font-size: 11px;
-  flex-shrink: 0;
-  opacity: 0.7;
 }
 
 .repo-name {
@@ -1831,101 +1820,9 @@ body.light-mode .domain-header:hover {
   line-height: 1.1;
 }
 
-.brand-subtitle {
-  font-size: 10px;
-  color: var(--text-faint);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  font-family: var(--font-mono);
-}
-
 /* 옛 .meta 숨김 */
 .brand .meta {
   display: none;
-}
-
-/* ─── Model selector ─── */
-
-.model-selector {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.model-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-faint);
-}
-
-.model-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.model-select {
-  flex: 1;
-  background: var(--bg-elev-2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 9px 32px 9px 12px;
-  color: var(--text);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235cb8ff' stroke-width='2.5' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  transition: border-color 0.12s, background-color 0.12s;
-}
-
-.model-select:hover {
-  border-color: var(--accent);
-}
-
-.model-select:focus {
-  outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(92, 184, 255, 0.15);
-}
-
-.model-tier-badge {
-  font-family: var(--font-mono);
-  font-size: 9px;
-  font-weight: 600;
-  padding: 3px 7px;
-  border-radius: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  white-space: nowrap;
-}
-
-.model-tier-badge.tier-highest {
-  background: rgba(255, 183, 77, 0.15);
-  color: #ffb74d;
-  border: 1px solid rgba(255, 183, 77, 0.3);
-}
-.model-tier-badge.tier-high {
-  background: rgba(122, 169, 255, 0.15);
-  color: var(--accent-2);
-  border: 1px solid rgba(122, 169, 255, 0.3);
-}
-.model-tier-badge.tier-balanced {
-  background: rgba(92, 184, 255, 0.12);
-  color: var(--accent);
-  border: 1px solid rgba(92, 184, 255, 0.3);
-}
-.model-tier-badge.tier-fast {
-  background: rgba(63, 185, 80, 0.12);
-  color: var(--success);
-  border: 1px solid rgba(63, 185, 80, 0.3);
 }
 
 /* ─── Topbar 더 넓게 + 정보 위계 ─── */
@@ -1956,12 +1853,6 @@ body.light-mode .domain-header:hover {
   gap: 10px;
   flex-wrap: wrap;
   min-width: 0;
-}
-
-#current-chapter .placeholder-text {
-  color: var(--text-faint);
-  font-weight: 400;
-  font-style: italic;
 }
 
 #current-chapter strong {
@@ -2066,17 +1957,6 @@ button.primary {
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
-}
-
-.composer-input-wrap {
-  flex: 1;
-  position: relative;
-  display: flex;
-  /* v0.5.63 — flex item 기본 min-width: auto가 content(textarea placeholder/text) 폭에 맞춰
-   * 부모를 늘리던 버그. 결과적으로 composer 박스가 chat 컬럼을 초과해 Send 버튼이 우측으로 흘러나가
-   * 짤리는 증상이 났음. min-width: 0으로 flex item이 content보다 작아질 수 있게.
-   */
-  min-width: 0;
 }
 
 .composer-input-col {
@@ -2658,11 +2538,6 @@ button.primary {
   align-self: stretch;
   height: auto;    /* 명시: stretch가 결정 */
   min-height: 92px;  /* textarea와 동일한 minimum */
-}
-
-/* 옛 composer-input-wrap 클래스 호환 (있어도 무관, 없어도 무관) */
-.composer-input-wrap {
-  display: contents;   /* 있으면 그냥 wrapper 무시하고 자식이 grid/flex item이 되게 */
 }
 
 /* ─── 사이드바 토글 ─── */
@@ -3647,22 +3522,16 @@ body.sidebar-resizing #sidebar-resizer {
   text-shadow: 0 0 24px rgba(111, 194, 255, 0.15);
 }
 
-.model-selector {
-  margin-top: 17px;
-}
-
 #sidebar section {
   border-bottom: 1px solid rgba(148, 169, 190, 0.1);
 }
 
 #sidebar h2,
-.roadmap-selector h2,
-.model-label {
+.roadmap-selector h2 {
   color: #7f909c;
   letter-spacing: 0.08em;
 }
 
-.model-select,
 .roadmap-current,
 .roadmap-list,
 .search-modal,
@@ -3673,14 +3542,6 @@ body.sidebar-resizing #sidebar-resizer {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 }
 
-.model-select {
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236fc2ff' stroke-width='2.5' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") right 10px center / 12px 12px no-repeat,
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent),
-    rgba(20, 27, 37, 0.88);
-}
-
-.model-select,
 .roadmap-current,
 .roadmap-list,
 .modal,
@@ -3695,23 +3556,16 @@ button,
   border-radius: 8px;
 }
 
-.model-select:hover,
 .roadmap-current:hover,
 #input:hover:not(:disabled) {
   border-color: rgba(111, 194, 255, 0.55);
 }
 
-.model-select:focus,
 #input:focus {
   border-color: rgba(111, 194, 255, 0.95);
   box-shadow:
     0 0 0 3px rgba(111, 194, 255, 0.12),
     0 0 28px rgba(111, 194, 255, 0.08);
-}
-
-.model-tier-badge {
-  border-radius: 999px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .suggestion {
@@ -3912,11 +3766,6 @@ button.primary:hover:not(:disabled),
 #current-chapter {
   color: #eaf4f7;
   min-width: 0;
-}
-
-#current-chapter .placeholder-text {
-  color: #748592;
-  font-style: normal;
 }
 
 #current-chapter strong {
@@ -4563,21 +4412,6 @@ button.primary:hover:not(:disabled),
   color: var(--text, #edf3f5);
 }
 
-.lookup-panel-close {
-  background: transparent;
-  border: 0;
-  color: var(--text-faint, #74818b);
-  cursor: pointer;
-  font-size: 14px;
-  padding: 4px 8px;
-  border-radius: 4px;
-}
-
-.lookup-panel-close:hover {
-  background: var(--bg-elev-2, #19212c);
-  color: var(--text, #edf3f5);
-}
-
 .lookup-panel-body {
   flex: 1;
   overflow-y: auto;
@@ -4585,14 +4419,6 @@ button.primary:hover:not(:disabled),
   display: flex;
   flex-direction: column;
   gap: 12px;
-}
-
-.lookup-panel-hint {
-  padding: 10px 14px;
-  border-top: 1px solid var(--border-soft, rgba(148, 169, 190, 0.12));
-  font-size: 11px;
-  color: var(--text-faint, #74818b);
-  line-height: 1.5;
 }
 
 /* v0.5.58 + v0.5.60 + v0.5.61 — Buddy 메시지 "📋 문맥" 버튼.
@@ -5285,92 +5111,6 @@ body.lookup-fullscreen .lookup-panel-mini.icon-btn svg {
   flex: 1;
   height: 1px;
   background: var(--border-soft, rgba(148, 169, 190, 0.12));
-}
-
-.settings-curated-card {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  text-align: left;
-  background: linear-gradient(
-    145deg,
-    rgba(159, 179, 193, 0.06),
-    rgba(209, 160, 111, 0.04)
-  );
-  border: 1px solid rgba(148, 169, 190, 0.22);
-  color: var(--text, #edf3f5);
-  padding: 12px 14px;
-  border-radius: 8px;
-  font-family: inherit;
-  cursor: pointer;
-  transition: background 120ms, border-color 120ms, transform 80ms;
-}
-
-.settings-curated-card:hover:not(.downloading):not(.done) {
-  border-color: rgba(169, 186, 197, 0.42);
-  background: linear-gradient(
-    145deg,
-    rgba(159, 179, 193, 0.1),
-    rgba(209, 160, 111, 0.08)
-  );
-}
-
-.settings-curated-card:active:not(.downloading):not(.done) {
-  transform: scale(0.99);
-}
-
-.settings-curated-card.downloading {
-  cursor: progress;
-}
-
-.settings-curated-card.done {
-  border-color: rgba(92, 184, 255, 0.4);
-  background: rgba(92, 184, 255, 0.06);
-}
-
-.settings-curated-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid rgba(169, 186, 197, 0.22);
-  border-radius: 8px;
-  color: var(--accent, #a9bac5);
-  background: rgba(7, 11, 17, 0.66);
-  flex-shrink: 0;
-}
-
-.settings-curated-icon svg {
-  width: 16px;
-  height: 16px;
-}
-
-.settings-curated-text {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.settings-curated-text strong {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.settings-curated-sub {
-  font-size: 11px;
-  color: var(--text-faint, #74818b);
-  line-height: 1.4;
-}
-
-.settings-curated-progress {
-  font-size: 11px;
-  color: var(--text-dim, #a6b2bb);
-  font-family: var(--font-mono, ui-monospace, monospace);
-  margin-top: 8px;
-  flex-basis: 100%;
 }
 
 .settings-wizard-link {
@@ -7040,7 +6780,6 @@ body.light-mode .roadmap-item .depth-pill {
 
 /* ─── Chapters 리스트 ─── */
 
-body.light-mode .chapter-list .chapter-item-number,
 body.light-mode .chapter-list ol > li::before,
 body.light-mode .chapter-list li > .num,
 body.light-mode .chapter-list li > span:first-child {
@@ -7107,18 +6846,6 @@ body.light-mode .trash-open-btn {
 body.light-mode .activity-open-btn:hover,
 body.light-mode .trash-open-btn:hover {
   background: #f0f5ff !important;
-  border-color: var(--accent) !important;
-}
-
-/* ─── 모델 selector ─── */
-
-body.light-mode .model-select {
-  background: #ffffff !important;
-  border: 1px solid var(--border) !important;
-  color: var(--text) !important;
-}
-
-body.light-mode .model-select:hover {
   border-color: var(--accent) !important;
 }
 
@@ -7825,10 +7552,6 @@ body.light-mode .chapter-btn {
   color: var(--text) !important;
 }
 
-body.light-mode .chapter-btn .chapter-name {
-  color: var(--text) !important;
-}
-
 body.light-mode .chapter-btn:hover {
   background: rgba(37, 99, 235, 0.06) !important;
 }
@@ -7838,12 +7561,6 @@ body.light-mode .chapter-btn.active {
     linear-gradient(90deg, rgba(37, 99, 235, 0.10), rgba(37, 99, 235, 0.06)) !important;
   box-shadow: inset 2px 0 0 var(--accent);
   color: var(--accent) !important;
-}
-
-body.light-mode .chapter-btn .chapter-meta,
-body.light-mode .chapter-btn .chapter-date,
-body.light-mode .chapter-btn .chapter-id {
-  color: var(--text-dim) !important;
 }
 
 body.light-mode .chapter-btn .chapter-depth-pill {
@@ -7922,8 +7639,7 @@ body.light-mode .chapter-btn {
   color: var(--text-dim) !important;
 }
 
-body.light-mode .chapter-btn .title,
-body.light-mode .chapter-btn .chapter-name {
+body.light-mode .chapter-btn .title {
   color: var(--text-dim) !important;
   font-weight: 500;
 }
@@ -7932,8 +7648,7 @@ body.light-mode .chapter-btn.visited {
   color: var(--text) !important;
 }
 
-body.light-mode .chapter-btn.visited .title,
-body.light-mode .chapter-btn.visited .chapter-name {
+body.light-mode .chapter-btn.visited .title {
   color: var(--text) !important;
   font-weight: 600;
 }
@@ -7957,12 +7672,6 @@ body.light-mode .workspace-icon {
   box-shadow:
     0 1px 0 rgba(15, 23, 42, 0.04),
     inset 0 1px 0 rgba(255, 255, 255, 0.6) !important;
-}
-
-body.light-mode .settings-curated-icon {
-  background: rgba(37, 99, 235, 0.08) !important;
-  border-color: rgba(37, 99, 235, 0.32) !important;
-  color: var(--accent) !important;
 }
 
 body.light-mode .logo-spiral svg circle[fill="url(#spiral-glow)"] {
@@ -8077,14 +7786,6 @@ body.light-mode .activity-streak .streak-flame {
   color: #ef6e3a !important;
 }
 
-/* ─── 모델 선택 박스 light ─── */
-
-body.light-mode .model-tier-badge {
-  background: rgba(37, 99, 235, 0.08) !important;
-  color: var(--accent) !important;
-  border-color: rgba(37, 99, 235, 0.3) !important;
-}
-
 /* ═══════════════════════════════════════════════════════════
  *   v0.5.41 — 5개 UX 피드백
  * ═══════════════════════════════════════════════════════════ */
@@ -8192,91 +7893,6 @@ body.light-mode .scroll-bottom-btn:hover {
   background: var(--accent);
   color: #ffffff;
   border-color: var(--accent);
-}
-
-/* ─── #5: 일시정지 배너 (메시지 영역 위) ─── */
-
-.paused-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 18px;
-  background: linear-gradient(90deg, rgba(255, 197, 122, 0.12), rgba(92, 184, 255, 0.06));
-  border-bottom: 1px solid rgba(255, 197, 122, 0.32);
-  font-size: 12.5px;
-  color: var(--text, #edf3f5);
-}
-
-.paused-banner.hidden {
-  display: none;
-}
-
-.paused-banner-icon {
-  display: inline-flex;
-  color: #ffb347;
-}
-
-.paused-banner-icon svg {
-  width: 16px;
-  height: 16px;
-}
-
-.paused-banner-text {
-  flex: 1;
-}
-
-.paused-resume-btn {
-  background: linear-gradient(135deg, #5cb8ff 0%, #7aa9ff 100%);
-  color: #0d1117;
-  border: none;
-  padding: 6px 14px;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.paused-resume-btn:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(92, 184, 255, 0.35);
-}
-
-.paused-discard-btn {
-  background: transparent;
-  border: 1px solid var(--border-soft, rgba(148, 169, 190, 0.18));
-  color: var(--text-faint, #74818b);
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.paused-discard-btn:hover {
-  background: rgba(248, 81, 73, 0.12);
-  border-color: rgba(248, 81, 73, 0.4);
-  color: #f85149;
-}
-
-body.light-mode .paused-banner {
-  background: linear-gradient(90deg, rgba(245, 158, 11, 0.10), rgba(37, 99, 235, 0.06));
-  border-bottom-color: rgba(245, 158, 11, 0.35);
-  color: var(--text);
-}
-
-body.light-mode .paused-banner-icon {
-  color: #d97706;
-}
-
-body.light-mode .paused-resume-btn {
-  background: linear-gradient(135deg, #2563eb 0%, #2563eb 100%);
-  color: #ffffff;
 }
 
 /* ─── Pause 버튼 (topbar) — Quiz와 End&Save 사이, icon-only ─── */
