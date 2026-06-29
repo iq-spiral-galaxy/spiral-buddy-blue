@@ -2,6 +2,7 @@ import { completeOnce, type ClaudeClient, type ClaudeMessage } from "./claude.js
 import type { Chapter } from "./roadmap.js";
 import type { SpiralNote, NewNote } from "./vault.js";
 import type { LookupEntry } from "./session-store.js";
+import { safeJsonParse } from "./text-utils.js";
 
 const STRUCTURE_SYSTEM = `You convert a learning conversation into a structured Obsidian note.
 
@@ -344,18 +345,6 @@ Now produce the structured note in the markdown format described above (TAGS lin
     body: bodyWithLookups,
     relatedNotePaths: args.related.map((r) => r.filePath),
   };
-}
-
-function safeJsonParse(s: string): Record<string, unknown> | null {
-  try {
-    const cleaned = s
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/```\s*$/i, "")
-      .trim();
-    return JSON.parse(cleaned);
-  } catch {
-    return null;
-  }
 }
 
 /**

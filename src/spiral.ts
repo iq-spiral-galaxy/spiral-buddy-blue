@@ -2,6 +2,7 @@ import type { Chapter, Roadmap } from "./roadmap.js";
 import type { SpiralNote } from "./vault.js";
 import { noteBelongsToRoadmap, noteMatchesChapter } from "./vault.js";
 import { completeOnce, type ClaudeClient } from "./claude.js";
+import { safeJsonParse } from "./text-utils.js";
 
 export interface SpiralSuggestion {
   recommendedChapterId: string | null;
@@ -134,16 +135,4 @@ function isMode(v: unknown): v is SpiralSuggestion["mode"] {
     v === "next-chapter" ||
     v === "cross-link"
   );
-}
-
-function safeJsonParse(s: string): Record<string, unknown> | null {
-  try {
-    const cleaned = s
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/```\s*$/i, "")
-      .trim();
-    return JSON.parse(cleaned);
-  } catch {
-    return null;
-  }
 }
