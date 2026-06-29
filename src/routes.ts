@@ -56,6 +56,126 @@ import {
   findDomainForCategory,
 } from "./categories.js";
 
+// GET /roadmaps 의 per-roadmap 보강 — 노트 진도(visited/maxDepth/depths/lastDate) +
+// 카테고리/도메인/계층(hierarchy) 부착. (GET /roadmaps 핸들러에서 분리.)
+type RoadmapNotes = Awaited<ReturnType<typeof listSpiralNotes>>;
+
+async function enrichRoadmap(r: Roadmap, notes: RoadmapNotes, config: Config) {
+  const roadmapNotes = notes.filter((n) =>
+    noteBelongsToRoadmap(n, { roadmapId: r.id, roadmapName: r.name }),
+  );
+  // v0.5.47 fix: 신 schema는 chapter_id 없음 → n.chapter(제목)로 fall-back.
+  const visitedChapters = new Set(
+    roadmapNotes.map((n) => n.chapterId || n.chapter).filter(Boolean),
+  );
+  const maxDepth = roadmapNotes.reduce((m, n) => Math.max(m, n.depth), 0);
+  const depths = [...new Set(roadmapNotes.map((n) => n.depth))].sort(
+    (a, b) => a - b,
+  );
+  const lastDate = roadmapNotes.reduce(
+    (latest: string | null, n) => (!latest || n.date > latest ? n.date : latest),
+    null,
+  );
+  const category =
+    r.source === "local"
+      ? await categorizeLocalRoadmap(config.curatedOrg, r.id)
+      : null;
+  const domain =
+    category && config.curatedOrg
+      ? await findDomainForCategory(config.curatedOrg, category.name)
+      : null;
+
+  // 사이드바 트리용 hierarchy (계층 "cat/repo/sub" vs 평탄 "repo/sub" 모두 지원).
+  let hierarchy: { repo: string; sub: string | null } | null = null;
+  if (r.source === "local" && category) {
+    const segs = r.id.split("/").map((s) => s.trim()).filter(Boolean);
+    const seg0Norm = normalizeRepoName(segs[0] ?? "");
+    const isFlat = category.repos.some(
+      (rp) => normalizeRepoName(rp) === seg0Norm,
+    );
+    if (isFlat) {
+      hierarchy = {
+        repo: segs[0] ?? r.name,
+        sub: segs.slice(1).join("/") || null,
+      };
+    } else if (segs.length >= 3) {
+      hierarchy = {
+        repo: segs[1]!,
+        sub: segs.slice(2).join("/") || null,
+      };
+    } else if (segs.length === 2) {
+      hierarchy = { repo: segs[1]!, sub: null };
+    } else {
+      hierarchy = { repo: segs[0] ?? r.name, sub: null };
+    }
+  }
+
+  return {
+    id: r.id,
+    name: r.name,
+    source: r.source ?? "local",
+    chapterCount: r.chapterCount,
+    visitedChapters: visitedChapters.size,
+    totalNotes: roadmapNotes.length,
+    maxDepth,
+    depths,
+    lastDate,
+    category: category
+      ? { name: category.name, emoji: category.emoji, color: category.color }
+      : null,
+    domain: domain
+      ? {
+          id: domain.id,
+          name: domain.name,
+          emoji: domain.emoji,
+          color: domain.color,
+          order: domain.order ?? 99,
+        }
+      : null,
+    hierarchy,
+  };
+}
+
+type EnrichedRoadmap = Awaited<ReturnType<typeof enrichRoadmap>>;
+
+// 3단계 정렬(in-place): 카테고리 순서 → 카테고리 안 repo 순서 → repo 안은
+// sortKey 순서 유지(stable). curatedOrg 카테고리 정의가 없으면 no-op.
+async function sortRoadmapsByCategory(
+  enriched: EnrichedRoadmap[],
+  config: Config,
+) {
+  const catDefs = config.curatedOrg
+    ? await getOrgCategories(config.curatedOrg)
+    : null;
+  if (!catDefs) return;
+  const catOrder = new Map<string, number>();
+  const repoOrder = new Map<string, number>();
+  catDefs.forEach((c, i) => {
+    catOrder.set(c.name, i);
+    c.repos.forEach((repo, j) => {
+      repoOrder.set(`${c.name}::${normalizeRepoName(repo)}`, j);
+    });
+  });
+  const repoOf = (r: EnrichedRoadmap) => r.hierarchy?.repo ?? null;
+  enriched.sort((a, b) => {
+    const ai = a.category ? catOrder.get(a.category.name) ?? Infinity : Infinity;
+    const bi = b.category ? catOrder.get(b.category.name) ?? Infinity : Infinity;
+    if (ai !== bi) return ai - bi;
+    const aRepo = repoOf(a);
+    const bRepo = repoOf(b);
+    if (a.category && aRepo && bRepo) {
+      const ari =
+        repoOrder.get(`${a.category.name}::${normalizeRepoName(aRepo)}`) ??
+        Infinity;
+      const bri =
+        repoOrder.get(`${a.category.name}::${normalizeRepoName(bRepo)}`) ??
+        Infinity;
+      if (ari !== bri) return ari - bri;
+    }
+    return 0;
+  });
+}
+
 export function createApi(config: Config) {
   const app = new Hono();
   const client = createClient(config);
@@ -150,138 +270,9 @@ export function createApi(config: Config) {
     const notes = config.vaultPath ? await listSpiralNotes(config.vaultPath) : [];
 
     const enriched = await Promise.all(
-      roadmaps.map(async (r) => {
-          const roadmapNotes = notes.filter((n) =>
-            noteBelongsToRoadmap(n, { roadmapId: r.id, roadmapName: r.name }),
-          );
-          // v0.5.47 fix: 신 schema는 chapter_id 없음 → n.chapter(제목)로 fall-back.
-          // 이렇게 안 하면 신 schema 노트는 visited 0개로 잘못 카운트됨.
-          const visitedChapters = new Set(
-            roadmapNotes
-              .map((n) => n.chapterId || n.chapter)
-              .filter(Boolean),
-          );
-          const maxDepth = roadmapNotes.reduce(
-            (m, n) => Math.max(m, n.depth),
-            0,
-          );
-          const depths = [...new Set(roadmapNotes.map((n) => n.depth))].sort(
-            (a, b) => a - b,
-          );
-          const lastDate = roadmapNotes.reduce(
-            (latest: string | null, n) =>
-              !latest || n.date > latest ? n.date : latest,
-            null,
-          );
-          // Local 로드맵은 path 기반 분류
-          const category =
-            r.source === "local"
-              ? await categorizeLocalRoadmap(config.curatedOrg, r.id)
-              : null;
-          // v0.5.53 — 카테고리가 속한 도메인 정보 (사이드바 그룹핑용).
-          const domain =
-            category && config.curatedOrg
-              ? await findDomainForCategory(config.curatedOrg, category.name)
-              : null;
-
-          // 사이드바 트리(category → repo → sub-roadmap)에 쓸 hierarchy 정보.
-          // 두 가지 구조를 모두 지원:
-          //   a) 계층:   "java core/jvm-deep-dive/class-loading"  (사용자가 카테고리 폴더로 정리)
-          //   b) 평탄:   "jvm-deep-dive/class-loading"           (자동 다운로드 결과)
-          // category.repos 안에 첫 segment가 들어있으면 (b), 아니면 (a).
-          let hierarchy: { repo: string; sub: string | null } | null = null;
-          if (r.source === "local" && category) {
-            const segs = r.id.split("/").map((s) => s.trim()).filter(Boolean);
-            const seg0Norm = normalizeRepoName(segs[0] ?? "");
-            const isFlat = category.repos.some(
-              (rp) => normalizeRepoName(rp) === seg0Norm,
-            );
-            if (isFlat) {
-              hierarchy = {
-                repo: segs[0] ?? r.name,
-                sub: segs.slice(1).join("/") || null,
-              };
-            } else if (segs.length >= 3) {
-              hierarchy = {
-                repo: segs[1]!,
-                sub: segs.slice(2).join("/") || null,
-              };
-            } else if (segs.length === 2) {
-              hierarchy = { repo: segs[1]!, sub: null };
-            } else {
-              hierarchy = { repo: segs[0] ?? r.name, sub: null };
-            }
-          }
-          return {
-            id: r.id,
-            name: r.name,
-            source: r.source ?? "local",
-            chapterCount: r.chapterCount,
-            visitedChapters: visitedChapters.size,
-            totalNotes: roadmapNotes.length,
-            maxDepth,
-            depths,
-            lastDate,
-            category: category
-              ? {
-                  name: category.name,
-                  emoji: category.emoji,
-                  color: category.color,
-                }
-              : null,
-            domain: domain
-              ? {
-                  id: domain.id,
-                  name: domain.name,
-                  emoji: domain.emoji,
-                  color: domain.color,
-                  order: domain.order ?? 99,
-                }
-              : null,
-            hierarchy,
-          };
-        }),
-      );
-
-    // 3단계 정렬:
-    //   1. 카테고리 순서 (JSON categories 배열 인덱스)
-    //   2. 카테고리 안 repo 순서 (JSON repos 배열 인덱스 — 학습 흐름)
-    //   3. 같은 repo 안 sub-roadmap 순서 (Array.sort는 stable이라 sortKey/README 순서 유지)
-    const catDefs = config.curatedOrg
-      ? await getOrgCategories(config.curatedOrg)
-      : null;
-    if (catDefs) {
-      const catOrder = new Map<string, number>();
-      // "<category>::<repo>" → index
-      const repoOrder = new Map<string, number>();
-      catDefs.forEach((c, i) => {
-        catOrder.set(c.name, i);
-        c.repos.forEach((repo, j) => {
-          // normalize 적용 — JSON에 "-deep-dive" suffix, 디렉토리에 없을 수 있음
-          repoOrder.set(`${c.name}::${normalizeRepoName(repo)}`, j);
-        });
-      });
-      const repoOf = (r: typeof enriched[number]) =>
-        r.hierarchy?.repo ?? null;
-      enriched.sort((a, b) => {
-        const ai = a.category ? catOrder.get(a.category.name) ?? Infinity : Infinity;
-        const bi = b.category ? catOrder.get(b.category.name) ?? Infinity : Infinity;
-        if (ai !== bi) return ai - bi;
-        // 같은 카테고리 안 — repo 순서
-        const aRepo = repoOf(a);
-        const bRepo = repoOf(b);
-        if (a.category && aRepo && bRepo) {
-          const ari =
-            repoOrder.get(`${a.category.name}::${normalizeRepoName(aRepo)}`) ??
-            Infinity;
-          const bri =
-            repoOrder.get(`${a.category.name}::${normalizeRepoName(bRepo)}`) ??
-            Infinity;
-          if (ari !== bri) return ari - bri;
-        }
-        return 0; // 같은 repo 내에서는 sortKey 순서 유지 (stable)
-      });
-    }
+      roadmaps.map((r) => enrichRoadmap(r, notes, config)),
+    );
+    await sortRoadmapsByCategory(enriched, config);
 
     return c.json(enriched);
   });
