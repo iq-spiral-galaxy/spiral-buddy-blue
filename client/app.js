@@ -3555,44 +3555,50 @@ function initLookupDirectForm() {
   initLookupDirectResizer();
 }
 
-function initLookupDirectResizer() {
-  if (!els.lookupDirectResizer || !els.lookupDirectInput) return;
-  const KEY = "spiral-buddy:lookup-input-height";
-  const MIN = 60;
-  const MAX = 420;
-  const saved = parseInt(localStorage.getItem(KEY) ?? "0", 10);
-  if (saved >= MIN && saved <= MAX) {
-    els.lookupDirectInput.style.minHeight = `${saved}px`;
-    els.lookupDirectInput.style.maxHeight = `${saved}px`;
+// 드래그 핸들로 targetEl 높이 조절 (localStorage 저장 + 더블클릭 리셋).
+// composer/lookup 입력창 리사이저 공통.
+function makeResizer(handleEl, targetEl, { key, min, max }) {
+  if (!handleEl || !targetEl) return;
+  const saved = parseInt(localStorage.getItem(key) ?? "0", 10);
+  if (saved >= min && saved <= max) {
+    targetEl.style.minHeight = `${saved}px`;
+    targetEl.style.maxHeight = `${saved}px`;
   }
   let dragging = false;
   let startY = 0;
   let startH = 0;
-  els.lookupDirectResizer.addEventListener("mousedown", (e) => {
+  handleEl.addEventListener("mousedown", (e) => {
     e.preventDefault();
     dragging = true;
     startY = e.clientY;
-    startH = els.lookupDirectInput.offsetHeight;
+    startH = targetEl.offsetHeight;
     document.body.classList.add("composer-resizing");
   });
   document.addEventListener("mousemove", (e) => {
     if (!dragging) return;
     const dy = startY - e.clientY;
-    const next = Math.max(MIN, Math.min(MAX, startH + dy));
-    els.lookupDirectInput.style.minHeight = `${next}px`;
-    els.lookupDirectInput.style.maxHeight = `${next}px`;
+    const next = Math.max(min, Math.min(max, startH + dy));
+    targetEl.style.minHeight = `${next}px`;
+    targetEl.style.maxHeight = `${next}px`;
   });
   document.addEventListener("mouseup", () => {
     if (!dragging) return;
     dragging = false;
     document.body.classList.remove("composer-resizing");
-    const h = els.lookupDirectInput.offsetHeight;
-    localStorage.setItem(KEY, String(h));
+    localStorage.setItem(key, String(targetEl.offsetHeight));
   });
-  els.lookupDirectResizer.addEventListener("dblclick", () => {
-    els.lookupDirectInput.style.minHeight = "";
-    els.lookupDirectInput.style.maxHeight = "";
-    localStorage.removeItem(KEY);
+  handleEl.addEventListener("dblclick", () => {
+    targetEl.style.minHeight = "";
+    targetEl.style.maxHeight = "";
+    localStorage.removeItem(key);
+  });
+}
+
+function initLookupDirectResizer() {
+  makeResizer(els.lookupDirectResizer, els.lookupDirectInput, {
+    key: "spiral-buddy:lookup-input-height",
+    min: 60,
+    max: 420,
   });
 }
 
@@ -3601,45 +3607,10 @@ function initLookupDirectResizer() {
 // ──────────────────────────────────────────────────────────
 
 function initComposerResizer() {
-  if (!els.composerResizer || !els.input) return;
-  const KEY = "spiral-buddy:input-height";
-  const MIN = 72;
-  const MAX = 480;
-  const saved = parseInt(localStorage.getItem(KEY) ?? "0", 10);
-  if (saved >= MIN && saved <= MAX) {
-    els.input.style.minHeight = `${saved}px`;
-    els.input.style.maxHeight = `${saved}px`;
-  }
-  let dragging = false;
-  let startY = 0;
-  let startH = 0;
-  els.composerResizer.addEventListener("mousedown", (e) => {
-    e.preventDefault();
-    dragging = true;
-    startY = e.clientY;
-    startH = els.input.offsetHeight;
-    document.body.classList.add("composer-resizing");
-  });
-  document.addEventListener("mousemove", (e) => {
-    if (!dragging) return;
-    // 위로 드래그 → 입력창 커짐
-    const dy = startY - e.clientY;
-    const next = Math.max(MIN, Math.min(MAX, startH + dy));
-    els.input.style.minHeight = `${next}px`;
-    els.input.style.maxHeight = `${next}px`;
-  });
-  document.addEventListener("mouseup", () => {
-    if (!dragging) return;
-    dragging = false;
-    document.body.classList.remove("composer-resizing");
-    const h = els.input.offsetHeight;
-    localStorage.setItem(KEY, String(h));
-  });
-  // 더블클릭 → 기본값으로 리셋
-  els.composerResizer.addEventListener("dblclick", () => {
-    els.input.style.minHeight = "";
-    els.input.style.maxHeight = "";
-    localStorage.removeItem(KEY);
+  makeResizer(els.composerResizer, els.input, {
+    key: "spiral-buddy:input-height",
+    min: 72,
+    max: 480,
   });
 }
 
