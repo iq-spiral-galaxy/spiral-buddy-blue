@@ -33,6 +33,9 @@ const CONFIG_PATH = path.join(app.getPath("userData"), "spiral-buddy-config.json
 const LOG_DIR = app.getPath("logs"); // macOS: ~/Library/Logs/<productName>
 const SERVER_LOG_PATH = path.join(LOG_DIR, "server.log");
 
+// 큐레이트 GitHub org — 색깔별로 이 1곳만 바꾸면 됨 (리터럴 산재 방지).
+const CURATED_ORG = "iq-dev-lab";
+
 let mainWindow = null;
 let setupWindow = null;
 let serverPort = null;
@@ -183,7 +186,7 @@ function migrateConfig(raw) {
     roadmapRoot: raw.roadmapRoot ?? null,
     vaultSubDir: "spiral-buddy",
     source: "legacy",
-    categoriesOrg: raw.curatedOrg ?? "iq-dev-lab",
+    categoriesOrg: raw.curatedOrg ?? CURATED_ORG,
   };
   return ensureSonnetDefault({
     anthropicApiKey: raw.anthropicApiKey,
@@ -192,7 +195,7 @@ function migrateConfig(raw) {
     model: raw.model,
     maxTokens: raw.maxTokens,
     githubToken: raw.githubToken,
-    curatedOrg: raw.curatedOrg ?? "iq-dev-lab",
+    curatedOrg: raw.curatedOrg ?? CURATED_ORG,
     activeWorkspaceId: ws.id,
     workspaces: [ws],
   });
@@ -630,7 +633,7 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
     model: input.model ?? null,
     maxTokens: input.maxTokens ?? null,
     githubToken: input.githubToken ?? null,
-    curatedOrg: "iq-dev-lab",
+    curatedOrg: CURATED_ORG,
     activeWorkspaceId: "default",
     workspaces: [
       {
@@ -639,7 +642,7 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
         roadmapRoot: input.roadmapRoot ?? null,
         vaultSubDir: "spiral-buddy",
         source: input.source ?? "setup",
-        categoriesOrg: "iq-dev-lab",
+        categoriesOrg: CURATED_ORG,
       },
     ],
   };
@@ -1475,8 +1478,8 @@ ipcMain.handle("settings:add-workspace", async (event, args) => {
     sourceUrl: args.gitUrl ?? null,
     // iq-dev-lab 카테고리는 자동 적용. 다른 레포면 카테고리 없음.
     categoriesOrg:
-      args.gitUrl?.includes("iq-dev-lab") || roadmapRoot.includes("iq-dev-lab")
-        ? "iq-dev-lab"
+      args.gitUrl?.includes(CURATED_ORG) || roadmapRoot.includes(CURATED_ORG)
+        ? CURATED_ORG
         : null,
   };
   cfg.workspaces.push(ws);
@@ -1486,8 +1489,6 @@ ipcMain.handle("settings:add-workspace", async (event, args) => {
 });
 
 // ─── iq-dev-lab 38개 레포 자동 다운로드 ──────────────────────
-
-const CURATED_ORG = "iq-dev-lab";
 
 function fetchOrgRepos(org) {
   return new Promise((resolve, reject) => {
