@@ -5,6 +5,16 @@ import { marked } from "https://esm.sh/marked@13.0.3";
 import { markedHighlight } from "https://esm.sh/marked-highlight@2.2.1";
 import hljs from "https://esm.sh/highlight.js@11.10.0";
 import DOMPurify from "https://esm.sh/dompurify@3.1.6";
+import { escapeHtml, escapeAttr, cssEscape, truncate, _relTime } from "./util.js";
+import {
+  STREAM_INACTIVITY_MS,
+  createStreamHandle,
+  finishStreamHandle,
+  abortStreams,
+  isIntentionalAbort,
+  pumpStream,
+  parseSseMessage,
+} from "./stream.js";
 
 // ──────────────────────────────────────────────────────────
 // Markdown setup
@@ -2289,11 +2299,6 @@ function _renderChapterAiCardBody(pop, chapter, card) {
 }
 
 /** CSS.escape polyfill — 안전한 selector 생성. */
-function cssEscape(s) {
-  if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(s);
-  return String(s).replace(/[^a-zA-Z0-9_-]/g, (c) => `\\${c}`);
-}
-
 // ──────────────────────────────────────────────────────────
 // 설정 + 워크스페이스 (Electron 모드 전용)
 // ──────────────────────────────────────────────────────────
@@ -3750,75 +3755,8 @@ const DEPTH_LABEL_TEXT = {
 // "멈춤" 감지 — 긴 생성은 chunk가 계속 오므로 안 걸림).
 // ──────────────────────────────────────────────────────────
 
-const STREAM_INACTIVITY_MS = 60_000;
-const _activeStreams = new Set();
-
-function createStreamHandle(group) {
-  const handle = {
-    group,
-    controller: new AbortController(),
-    // 사용자 액션(패널 닫기/세션 전환)에 의한 중단 = true → 에러 UI 안 띄움
-    intentional: false,
-  };
-  _activeStreams.add(handle);
-  return handle;
-}
-
-function finishStreamHandle(handle) {
-  _activeStreams.delete(handle);
-}
-
-/** group의 진행 중 스트림 전부 중단. group 생략 시 전체. */
-function abortStreams(group) {
-  for (const h of [..._activeStreams]) {
-    if (group && h.group !== group) continue;
-    h.intentional = true;
-    try {
-      h.controller.abort();
-    } catch {}
-    _activeStreams.delete(h);
-  }
-}
-
-function isIntentionalAbort(err, handle) {
-  return !!handle?.intentional && err?.name === "AbortError";
-}
-
-/**
- * reader를 inactivity timeout과 함께 소비. chunk마다 onChunk(text) 호출.
- * 멈춤 감지 시 abort + throw — 호출자 catch에서 사용자에게 표시.
- */
-async function pumpStream(reader, handle, onChunk) {
-  const decoder = new TextDecoder();
-  while (true) {
-    let timer = null;
-    let result;
-    const readP = reader.read();
-    // race에서 진 read의 늦은 reject가 unhandled rejection 안 되게
-    readP.catch(() => {});
-    try {
-      result = await Promise.race([
-        readP,
-        new Promise((_, reject) => {
-          timer = setTimeout(() => {
-            try {
-              handle.controller.abort();
-            } catch {}
-            reject(
-              new Error(
-                `서버 응답이 ${STREAM_INACTIVITY_MS / 1000}초간 멈춰서 중단했어요 — 다시 시도해주세요`,
-              ),
-            );
-          }, STREAM_INACTIVITY_MS);
-        }),
-      ]);
-    } finally {
-      if (timer) clearTimeout(timer);
-    }
-    if (result.done) break;
-    onChunk(decoder.decode(result.value, { stream: true }));
-  }
-}
+// STREAM_INACTIVITY_MS, createStreamHandle, finishStreamHandle, abortStreams,
+// isIntentionalAbort, pumpStream, parseSseMessage 는 ./stream.js 로 분리됨.
 
 /**
  * 같은 (query, depth, userQuestion) 조합을 fingerprint로 만들어 중복 카드 막기.
@@ -5288,11 +5226,6 @@ async function refineThenSend() {
   await sendMessage(toSend);
 }
 
-function truncate(s, n) {
-  if (!s) return "";
-  return s.length <= n ? s : s.slice(0, n - 1) + "…";
-}
-
 async function sendMessage(text) {
   // v0.5.73 — pending 가드를 sendMessage 자체에도. submitMessage는 이미
   // 가드하지만 퀴즈 버튼(advanceQuiz) 등 직접 호출 경로는 안 막혀 있어서
@@ -5358,17 +5291,6 @@ function writePausedList(list) {
   try {
     localStorage.setItem(PAUSED_KEY, JSON.stringify(list));
   } catch {}
-}
-
-function _relTime(ts) {
-  const diff = Date.now() - ts;
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return "방금";
-  if (m < 60) return `${m}분 전`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}시간 전`;
-  const d = Math.floor(h / 24);
-  return `${d}일 전`;
 }
 
 function refreshPausedList() {
@@ -5649,22 +5571,6 @@ async function endSession() {
     // 늦게 끝난 end-op이 새 세션 B의 pending 상태를 뒤엎지 않도록, 내가 여전히
     // 현재 세대일 때만 pending 해제.
     if (_sessionEpoch === myEpoch) setPending(false);
-  }
-}
-
-function parseSseMessage(raw) {
-  const lines = raw.split("\n");
-  let event = "message";
-  let data = "";
-  for (const line of lines) {
-    if (line.startsWith("event:")) event = line.slice(6).trim();
-    else if (line.startsWith("data:")) data += line.slice(5).trim();
-  }
-  if (!data) return null;
-  try {
-    return { event, data: JSON.parse(data) };
-  } catch {
-    return null;
   }
 }
 
@@ -6045,18 +5951,4 @@ function scrollToBottom(force = false) {
   if (!els.messages) return;
   if (!force && !_scrollState.messagesStick) return;
   els.messages.scrollTop = els.messages.scrollHeight;
-}
-
-function escapeHtml(s) {
-  if (s == null) return "";
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
-
-function escapeAttr(s) {
-  return escapeHtml(s);
 }
