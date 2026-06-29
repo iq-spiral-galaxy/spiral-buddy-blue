@@ -130,28 +130,6 @@ export async function getOrgDomains(
 }
 
 /**
- * 특정 org의 역할 프리셋 (v0.5.44+).
- */
-export async function getOrgRolePresets(
-  org: string,
-): Promise<RolePresetDef[] | null> {
-  const all = await load();
-  const entry = all[org];
-  return entry?.rolePresets ?? null;
-}
-
-/**
- * 도메인 id로 도메인 정의 조회.
- */
-export async function getDomainById(
-  org: string,
-  domainId: string,
-): Promise<DomainDef | null> {
-  const domains = await getOrgDomains(org);
-  return domains?.find((d) => d.id === domainId) ?? null;
-}
-
-/**
  * 한 도메인에 속한 모든 레포 이름 평탄화.
  */
 export function reposInDomain(domain: DomainDef): string[] {
@@ -175,23 +153,6 @@ export async function findDomainForCategory(
     }
   }
   return null;
-}
-
-/**
- * 여러 도메인의 합집합 레포 이름 (중복 제거).
- */
-export function reposInDomains(domains: DomainDef[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const d of domains) {
-    for (const r of reposInDomain(d)) {
-      if (!seen.has(r)) {
-        seen.add(r);
-        out.push(r);
-      }
-    }
-  }
-  return out;
 }
 
 /**
@@ -319,57 +280,3 @@ export async function categorizeLocalRoadmap(
   };
 }
 
-/**
- * Local 로드맵들을 카테고리별로 그룹화. 카테고리 정의 순서 우선,
- * 정의 없으면 alphabetical, "Uncategorized"는 마지막.
- */
-export async function groupLocalRoadmapsByCategory<
-  T extends { id: string; name: string },
->(
-  org: string | null,
-  roadmaps: T[],
-): Promise<Array<{ category: CategoryDef; roadmaps: T[] }>> {
-  const buckets = new Map<
-    string,
-    { category: CategoryDef; roadmaps: T[] }
-  >();
-
-  for (const r of roadmaps) {
-    const cat = await categorizeLocalRoadmap(org, r.id);
-    const existing = buckets.get(cat.name);
-    if (existing) {
-      existing.roadmaps.push(r);
-    } else {
-      buckets.set(cat.name, { category: cat, roadmaps: [r] });
-    }
-  }
-
-  // 카테고리 정의 순서대로 정렬, 정의 없는 건 뒤로, Uncategorized는 맨 뒤
-  const defs = org ? await getOrgCategories(org) : null;
-  const order = new Map<string, number>();
-  if (defs) {
-    defs.forEach((c, i) => order.set(c.name, i));
-  }
-
-  const result = Array.from(buckets.values());
-  result.sort((a, b) => {
-    const aIsUncat = a.category.name === "Uncategorized";
-    const bIsUncat = b.category.name === "Uncategorized";
-    if (aIsUncat && !bIsUncat) return 1;
-    if (!aIsUncat && bIsUncat) return -1;
-
-    const ia = order.get(a.category.name);
-    const ib = order.get(b.category.name);
-    if (ia !== undefined && ib !== undefined) return ia - ib;
-    if (ia !== undefined) return -1;
-    if (ib !== undefined) return 1;
-    return a.category.name.localeCompare(b.category.name);
-  });
-
-  // 각 그룹 내부 로드맵은 alphabetical
-  for (const g of result) {
-    g.roadmaps.sort((a, b) => a.name.localeCompare(b.name));
-  }
-
-  return result;
-}

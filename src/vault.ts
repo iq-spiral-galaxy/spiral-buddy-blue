@@ -316,15 +316,6 @@ async function updateIndex(
   await fs.writeFile(indexPath, finalContent, "utf-8");
 }
 
-function slugify(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[^a-z0-9가-힣\s-]/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .slice(0, 60);
-}
-
 function escapeYaml(s: string): string {
   return s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }

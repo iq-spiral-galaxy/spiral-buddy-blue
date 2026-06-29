@@ -36,7 +36,6 @@ import { suggestNext } from "./spiral.js";
 import { generateNote, parseTranscriptSection } from "./note-writer.js";
 import {
   SESSION_SYSTEM,
-  buildInitialContext,
   buildInitialContextBlocks,
   CHAPTER_CONTENT_MAX,
   createSession,
@@ -50,8 +49,6 @@ import {
   refreshCuratedRepo,
   uninstallCuratedRepo,
   discoverCuratedRoadmaps,
-  parseCuratedId,
-  type CuratedRepoInfo,
 } from "./curated.js";
 import {
   groupReposByCategory,

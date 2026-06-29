@@ -386,7 +386,3 @@ export async function findRoadmap(
 function naturalCompare(a: string, b: string): number {
   return a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" });
 }
-
-export function pathExists(p: string | null): p is string {
-  return p !== null && fsSync.existsSync(p);
-}
