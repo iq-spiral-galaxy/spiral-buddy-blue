@@ -9,6 +9,7 @@ import {
   completeOnce,
   streamTurn,
   friendlyApiErrorMessage,
+  type ClaudeClient,
 } from "./claude.js";
 import {
   loadRoadmapChapters,
@@ -285,13 +286,8 @@ function registerCuratedRoutes(app: Hono, config: Config) {
   });
 }
 
-export function createApi(config: Config) {
-  const app = new Hono();
-  const client = createClient(config);
-
-  // 헬퍼 obsidianUri / parseCuratedRepoBody / getInstalledRoadmaps / resolveRoadmap
-  // 는 모듈레벨로 분리됨 (config를 인자로 받음).
-
+// 1. Config / 1-b. Models / 2. Roadmaps — createApi에서 분리.
+function registerCoreRoutes(app: Hono, config: Config) {
   // ─────────────────────────────────────────────────────
   // 1. Config
   // ─────────────────────────────────────────────────────
@@ -366,13 +362,10 @@ export function createApi(config: Config) {
 
     return c.json(enriched);
   });
+}
 
-  // ─────────────────────────────────────────────────────
-  // 2-b. Curated repos (available + installed)
-  // ─────────────────────────────────────────────────────
-
-  registerCuratedRoutes(app, config);
-
+// 3. Chapters (목록 + AI 미리보기 카드) — createApi에서 분리.
+function registerChapterRoutes(app: Hono, config: Config, client: ClaudeClient) {
   // ─────────────────────────────────────────────────────
   // 3. Chapters (로드맵별)
   // ─────────────────────────────────────────────────────
@@ -516,7 +509,10 @@ export function createApi(config: Config) {
       );
     }
   });
+}
 
+// 3a. 검색 / 3b. 노트 삭제 / 3c. 휴지통 / 3d. 활동 / 4. History — createApi에서 분리.
+function registerSearchNotesRoutes(app: Hono, config: Config) {
   // ─────────────────────────────────────────────────────
   // 3a. 검색 — 로드맵 + 노트 + 매칭된 로드맵의 챕터
   // ─────────────────────────────────────────────────────
@@ -817,7 +813,11 @@ export function createApi(config: Config) {
       messages: parseTranscriptSection(note.body),
     });
   });
+}
 
+// 5. Suggest / 5b. Lookup / 5b-2. Chapter context / 5c. Prompt refine —
+// createApi에서 분리. (모두 client 사용.)
+function registerAiRoutes(app: Hono, config: Config, client: ClaudeClient) {
   // ─────────────────────────────────────────────────────
   // 5. Suggest (로드맵별)
   // ─────────────────────────────────────────────────────
@@ -1128,7 +1128,10 @@ export function createApi(config: Config) {
       );
     }
   });
+}
 
+// 6. Session lifecycle (start/message/end/cancel/state) — createApi에서 분리.
+function registerSessionRoutes(app: Hono, config: Config, client: ClaudeClient) {
   // ─────────────────────────────────────────────────────
   // 6. Session lifecycle
   // ─────────────────────────────────────────────────────
@@ -1369,6 +1372,50 @@ export function createApi(config: Config) {
       model: session.model ?? null,
     });
   });
+}
+
+export function createApi(config: Config) {
+  const app = new Hono();
+  const client = createClient(config);
+
+  // 헬퍼 obsidianUri / parseCuratedRepoBody / getInstalledRoadmaps / resolveRoadmap
+  // 는 모듈레벨로 분리됨 (config를 인자로 받음).
+
+  // ─────────────────────────────────────────────────────
+  // 1. Config / 1-b. Models / 2. Roadmaps
+  // ─────────────────────────────────────────────────────
+
+  registerCoreRoutes(app, config);
+
+  // ─────────────────────────────────────────────────────
+  // 2-b. Curated repos (available + installed)
+  // ─────────────────────────────────────────────────────
+
+  registerCuratedRoutes(app, config);
+
+  // ─────────────────────────────────────────────────────
+  // 3. Chapters (로드맵별 + AI 미리보기 카드)
+  // ─────────────────────────────────────────────────────
+
+  registerChapterRoutes(app, config, client);
+
+  // ─────────────────────────────────────────────────────
+  // 3a. 검색 / 3b. 노트 삭제 / 3c. 휴지통 / 3d. 활동 / 4. History
+  // ─────────────────────────────────────────────────────
+
+  registerSearchNotesRoutes(app, config);
+
+  // ─────────────────────────────────────────────────────
+  // 5. Suggest / 5b. Lookup / 5b-2. Chapter context / 5c. Prompt refine
+  // ─────────────────────────────────────────────────────
+
+  registerAiRoutes(app, config, client);
+
+  // ─────────────────────────────────────────────────────
+  // 6. Session lifecycle
+  // ─────────────────────────────────────────────────────
+
+  registerSessionRoutes(app, config, client);
 
   return app;
 }
