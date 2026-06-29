@@ -3680,71 +3680,31 @@ function _lookupFingerprint(query, depth, userQuestion) {
  * @param depth concise|medium|deep
  * @param opts.userQuestion 키워드 옆에 같이 던질 추가 질문
  */
-async function runLookup(query, depth, opts = {}) {
-  openLookupPanel();
-  if (!els.lookupPanelBody) return;
-  const userQuestion = (opts.userQuestion ?? "").trim() || undefined;
+// ── lookup/context 카드 공통 헬퍼 (runLookup + runChapterContext 공유) ──
 
-  // v0.5.51 — 동일한 (query, depth, userQuestion) 조합이 이미 있으면
-  // 기존 카드로 이동 + 플래시 + 토스트. 새 API 호출/카드 생성 안 함.
-  const fingerprint = _lookupFingerprint(query, depth, userQuestion);
-  const existing = els.lookupPanelBody.querySelector(
-    `.lookup-card[data-lookup-key="${CSS.escape(fingerprint)}"]`,
-  );
-  if (existing) {
-    existing.classList.remove("collapsed");
-    existing.classList.add("lookup-card-flash");
-    existing.scrollIntoView({ block: "center", behavior: "smooth" });
-    setTimeout(() => existing.classList.remove("lookup-card-flash"), 1500);
-    setStatus(
-      depth === "concise"
-        ? `"${query}" 간결 답변은 이미 받은 게 있어요 — 위에 표시했어요`
-        : depth === "medium"
-          ? `"${query}" 중간 답변은 이미 받은 게 있어요 — 위에 표시했어요`
-          : `"${query}" 깊이 답변은 이미 받은 게 있어요 — 위에 표시했어요`,
-      "info",
-    );
-    return;
-  }
+// dedupe-hit 시 기존 카드 펼침 + 플래시 + 스크롤.
+function flashLookupCard(existing) {
+  existing.classList.remove("collapsed");
+  existing.classList.add("lookup-card-flash");
+  existing.scrollIntoView({ block: "center", behavior: "smooth" });
+  setTimeout(() => existing.classList.remove("lookup-card-flash"), 1500);
+}
 
-  // 기존 카드는 모두 접기 (v0.5.31: 새 질문만 펼침)
+// 카드 생성: 기존 카드 접기 + article + head fold-toggle + copy/close 액션 +
+// feedback bar wiring. {card, bodyEl} 반환.
+function createLookupCard({ cardClass, fingerprintAttr, fingerprint, innerHtml }) {
   els.lookupPanelBody.querySelectorAll(".lookup-card").forEach((c) => {
     c.classList.add("collapsed");
   });
-
-  // 카드 생성 (펼친 상태로)
   const card = document.createElement("article");
-  card.className = "lookup-card";
-  card.dataset.lookupKey = fingerprint; // v0.5.51 — 중복 차단용
-  const questionLine = userQuestion
-    ? `<div class="lookup-card-userq" title="${escapeAttr(userQuestion)}">Q. ${escapeHtml(userQuestion)}</div>`
-    : "";
-  card.innerHTML = `
-    <div class="lookup-card-head" role="button" tabindex="0" title="클릭하여 펼침/접기">
-      <span class="lookup-card-depth" data-depth="${escapeAttr(depth)}">
-        <span class="lookup-card-depth-icon">${DEPTH_ICONS[depth] ?? ""}</span>
-        <span>${DEPTH_LABEL_TEXT[depth] ?? depth}</span>
-      </span>
-      <span class="lookup-card-query" title="${escapeAttr(query)}">${escapeHtml(query)}</span>
-      <span class="lookup-card-fold" aria-hidden="true">▾</span>
-      <div class="lookup-card-actions">
-        <button class="lookup-card-act" data-act="copy" type="button" title="복사" aria-label="복사">${COPY_SVG_INLINE}</button>
-        <button class="lookup-card-act" data-act="close" type="button" title="삭제" aria-label="삭제">${X_SVG_INLINE}</button>
-      </div>
-    </div>
-    ${questionLine}
-    <div class="lookup-card-body"><span style="opacity:0.6">…</span></div>
-    ${renderFeedbackBar("lookup")}
-  `;
-  // 새 카드는 위에 (최신순)
+  card.className = cardClass;
+  card.dataset[fingerprintAttr] = fingerprint;
+  card.innerHTML = innerHtml;
   els.lookupPanelBody.insertBefore(card, els.lookupPanelBody.firstChild);
   _lookupState.cardCount++;
-  // v0.5.31: 새 카드가 보이게 자동 스크롤 최상단
   els.lookupPanelBody.scrollTop = 0;
 
   const bodyEl = card.querySelector(".lookup-card-body");
-
-  // 카드 head 클릭 → 펼침/접기 토글 (액션 버튼은 제외)
   const headEl = card.querySelector(".lookup-card-head");
   headEl.addEventListener("click", (e) => {
     if (e.target.closest(".lookup-card-act")) return;
@@ -3756,8 +3716,6 @@ async function runLookup(query, depth, opts = {}) {
       card.classList.toggle("collapsed");
     }
   });
-
-  // 카드 액션
   card.querySelectorAll(".lookup-card-act").forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -3778,36 +3736,20 @@ async function runLookup(query, depth, opts = {}) {
       }
     });
   });
-
-  // 따봉 wire
   wireFeedbackBar(card.querySelector(".feedback-bar"));
+  return { card, bodyEl };
+}
 
-  // 현재 챕터/메시지 맥락 — 가장 최근 메시지 일부를 context로
-  let context = "";
-  if (state?.activeRoadmapId && state?.session?.chapterId) {
-    const lastMsg = state.messages?.[state.messages.length - 1];
-    if (lastMsg?.content) {
-      const head = String(lastMsg.content).slice(0, 600);
-      context = `학습 챕터: ${state.session.chapterId}\n최근 대화 일부:\n${head}`;
-    }
-  }
-
-  // SSE 스트림 수신 (v0.5.73 — abort 가능 + inactivity timeout)
+// 카드 body로 SSE 스트림 → 마크다운 렌더 (abort/inactivity는 stream.js가 처리).
+async function streamMarkdownInto({ url, body, bodyEl, group }) {
   let acc = "";
-  const handle = createStreamHandle("lookup");
+  const handle = createStreamHandle(group);
   try {
-    const res = await fetch("/api/lookup", {
+    const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       signal: handle.controller.signal,
-      body: JSON.stringify({
-        query,
-        depth,
-        context: context || undefined,
-        model: state.selectedModel ?? undefined,
-        sessionId: state.session?.id,
-        userQuestion,
-      }),
+      body: JSON.stringify(body),
     });
     if (!res.ok || !res.body) {
       bodyEl.textContent = `(요청 실패: ${res.status})`;
@@ -3822,12 +3764,86 @@ async function runLookup(query, depth, opts = {}) {
       }
     });
   } catch (err) {
-    // 패널 닫기/세션 전환에 의한 중단 — 카드도 곧 사라지므로 조용히
     if (isIntentionalAbort(err, handle)) return;
     bodyEl.innerHTML = `<p>(에러: ${escapeHtml(err.message)})</p>`;
   } finally {
     finishStreamHandle(handle);
   }
+}
+
+async function runLookup(query, depth, opts = {}) {
+  openLookupPanel();
+  if (!els.lookupPanelBody) return;
+  const userQuestion = (opts.userQuestion ?? "").trim() || undefined;
+
+  // v0.5.51 — 동일한 (query, depth, userQuestion) 조합이 이미 있으면
+  // 기존 카드로 이동 + 플래시 + 토스트. 새 API 호출/카드 생성 안 함.
+  const fingerprint = _lookupFingerprint(query, depth, userQuestion);
+  const existing = els.lookupPanelBody.querySelector(
+    `.lookup-card[data-lookup-key="${CSS.escape(fingerprint)}"]`,
+  );
+  if (existing) {
+    flashLookupCard(existing);
+    setStatus(
+      depth === "concise"
+        ? `"${query}" 간결 답변은 이미 받은 게 있어요 — 위에 표시했어요`
+        : depth === "medium"
+          ? `"${query}" 중간 답변은 이미 받은 게 있어요 — 위에 표시했어요`
+          : `"${query}" 깊이 답변은 이미 받은 게 있어요 — 위에 표시했어요`,
+      "info",
+    );
+    return;
+  }
+
+  const questionLine = userQuestion
+    ? `<div class="lookup-card-userq" title="${escapeAttr(userQuestion)}">Q. ${escapeHtml(userQuestion)}</div>`
+    : "";
+  const { card, bodyEl } = createLookupCard({
+    cardClass: "lookup-card",
+    fingerprintAttr: "lookupKey",
+    fingerprint,
+    innerHtml: `
+    <div class="lookup-card-head" role="button" tabindex="0" title="클릭하여 펼침/접기">
+      <span class="lookup-card-depth" data-depth="${escapeAttr(depth)}">
+        <span class="lookup-card-depth-icon">${DEPTH_ICONS[depth] ?? ""}</span>
+        <span>${DEPTH_LABEL_TEXT[depth] ?? depth}</span>
+      </span>
+      <span class="lookup-card-query" title="${escapeAttr(query)}">${escapeHtml(query)}</span>
+      <span class="lookup-card-fold" aria-hidden="true">▾</span>
+      <div class="lookup-card-actions">
+        <button class="lookup-card-act" data-act="copy" type="button" title="복사" aria-label="복사">${COPY_SVG_INLINE}</button>
+        <button class="lookup-card-act" data-act="close" type="button" title="삭제" aria-label="삭제">${X_SVG_INLINE}</button>
+      </div>
+    </div>
+    ${questionLine}
+    <div class="lookup-card-body"><span style="opacity:0.6">…</span></div>
+    ${renderFeedbackBar("lookup")}
+  `,
+  });
+
+  // 현재 챕터/메시지 맥락 — 가장 최근 메시지 일부를 context로
+  let context = "";
+  if (state?.activeRoadmapId && state?.session?.chapterId) {
+    const lastMsg = state.messages?.[state.messages.length - 1];
+    if (lastMsg?.content) {
+      const head = String(lastMsg.content).slice(0, 600);
+      context = `학습 챕터: ${state.session.chapterId}\n최근 대화 일부:\n${head}`;
+    }
+  }
+
+  await streamMarkdownInto({
+    url: "/api/lookup",
+    body: {
+      query,
+      depth,
+      context: context || undefined,
+      model: state.selectedModel ?? undefined,
+      sessionId: state.session?.id,
+      userQuestion,
+    },
+    bodyEl,
+    group: "lookup",
+  });
 }
 
 // ──────────────────────────────────────────────────────────
@@ -3850,24 +3866,17 @@ async function runChapterContext({ targetMessageText, selectionText } = {}) {
     `.lookup-card[data-context-key="${CSS.escape(fingerprint)}"]`,
   );
   if (existing) {
-    existing.classList.remove("collapsed");
-    existing.classList.add("lookup-card-flash");
-    existing.scrollIntoView({ block: "center", behavior: "smooth" });
-    setTimeout(() => existing.classList.remove("lookup-card-flash"), 1500);
+    flashLookupCard(existing);
     setStatus("이 메시지의 본문 맥락은 위에 표시했어요", "info");
     return;
   }
 
-  // 기존 카드는 접기 — Look-up과 동일 UX
-  els.lookupPanelBody.querySelectorAll(".lookup-card").forEach((c) => {
-    c.classList.add("collapsed");
-  });
-
-  const card = document.createElement("article");
-  card.className = "lookup-card lookup-card-ctx";
-  card.dataset.contextKey = fingerprint;
   const previewText = (selectionText ?? targetMessageText).slice(0, 80).trim();
-  card.innerHTML = `
+  const { bodyEl } = createLookupCard({
+    cardClass: "lookup-card lookup-card-ctx",
+    fingerprintAttr: "contextKey",
+    fingerprint,
+    innerHtml: `
     <div class="lookup-card-head" role="button" tabindex="0" title="클릭하여 펼침/접기">
       <span class="lookup-card-depth lookup-card-kind-ctx" data-kind="ctx">
         <span class="lookup-card-depth-icon">${CONTEXT_ICON_SVG}</span>
@@ -3882,78 +3891,20 @@ async function runChapterContext({ targetMessageText, selectionText } = {}) {
     </div>
     <div class="lookup-card-body"><span style="opacity:0.6">맥락 찾는 중…</span></div>
     ${renderFeedbackBar("lookup")}
-  `;
-  els.lookupPanelBody.insertBefore(card, els.lookupPanelBody.firstChild);
-  _lookupState.cardCount++;
-  els.lookupPanelBody.scrollTop = 0;
+  `,
+  });
 
-  const bodyEl = card.querySelector(".lookup-card-body");
-  const headEl = card.querySelector(".lookup-card-head");
-  headEl.addEventListener("click", (e) => {
-    if (e.target.closest(".lookup-card-act")) return;
-    card.classList.toggle("collapsed");
+  await streamMarkdownInto({
+    url: "/api/chapter-context",
+    body: {
+      sessionId: state.session.id,
+      targetMessageText,
+      selectionText: selectionText || undefined,
+      model: state.selectedModel ?? undefined,
+    },
+    bodyEl,
+    group: "lookup",
   });
-  headEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      card.classList.toggle("collapsed");
-    }
-  });
-  card.querySelectorAll(".lookup-card-act").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      const act = btn.dataset.act;
-      if (act === "close") {
-        card.remove();
-        _lookupState.cardCount--;
-      } else if (act === "copy") {
-        const txt = bodyEl?.innerText ?? "";
-        navigator.clipboard?.writeText(txt).then(() => {
-          btn.innerHTML = CHECK_SVG_INLINE;
-          btn.classList.add("copied");
-          setTimeout(() => {
-            btn.innerHTML = COPY_SVG_INLINE;
-            btn.classList.remove("copied");
-          }, 1200);
-        });
-      }
-    });
-  });
-  wireFeedbackBar(card.querySelector(".feedback-bar"));
-
-  // SSE 수신 (v0.5.73 — abort 가능 + inactivity timeout)
-  let acc = "";
-  const handle = createStreamHandle("lookup");
-  try {
-    const res = await fetch("/api/chapter-context", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: handle.controller.signal,
-      body: JSON.stringify({
-        sessionId: state.session.id,
-        targetMessageText,
-        selectionText: selectionText || undefined,
-        model: state.selectedModel ?? undefined,
-      }),
-    });
-    if (!res.ok || !res.body) {
-      bodyEl.textContent = `(요청 실패: ${res.status})`;
-      return;
-    }
-    await pumpStream(res.body.getReader(), handle, (chunk) => {
-      acc += chunk;
-      try {
-        bodyEl.innerHTML = renderMarkdown(acc);
-      } catch {
-        bodyEl.textContent = acc;
-      }
-    });
-  } catch (err) {
-    if (isIntentionalAbort(err, handle)) return;
-    bodyEl.innerHTML = `<p>(에러: ${escapeHtml(err.message)})</p>`;
-  } finally {
-    finishStreamHandle(handle);
-  }
 }
 
 function _chapterContextFingerprint(targetMessageText, selectionText) {
