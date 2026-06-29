@@ -1243,7 +1243,11 @@ function renderRoadmapSelector() {
   }
 
   els.roadmapList.innerHTML = parts.join("");
+  wireRoadmapListEvents();
+}
 
+// 사이드바 로드맵 리스트의 클릭/토글 핸들러 (innerHTML 갱신 후 재배선).
+function wireRoadmapListEvents() {
   // wire installed roadmap items
   els.roadmapList.querySelectorAll(".roadmap-item").forEach((btn) => {
     btn.addEventListener("click", (e) => {
