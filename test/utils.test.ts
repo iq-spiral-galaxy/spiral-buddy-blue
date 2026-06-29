@@ -33,13 +33,10 @@ describe("safeJsonParse", () => {
     assert.deepEqual(safeJsonParse(input), { ok: true });
   });
 
-  // PIN: the leading-fence regex is anchored at ^, and .trim() runs AFTER the
-  // two .replace() calls. So whitespace BEFORE the opening fence prevents the
-  // fence from being stripped → JSON.parse of the fenced string throws → null.
-  // (An upcoming refactor that trims first would change this to succeed.)
-  test("leading whitespace before opening fence is NOT stripped → null", () => {
+  // v0.5.114 견고화: 펜스 앞 공백/prose가 있어도 추출.
+  test("leading whitespace before fence → parsed (robust)", () => {
     const input = '   \n```json\n{"x":[1,2,3]}\n```   \n';
-    assert.equal(safeJsonParse(input), null);
+    assert.deepEqual(safeJsonParse(input), { x: [1, 2, 3] });
   });
 
   test("trailing whitespace after closing fence IS tolerated", () => {
@@ -64,33 +61,30 @@ describe("safeJsonParse", () => {
     assert.equal(safeJsonParse('```json\n{"a":1,\n```'), null);
   });
 
-  // PIN: the function's return type is "object | null" but JSON.parse of a
-  // primitive does NOT throw — so a bare number/string/array is returned as-is.
-  // This documents current (loose) behavior an upcoming refactor must be aware of.
-  test("non-object JSON: bare number is returned (not coerced to null)", () => {
-    assert.equal(safeJsonParse("42"), 42 as unknown as null);
+  // v0.5.114: non-object JSON(숫자/문자열/배열)은 거부 → null (타입 계약 일치).
+  test("non-object JSON: bare number → null", () => {
+    assert.equal(safeJsonParse("42"), null);
   });
 
-  test("non-object JSON: bare quoted string is returned as-is", () => {
-    assert.equal(safeJsonParse('"hello"'), "hello" as unknown as null);
+  test("non-object JSON: bare quoted string → null", () => {
+    assert.equal(safeJsonParse('"hello"'), null);
   });
 
-  test("non-object JSON: array is returned as-is", () => {
-    assert.deepEqual(safeJsonParse("[1,2,3]"), [1, 2, 3] as unknown as Record<string, unknown>);
+  test("non-object JSON: array → null", () => {
+    assert.equal(safeJsonParse("[1,2,3]"), null);
   });
 
-  test("JSON null literal parses to null", () => {
+  test("JSON null literal → null", () => {
     assert.equal(safeJsonParse("null"), null);
   });
 
-  // PIN: regex only strips a single leading fence and single trailing fence.
-  // Trailing prose after the closing fence breaks the parse → null.
-  test("text after closing fence is not stripped → null", () => {
-    assert.equal(safeJsonParse('```json\n{"a":1}\n```\nthanks!'), null);
+  // v0.5.114: 펜스 뒤/앞 prose가 있어도 추출 (옛 "자동 구조화 실패" 한 원인 해결).
+  test("text after closing fence → parsed (robust)", () => {
+    assert.deepEqual(safeJsonParse('```json\n{"a":1}\n```\nthanks!'), { a: 1 });
   });
 
-  test("leading prose before fence is not stripped → null", () => {
-    assert.equal(safeJsonParse('Here you go:\n```json\n{"a":1}\n```'), null);
+  test("leading prose before fence → parsed (robust)", () => {
+    assert.deepEqual(safeJsonParse('Here you go:\n```json\n{"a":1}\n```'), { a: 1 });
   });
 });
 
