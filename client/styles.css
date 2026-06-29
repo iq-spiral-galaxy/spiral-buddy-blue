@@ -1,23 +1,40 @@
 :root {
-  --bg: #0d1117;
-  --bg-elev: #161b22;
-  --bg-elev-2: #1f242c;
-  --border: #30363d;
-  --border-soft: #21262d;
-  --text: #e6edf3;
-  --text-dim: #9ba3ad;
-  --text-faint: #6e7681;
-  --accent: #5cb8ff;
-  --accent-2: #7aa9ff;
-  --user: #2d4a6b;
-  --assistant: #1c2128;
-  --success: #3fb950;
-  --error: #f85149;
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, "Pretendard", "Apple SD Gothic Neo",
-    "Segoe UI", "Noto Sans KR", sans-serif;
-  --font-mono:
-    "JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", Consolas, monospace;
+  /* 색·표면 — Phase 2.4 최종값으로 통합 (옛 베이스 값은 전부 후방 override돼 사장됐었음) */
+  --bg: #080a0f;
+  --bg-elev-1: #10141b;
+  --bg-elev: #11161e;
+  --bg-elev-2: #171d27;
+  --bg-elev-3: #202735;
+  --border: rgba(148, 169, 190, 0.2);
+  --border-soft: rgba(148, 169, 190, 0.12);
+  --text: #edf6f8;
+  --text-dim: #a9b7c0;
+  --text-faint: #6f7e89;
+  --accent: #6fc2ff;
+  --accent-2: #9cc3ff;
+  --accent-warm: #ffd58a;
+  --accent-green: #67e9bf;
+  --success: #67e9bf;
+  --error: #ff807a;
+  --danger: #ff8b86;
+  --danger-bg: rgba(255, 128, 122, 0.13);
+  --user: linear-gradient(145deg, rgba(48, 96, 120, 0.88), rgba(48, 71, 113, 0.92));
+  --assistant: rgba(17, 22, 30, 0.82);
+  --surface-glass: rgba(16, 21, 29, 0.72);
+  --surface-glass-strong: rgba(20, 27, 37, 0.9);
+  --shadow-soft: 0 18px 54px rgba(0, 0, 0, 0.34);
+  --shadow-glow: 0 0 34px rgba(111, 194, 255, 0.16);
+
+  /* 타이포 — Phase 2.2 */
+  --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont,
+    "Pretendard", sans-serif;
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Pretendard",
+    "Apple SD Gothic Neo", "Segoe UI", "Noto Sans KR", sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", Consolas,
+    monospace;
+
+  /* 레이아웃 */
+  --topbar-h: 64px;
 }
 
 * {
@@ -1699,16 +1716,7 @@ body.light-mode .domain-header:hover {
    기존 셀렉터들을 후방 override
    ============================================================ */
 
-:root {
-  --font-display: "Space Grotesk", "Inter", -apple-system, BlinkMacSystemFont,
-    "Pretendard", sans-serif;
-  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Pretendard",
-    "Apple SD Gothic Neo", "Segoe UI", "Noto Sans KR", sans-serif;
-  --font-mono: "JetBrains Mono", "SF Mono", Monaco, "Cascadia Code", Consolas,
-    monospace;
-}
-
-/* ─── Brand 헤더 (큰 로고 + 모델 셀렉터) ─── */
+/* ─── Brand 헤더 (큰 로고) ─── */
 
 .brand {
   padding: 22px 18px 16px;
@@ -3374,34 +3382,8 @@ body.sidebar-collapsed .messages {
 
 /* ============================================================
    Phase 2.4 — Quiet luminous polish
+   (색 토큰은 최상단 :root로 통합됨)
    ============================================================ */
-
-:root {
-  --bg: #080a0f;
-  --bg-elev-1: #10141b;
-  --bg-elev: #11161e;
-  --bg-elev-2: #171d27;
-  --bg-elev-3: #202735;
-  --border: rgba(148, 169, 190, 0.2);
-  --border-soft: rgba(148, 169, 190, 0.12);
-  --text: #edf6f8;
-  --text-dim: #a9b7c0;
-  --text-faint: #6f7e89;
-  --accent: #6fc2ff;
-  --accent-2: #9cc3ff;
-  --accent-warm: #ffd58a;
-  --accent-green: #67e9bf;
-  --success: #67e9bf;
-  --error: #ff807a;
-  --danger: #ff8b86;
-  --danger-bg: rgba(255, 128, 122, 0.13);
-  --user: linear-gradient(145deg, rgba(48, 96, 120, 0.88), rgba(48, 71, 113, 0.92));
-  --assistant: rgba(17, 22, 30, 0.82);
-  --surface-glass: rgba(16, 21, 29, 0.72);
-  --surface-glass-strong: rgba(20, 27, 37, 0.9);
-  --shadow-soft: 0 18px 54px rgba(0, 0, 0, 0.34);
-  --shadow-glow: 0 0 34px rgba(111, 194, 255, 0.16);
-}
 
 html,
 body {
@@ -5146,10 +5128,6 @@ body.lookup-fullscreen .lookup-panel-mini.icon-btn svg {
  *   챕터 제목은 1줄 ellipsis로 묶음.
  * ───────────────────────────────────────────────────────── */
 
-:root {
-  --topbar-h: 64px;
-}
-
 /* 토픽바 — fixed height, baseline 일치 */
 #topbar {
   min-height: var(--topbar-h) !important;
@@ -6051,26 +6029,7 @@ body.light-mode .motion-opt.active {
   box-shadow: inset 0 0 0 1px rgba(60, 130, 246, 0.32);
 }
 
-/* ─── 1) CSS 변수 override ─── */
-
-body.light-mode {
-  --bg: #f4f6fa;
-  --bg-elev: #ffffff;
-  --bg-elev-2: #eef1f6;
-  --border: #d4dae3;
-  --border-soft: #e3e7ee;
-  --text: #1a2233;
-  --text-dim: #4a5468;
-  --text-faint: #7d8696;
-  --accent: #2563eb;      /* 파랑 (다크의 cyan 자리) */
-  --accent-2: #7c5cf7;    /* 보라 (유지) */
-  --user: #c5dcf3;
-  --assistant: #f0f3f7;
-  --success: #16a34a;
-  --error: #dc2626;
-}
-
-/* ─── 2) html/body 베이스 ─── */
+/* ─── html/body 베이스 (light) ─── */
 
 body.light-mode {
   background: var(--bg);
