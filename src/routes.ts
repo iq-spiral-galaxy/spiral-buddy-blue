@@ -3,6 +3,7 @@ import { streamText } from "hono/streaming";
 import path from "node:path";
 
 import type { Config } from "./config.js";
+import { getInstalledRoadmaps, resolveRoadmap } from "./roadmap-service.js";
 import {
   createClient,
   completeOnce,
@@ -10,8 +11,6 @@ import {
   friendlyApiErrorMessage,
 } from "./claude.js";
 import {
-  discoverRoadmaps,
-  findRoadmap,
   loadRoadmapChapters,
   type Roadmap,
 } from "./roadmap.js";
@@ -48,7 +47,6 @@ import {
   installCuratedRepo,
   refreshCuratedRepo,
   uninstallCuratedRepo,
-  discoverCuratedRoadmaps,
 } from "./curated.js";
 import {
   groupReposByCategory,
@@ -82,65 +80,7 @@ export function createApi(config: Config) {
     return `obsidian://open?vault=${encodeURIComponent(config.vaultName)}&file=${encodeURIComponent(relativeToVault)}`;
   }
 
-  /**
-   * 사용 가능한 로드맵 목록 — Local + Curated 모두.
-   *
-   * - Local: SPIRAL_ROADMAP_ROOT 아래에서 discoverRoadmaps
-   * - Curated: .cache/curated/<org>/ 에 이미 설치된 레포에서 discoverCuratedRoadmaps
-   *   (아직 설치 안 된 큐레이션 레포는 /api/curated/available에서 별도 노출)
-   */
-  async function getInstalledRoadmaps(): Promise<Roadmap[]> {
-    const out: Roadmap[] = [];
-
-    if (config.roadmapRoot) {
-      const local = await discoverRoadmaps(config.roadmapRoot);
-      const filteredLocal = config.pinnedRoadmapPath
-        ? local.filter((r) => r.absolutePath === config.pinnedRoadmapPath)
-        : local;
-      for (const r of filteredLocal) {
-        out.push({ ...r, source: "local" });
-      }
-    }
-
-    if (config.curatedOrg) {
-      const curated = await discoverCuratedRoadmaps(config.curatedOrg);
-      for (const r of curated) {
-        out.push({ ...r, source: "curated" });
-      }
-    }
-
-    return out;
-  }
-
-  /**
-   * roadmap_id로 로드맵 찾기. local + curated 둘 다 처리.
-   */
-  async function resolveRoadmap(
-    roadmapId: string | null,
-  ): Promise<Roadmap | null> {
-    if (!roadmapId) {
-      const all = await getInstalledRoadmaps();
-      return all[0] ?? null;
-    }
-
-    // Curated id ("curated:org/repo[/sub]")
-    if (roadmapId.startsWith("curated:") && config.curatedOrg) {
-      const all = await discoverCuratedRoadmaps(config.curatedOrg);
-      const match = all.find((r) => r.id === roadmapId);
-      if (match) return { ...match, source: "curated" };
-      return null;
-    }
-
-    // Local
-    if (config.roadmapRoot) {
-      const local = await findRoadmap(config.roadmapRoot, roadmapId);
-      if (local) return { ...local, source: "local" };
-    }
-
-    // basename fallback across both sources
-    const all = await getInstalledRoadmaps();
-    return all.find((r) => r.name === roadmapId) ?? null;
-  }
+  // getInstalledRoadmaps / resolveRoadmap 는 ./roadmap-service.js 로 분리됨 (mcp와 공유).
 
   // ─────────────────────────────────────────────────────
   // 1. Config
@@ -197,7 +137,7 @@ export function createApi(config: Config) {
   // ─────────────────────────────────────────────────────
 
   app.get("/roadmaps", async (c) => {
-    const roadmaps = await getInstalledRoadmaps();
+    const roadmaps = await getInstalledRoadmaps(config);
     if (roadmaps.length === 0 && !config.curatedOrg && !config.roadmapRoot) {
       return c.json(
         {
@@ -451,7 +391,7 @@ export function createApi(config: Config) {
 
   app.get("/chapters", async (c) => {
     const roadmapId = c.req.query("roadmap_id") ?? null;
-    const roadmap = await resolveRoadmap(roadmapId);
+    const roadmap = await resolveRoadmap(config,roadmapId);
     if (!roadmap) {
       return c.json({ error: "Roadmap not found" }, 404);
     }
@@ -555,7 +495,7 @@ export function createApi(config: Config) {
       );
     }
 
-    const roadmap = await resolveRoadmap(roadmapId);
+    const roadmap = await resolveRoadmap(config,roadmapId);
     if (!roadmap) return c.json({ error: "Roadmap not found" }, 404);
 
     const chapters = await loadRoadmapChapters(roadmap);
@@ -600,7 +540,7 @@ export function createApi(config: Config) {
     }
     const q = raw.toLowerCase();
 
-    const roadmaps = await getInstalledRoadmaps();
+    const roadmaps = await getInstalledRoadmaps(config);
     const notes = config.vaultPath
       ? await listSpiralNotes(config.vaultPath)
       : [];
@@ -704,7 +644,7 @@ export function createApi(config: Config) {
       return c.json({ error: "roadmapId required" }, 400);
     }
 
-    const roadmap = await resolveRoadmap(body.roadmapId);
+    const roadmap = await resolveRoadmap(config,body.roadmapId);
     if (!roadmap) {
       return c.json({ error: "Roadmap not found" }, 404);
     }
@@ -833,7 +773,7 @@ export function createApi(config: Config) {
     let notes = await listSpiralNotes(config.vaultPath);
 
     if (roadmapId) {
-      const roadmap = await resolveRoadmap(roadmapId);
+      const roadmap = await resolveRoadmap(config,roadmapId);
       if (roadmap) {
         notes = notes.filter((n) =>
           noteBelongsToRoadmap(n, {
@@ -896,7 +836,7 @@ export function createApi(config: Config) {
       return c.json({ error: "Missing vault" }, 400);
     }
     const roadmapId = c.req.query("roadmap_id") ?? null;
-    const roadmap = await resolveRoadmap(roadmapId);
+    const roadmap = await resolveRoadmap(config,roadmapId);
     if (!roadmap) {
       return c.json({ error: "Roadmap not found" }, 404);
     }
@@ -1213,7 +1153,7 @@ export function createApi(config: Config) {
       return c.json({ error: "Missing vault config" }, 400);
     }
 
-    const roadmap = await resolveRoadmap(body.roadmapId ?? null);
+    const roadmap = await resolveRoadmap(config,body.roadmapId ?? null);
     if (!roadmap) {
       return c.json({ error: "Roadmap not found" }, 404);
     }

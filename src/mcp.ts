@@ -17,9 +17,8 @@ import path from "node:path";
 import fs from "node:fs/promises";
 
 import { loadConfig } from "./config.js";
+import { getInstalledRoadmaps, resolveRoadmap } from "./roadmap-service.js";
 import {
-  discoverRoadmaps,
-  findRoadmap,
   loadRoadmapChapters,
   type Roadmap,
 } from "./roadmap.js";
@@ -58,44 +57,8 @@ async function main() {
 
   const vaultPath = config.vaultPath;
 
-  // ─────────────────────────────────────────────────────
-  // 헬퍼: Local + Curated 통합 로드맵 (설치된 것만)
-  // ─────────────────────────────────────────────────────
-  async function getInstalledRoadmaps(): Promise<Roadmap[]> {
-    const out: Roadmap[] = [];
-    if (config.roadmapRoot) {
-      const local = await discoverRoadmaps(config.roadmapRoot);
-      const filtered = config.pinnedRoadmapPath
-        ? local.filter((r) => r.absolutePath === config.pinnedRoadmapPath)
-        : local;
-      for (const r of filtered) out.push({ ...r, source: "local" });
-    }
-    if (config.curatedOrg) {
-      const curated = await discoverCuratedRoadmaps(config.curatedOrg);
-      for (const r of curated) out.push({ ...r, source: "curated" });
-    }
-    return out;
-  }
-
-  async function resolveRoadmapByIdOrName(
-    idOrName: string,
-  ): Promise<Roadmap | null> {
-    // Curated id
-    if (idOrName.startsWith("curated:") && config.curatedOrg) {
-      const curated = await discoverCuratedRoadmaps(config.curatedOrg);
-      const m = curated.find((r) => r.id === idOrName);
-      if (m) return { ...m, source: "curated" };
-      return null;
-    }
-    // Local
-    if (config.roadmapRoot) {
-      const found = await findRoadmap(config.roadmapRoot, idOrName);
-      if (found) return { ...found, source: "local" };
-    }
-    // basename fallback (양쪽)
-    const all = await getInstalledRoadmaps();
-    return all.find((r) => r.name === idOrName) ?? null;
-  }
+  // getInstalledRoadmaps / resolveRoadmap 는 ./roadmap-service.js 로 분리됨 (routes와 공유).
+  // (이전 mcp 전용 resolveRoadmapByIdOrName == resolveRoadmap, null 분기만 미사용)
 
   const server = new McpServer({
     name: "iq-spiral-buddy",
@@ -127,7 +90,7 @@ async function main() {
       },
     },
     async ({ include_available }) => {
-      const roadmaps = await getInstalledRoadmaps();
+      const roadmaps = await getInstalledRoadmaps(config);
       const notes = await listSpiralNotes(vaultPath);
 
       const lines: string[] = [];
@@ -324,9 +287,9 @@ async function main() {
       },
     },
     async ({ roadmap_id }) => {
-      const roadmap = await resolveRoadmapByIdOrName(roadmap_id);
+      const roadmap = await resolveRoadmap(config,roadmap_id);
       if (!roadmap) {
-        const all = await getInstalledRoadmaps();
+        const all = await getInstalledRoadmaps(config);
         return {
           content: [
             {
@@ -407,7 +370,7 @@ async function main() {
       },
     },
     async ({ roadmap_id, chapter_id }) => {
-      const roadmap = await resolveRoadmapByIdOrName(roadmap_id);
+      const roadmap = await resolveRoadmap(config,roadmap_id);
       if (!roadmap) {
         return {
           content: [
@@ -523,7 +486,7 @@ async function main() {
 
       let scopeLabel = "전체 vault";
       if (roadmap_id) {
-        const roadmap = await resolveRoadmapByIdOrName(roadmap_id);
+        const roadmap = await resolveRoadmap(config,roadmap_id);
         if (roadmap) {
           notes = notes.filter((n) =>
             noteBelongsToRoadmap(n, {
@@ -641,7 +604,7 @@ async function main() {
       body,
       related_note_paths,
     }) => {
-      const roadmap = await resolveRoadmapByIdOrName(roadmap_id);
+      const roadmap = await resolveRoadmap(config,roadmap_id);
       if (!roadmap) {
         return {
           content: [
@@ -733,7 +696,7 @@ async function main() {
       },
     },
     async ({ roadmap_id, chapter_id, depth }) => {
-      const roadmap = await resolveRoadmapByIdOrName(roadmap_id);
+      const roadmap = await resolveRoadmap(config,roadmap_id);
       if (!roadmap) {
         return {
           content: [
@@ -816,7 +779,7 @@ async function main() {
           isError: true,
         };
       }
-      const roadmaps = await getInstalledRoadmaps();
+      const roadmaps = await getInstalledRoadmaps(config);
       const notes = await listSpiralNotes(vaultPath);
 
       const rmMatches = roadmaps.filter(
@@ -914,7 +877,7 @@ async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
 
-  const roadmaps = await getInstalledRoadmaps();
+  const roadmaps = await getInstalledRoadmaps(config);
   const local = roadmaps.filter((r) => r.source === "local").length;
   const curated = roadmaps.filter((r) => r.source === "curated").length;
   process.stderr.write(
