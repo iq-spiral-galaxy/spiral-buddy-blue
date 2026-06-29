@@ -174,8 +174,6 @@ const els = {};
 
 function cacheEls() {
   els.meta = $("meta");
-  els.modelSelect = $("model-select");
-  els.modelTierBadge = $("model-tier-badge");
   els.sidebarToggle = $("sidebar-toggle");
   els.roadmapCurrent = $("roadmap-current");
   els.roadmapList = $("roadmap-list");
@@ -646,18 +644,6 @@ function wireEvents() {
     });
   }
 
-  // 예전 홈 모델 셀렉터가 남아 있는 빌드도 안전하게 지원.
-  if (els.modelSelect) {
-    els.modelSelect.addEventListener("change", (e) => {
-      const modelId = e.target.value;
-      if (!modelId) return;
-      state.selectedModel = modelId;
-      updateModelTierBadge();
-      if (state.session) {
-        setStatus("모델 변경은 다음 세션부터 적용됩니다.");
-      }
-    });
-  }
   els.roadmapCurrent.addEventListener("click", () => {
     els.roadmapList.classList.toggle("hidden");
   });
@@ -703,7 +689,6 @@ async function loadInitial() {
       state.models[0]?.id ||
       defaultModel;
     localStorage.removeItem("spiral-buddy:model");
-    renderModelSelector();
 
     renderMeta();
 
@@ -823,39 +808,6 @@ async function loadRoadmapData() {
 function renderMeta() {
   const c = state.config;
   if (els.meta) els.meta.textContent = c?.model ?? "";
-}
-
-function renderModelSelector() {
-  if (!els.modelSelect) return;
-  if (state.models.length === 0) {
-    els.modelSelect.innerHTML = `<option>모델 로드 실패</option>`;
-    els.modelSelect.disabled = true;
-    return;
-  }
-  els.modelSelect.innerHTML = state.models
-    .map(
-      (m) =>
-        `<option value="${escapeAttr(m.id)}" ${
-          m.id === state.selectedModel ? "selected" : ""
-        }>${escapeHtml(m.label)}</option>`,
-    )
-    .join("");
-  els.modelSelect.disabled = false;
-  updateModelTierBadge();
-}
-
-function updateModelTierBadge() {
-  if (!els.modelTierBadge) return;
-  const model = state.models.find((m) => m.id === state.selectedModel);
-  if (!model) {
-    els.modelTierBadge.textContent = "";
-    els.modelTierBadge.className = "model-tier-badge";
-    els.modelTierBadge.title = "";
-    return;
-  }
-  els.modelTierBadge.textContent = model.tier;
-  els.modelTierBadge.className = `model-tier-badge tier-${model.tier}`;
-  els.modelTierBadge.title = model.description ?? "";
 }
 
 // v0.5.89 — 레포 표시명 변환 (표시 전용 — id/경로/매칭에는 절대 사용 금지).
@@ -2680,7 +2632,6 @@ async function saveModel() {
   _settingsCache = await window.spiralSettings.get();
   state.selectedModel = val;
   localStorage.removeItem("spiral-buddy:model");
-  renderModelSelector();
   setStatus("모델 설정이 저장됐습니다. 다음 세션부터 적용됩니다.");
 }
 
@@ -6001,28 +5952,6 @@ function _wireChapterContextBtn(messageDiv) {
     if (!text || text.length < 5) return;
     await runChapterContext({ targetMessageText: text });
   });
-}
-
-function showCompletionCard(result) {
-  const div = document.createElement("div");
-  div.className = "message system completion";
-  const elapsedMin = ((result.elapsedMs ?? 0) / 60000).toFixed(1);
-  const pathHtml = result.obsidianUri
-    ? `<a href="${escapeAttr(result.obsidianUri)}" class="obsidian-link">📖 옵시디언에서 열기</a> · <code>${escapeHtml(result.path ?? "")}</code>`
-    : `<code>${escapeHtml(result.path ?? "")}</code>`;
-  div.innerHTML = `
-    <div class="role">✓ Saved</div>
-    <div class="content">
-      <p><strong>${escapeHtml(result.topic ?? "")}</strong> (depth ${result.depth})</p>
-      <p class="summary">${escapeHtml(result.summary ?? "")}</p>
-      <p class="path">${pathHtml}</p>
-      <p class="stats">
-        ${elapsedMin} min · ${result.inputTokens ?? 0} in · ${result.outputTokens ?? 0} out
-      </p>
-    </div>
-  `;
-  els.messages.appendChild(div);
-  scrollToBottom();
 }
 
 function updateTopbar() {
