@@ -255,6 +255,15 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 function wireEvents() {
+  wireObsidianLinks();
+  wireComposer();
+  wireSidebar();
+  wireSidePanels();
+  wireRoadmapDropdown();
+  wireBeforeUnload();
+}
+
+function wireObsidianLinks() {
   // v0.5.106 — obsidian:// 링크는 렌더러를 navigate시키지 않고 OS로 외부 오픈.
   // 기존엔 <a href="obsidian://">나 location.href 할당이 렌더러를 navigate해서,
   // 학습 세션 중엔 beforeunload→will-prevent-unload 네이티브 모달("진행 중인
@@ -266,7 +275,9 @@ function wireEvents() {
     const href = a.getAttribute("href");
     if (href) window.spiralSetup?.openExternal?.(href);
   });
+}
 
+function wireComposer() {
   els.form.addEventListener("submit", (e) => {
     e.preventDefault();
     submitMessage();
@@ -347,7 +358,9 @@ function wireEvents() {
     if (!state.session || state.pending) return;
     advanceQuiz();
   });
+}
 
+function wireSidebar() {
   // 사이드바 토글 (버튼 + Cmd/Ctrl+B 단축키)
   const SIDEBAR_KEY = "spiral-buddy:sidebar-collapsed";
   function setSidebarCollapsed(collapsed, persist = true) {
@@ -476,7 +489,9 @@ function wireEvents() {
       document.body.style.setProperty("--sidebar-w", `${cap}px`);
     }
   });
+}
 
+function wireSidePanels() {
   // 설정 + 워크스페이스 (Electron 모드에서만 동작 — window.spiralSettings 존재 여부)
   if (window.spiralSettings) {
     initSettings();
@@ -565,7 +580,9 @@ function wireEvents() {
       }
     });
   }
+}
 
+function wireRoadmapDropdown() {
   els.roadmapCurrent.addEventListener("click", () => {
     els.roadmapList.classList.toggle("hidden");
   });
@@ -578,7 +595,9 @@ function wireEvents() {
       els.roadmapList.classList.add("hidden");
     }
   });
+}
 
+function wireBeforeUnload() {
   // 세션 중 페이지 닫기 시 경고 (브라우저 기본 다이얼로그)
   window.addEventListener("beforeunload", (e) => {
     if (state.session) {
