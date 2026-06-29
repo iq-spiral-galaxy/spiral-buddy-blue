@@ -1,4 +1,4 @@
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { streamText } from "hono/streaming";
 import path from "node:path";
 
@@ -318,22 +318,29 @@ export function createApi(config: Config) {
     }
   });
 
-  app.post("/curated/install", async (c) => {
+  // curated install/refresh/uninstall 공통 가드 — curatedOrg 활성 + body 파싱 + repo_name 검증.
+  // 성공 시 {org, repoName}, 실패 시 {err: Response}(400) 반환 → 호출부에서 early return.
+  async function parseCuratedRepoBody(
+    c: Context,
+  ): Promise<{ org: string; repoName: string } | { err: Response }> {
     if (!config.curatedOrg) {
-      return c.json({ error: "curated source disabled" }, 400);
+      return { err: c.json({ error: "curated source disabled" }, 400) };
     }
     const body = await c.req
       .json<{ repo_name: string; org?: string }>()
       .catch(() => null);
     if (!body?.repo_name) {
-      return c.json({ error: "repo_name required" }, 400);
+      return { err: c.json({ error: "repo_name required" }, 400) };
     }
-    const org = body.org ?? config.curatedOrg;
+    return { org: body.org ?? config.curatedOrg, repoName: body.repo_name };
+  }
+
+  app.post("/curated/install", async (c) => {
+    const p = await parseCuratedRepoBody(c);
+    if ("err" in p) return p.err;
+    const { org, repoName } = p;
     try {
-      const result = await installCuratedRepo({
-        org,
-        repoName: body.repo_name,
-      });
+      const result = await installCuratedRepo({ org, repoName });
       return c.json({
         installed: true,
         alreadyInstalled: result.alreadyInstalled,
@@ -346,18 +353,11 @@ export function createApi(config: Config) {
   });
 
   app.post("/curated/refresh", async (c) => {
-    if (!config.curatedOrg) {
-      return c.json({ error: "curated source disabled" }, 400);
-    }
-    const body = await c.req
-      .json<{ repo_name: string; org?: string }>()
-      .catch(() => null);
-    if (!body?.repo_name) {
-      return c.json({ error: "repo_name required" }, 400);
-    }
-    const org = body.org ?? config.curatedOrg;
+    const p = await parseCuratedRepoBody(c);
+    if ("err" in p) return p.err;
+    const { org, repoName } = p;
     try {
-      await refreshCuratedRepo({ org, repoName: body.repo_name });
+      await refreshCuratedRepo({ org, repoName });
       return c.json({ ok: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -366,18 +366,11 @@ export function createApi(config: Config) {
   });
 
   app.post("/curated/uninstall", async (c) => {
-    if (!config.curatedOrg) {
-      return c.json({ error: "curated source disabled" }, 400);
-    }
-    const body = await c.req
-      .json<{ repo_name: string; org?: string }>()
-      .catch(() => null);
-    if (!body?.repo_name) {
-      return c.json({ error: "repo_name required" }, 400);
-    }
-    const org = body.org ?? config.curatedOrg;
+    const p = await parseCuratedRepoBody(c);
+    if ("err" in p) return p.err;
+    const { org, repoName } = p;
     try {
-      await uninstallCuratedRepo({ org, repoName: body.repo_name });
+      await uninstallCuratedRepo({ org, repoName });
       return c.json({ ok: true });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
