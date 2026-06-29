@@ -765,6 +765,66 @@ function displayRepoName(name) {
   return s.replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
 }
 
+// 로드맵 id → {repo, sub, isFlat}. backend가 준 hierarchy 우선, 없으면 id 경로 추정.
+function parseHierarchy(r) {
+  if (r.hierarchy) {
+    return {
+      repo: r.hierarchy.repo,
+      sub: r.hierarchy.sub,
+      isFlat: r.hierarchy.sub === null,
+    };
+  }
+  const segments = r.id
+    .split("/")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (segments.length >= 3) {
+    return { repo: segments[1], sub: segments.slice(2).join("/"), isFlat: false };
+  } else if (segments.length === 2) {
+    return { repo: segments[1], sub: null, isFlat: true };
+  }
+  return { repo: segments[0] ?? r.name, sub: null, isFlat: true };
+}
+
+// sub-roadmap 1개 → 버튼 HTML. (renderRoadmapSelector의 repo body 렌더에서 분리.)
+function renderSubRoadmapItem(r, idx) {
+  const isActive = r.id === state.activeRoadmapId;
+  const { sub } = parseHierarchy(r);
+  // v0.5.90 — sub-roadmap도 레포(v0.5.89)와 동일 표시 변환. 삭제 팝오버 제목도 동일.
+  const displayName = displayRepoName(sub ?? r.name);
+  const lastDate = r.lastDate ?? "—";
+  const visited = (r.maxDepth ?? 0) > 0;
+  const depthBadge = visited
+    ? `<span class="depth-pill deletable" data-roadmap-delete="${escapeAttr(r.id)}" title="클릭하여 이 로드맵의 노트 삭제">d${r.maxDepth}</span>`
+    : "";
+  const trashBtn = visited
+    ? `<span class="chapter-delete-btn" data-roadmap-delete="${escapeAttr(r.id)}" role="button" tabindex="0" title="이 로드맵의 노트 삭제">
+                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                        <path d="M10 11v6M14 11v6"></path>
+                        <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>
+                      </svg>
+                    </span>`
+    : "";
+  const pct =
+    r.chapterCount > 0
+      ? Math.min(100, Math.round((r.visitedChapters / r.chapterCount) * 100))
+      : 0;
+  return `
+                  <button class="roadmap-item sub-roadmap-item ${isActive ? "active" : ""}" data-id="${escapeAttr(r.id)}" data-roadmap-title="${escapeAttr(displayName)}" data-depths="${escapeAttr((r.depths ?? []).join(","))}">
+                    <div class="roadmap-item-name"><span class="sub-roadmap-index">${idx + 1}.</span> ${escapeHtml(displayName)}</div>
+                    <div class="progress-mini" aria-hidden="true"><div class="progress-fill" style="width:${pct}%"></div></div>
+                    <div class="roadmap-item-meta">
+                      ${depthBadge}
+                      <span class="roadmap-item-progress">${r.visitedChapters}/${r.chapterCount}</span>
+                      <span class="roadmap-item-date">${escapeHtml(lastDate)}</span>
+                      ${trashBtn}
+                    </div>
+                  </button>
+                `;
+}
+
 function renderRoadmapSelector() {
   const active = state.roadmaps.find((r) => r.id === state.activeRoadmapId);
   const activeName = active ? displayRepoName(active.name) : "선택된 로드맵 없음";
@@ -817,37 +877,7 @@ function renderRoadmapSelector() {
   const parts = [];
 
   if (local.length > 0) {
-    // 3-level 계층: category → repo → sub-roadmap
-    // roadmap.id 예: "api & communication /grpc-deep-dive/grpc-fundamentals"
-    //   → category: "API & Communication" (서버에서 category 필드로 줌)
-    //   → repo: "grpc-deep-dive" (path 두 번째 segment)
-    //   → sub-roadmap: "grpc-fundamentals" (path 세 번째+)
-    function parseHierarchy(r) {
-      // backend가 카테고리 정의(JSON repos)를 알고 있어서 평탄/계층 구조를
-      // 정확히 판단 후 r.hierarchy로 보내줌. 그게 있으면 그대로 사용.
-      if (r.hierarchy) {
-        return {
-          repo: r.hierarchy.repo,
-          sub: r.hierarchy.sub,
-          isFlat: r.hierarchy.sub === null,
-        };
-      }
-      // fallback (옛 응답 형식 또는 curated): id 경로로 추정
-      const segments = r.id
-        .split("/")
-        .map((s) => s.trim())
-        .filter(Boolean);
-      if (segments.length >= 3) {
-        return {
-          repo: segments[1],
-          sub: segments.slice(2).join("/"),
-          isFlat: false,
-        };
-      } else if (segments.length === 2) {
-        return { repo: segments[1], sub: null, isFlat: true };
-      }
-      return { repo: segments[0] ?? r.name, sub: null, isFlat: true };
-    }
+    // 3-level 계층: category → repo → sub-roadmap. parseHierarchy는 모듈레벨로 분리됨.
 
     // v0.5.53 — 도메인 → 카테고리 → 레포 → 로드맵 4단 계층.
     // domName → { meta, order, cats: Map<catName, Map<repoName, Roadmap[]>> }
@@ -1024,46 +1054,7 @@ function renderRoadmapSelector() {
             // sub-roadmap 목록 렌더링.
             // 서버가 컨테이너 README의 학습 순서대로 정렬해서 보내준다 (roadmap.ts sortKey).
             // 여기서 다시 알파벳 정렬하면 그 순서가 깨지므로 그대로 사용.
-            repoBody = roadmaps
-              .map((r, idx) => {
-                const isActive = r.id === state.activeRoadmapId;
-                const { sub } = parseHierarchy(r);
-                // v0.5.90 — sub-roadmap도 레포(v0.5.89)와 동일한 표시 변환.
-                // 삭제 팝오버 제목(data-roadmap-title)도 표시 전용이라 함께 적용.
-                const displayName = displayRepoName(sub ?? r.name);
-                const lastDate = r.lastDate ?? "—";
-                const visited = (r.maxDepth ?? 0) > 0;
-                const depthBadge = visited
-                  ? `<span class="depth-pill deletable" data-roadmap-delete="${escapeAttr(r.id)}" title="클릭하여 이 로드맵의 노트 삭제">d${r.maxDepth}</span>`
-                  : "";
-                const trashBtn = visited
-                  ? `<span class="chapter-delete-btn" data-roadmap-delete="${escapeAttr(r.id)}" role="button" tabindex="0" title="이 로드맵의 노트 삭제">
-                      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                        <path d="M10 11v6M14 11v6"></path>
-                        <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"></path>
-                      </svg>
-                    </span>`
-                  : "";
-                const pct =
-                  r.chapterCount > 0
-                    ? Math.min(100, Math.round((r.visitedChapters / r.chapterCount) * 100))
-                    : 0;
-                return `
-                  <button class="roadmap-item sub-roadmap-item ${isActive ? "active" : ""}" data-id="${escapeAttr(r.id)}" data-roadmap-title="${escapeAttr(displayName)}" data-depths="${escapeAttr((r.depths ?? []).join(","))}">
-                    <div class="roadmap-item-name"><span class="sub-roadmap-index">${idx + 1}.</span> ${escapeHtml(displayName)}</div>
-                    <div class="progress-mini" aria-hidden="true"><div class="progress-fill" style="width:${pct}%"></div></div>
-                    <div class="roadmap-item-meta">
-                      ${depthBadge}
-                      <span class="roadmap-item-progress">${r.visitedChapters}/${r.chapterCount}</span>
-                      <span class="roadmap-item-date">${escapeHtml(lastDate)}</span>
-                      ${trashBtn}
-                    </div>
-                  </button>
-                `;
-              })
-              .join("");
+            repoBody = roadmaps.map(renderSubRoadmapItem).join("");
           }
 
           // Flat 레포(sub 없는 단일 로드맵)이면 헤더 자체가 클릭으로 active 설정
