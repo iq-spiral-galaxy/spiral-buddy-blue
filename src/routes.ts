@@ -306,9 +306,26 @@ function registerCoreRoutes(app: Hono, config: Config) {
   // 1-b. Models (선택 가능한 모델 목록)
   // ─────────────────────────────────────────────────────
 
-  app.get("/models", (c) =>
-    c.json({
+  app.get("/models", (c) => {
+    // v0.6 멀티 LLM — openai-compatible 프로바이더면 설정된 모델 하나만 노출.
+    // (모델 변경은 설정의 프로바이더 섹션에서 자유 입력으로.)
+    if (config.llmProvider === "openai-compatible") {
+      return c.json({
+        default: config.model,
+        provider: "openai-compatible",
+        models: [
+          {
+            id: config.model,
+            label: config.model,
+            tier: "custom",
+            description: "설정에서 지정한 외부 LLM 모델",
+          },
+        ],
+      });
+    }
+    return c.json({
       default: config.model,
+      provider: "anthropic",
       models: [
         {
           id: "claude-sonnet-4-6",
@@ -335,8 +352,8 @@ function registerCoreRoutes(app: Hono, config: Config) {
           description: "가장 빠름. 가벼운 질의·진도 빠른 학습용",
         },
       ],
-    }),
-  );
+    });
+  });
 
   // ─────────────────────────────────────────────────────
   // 2. Roadmaps (Local + Curated 설치된 것들)

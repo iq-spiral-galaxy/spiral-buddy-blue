@@ -3,14 +3,33 @@ import type { Config } from "./config.js";
 
 export type ClaudeMessage = Anthropic.MessageParam;
 
+/**
+ * LLM 프로바이더 (v0.6 멀티 LLM):
+ *  - "anthropic": Anthropic SDK 직접 (기본, 기존 동작)
+ *  - "openai-compatible": OpenAI chat/completions 호환 엔드포인트 —
+ *    GPT·Gemini·Kimi·Qwen·GLM 등이 전부 이 형식을 제공한다.
+ */
+export type LlmProvider = "anthropic" | "openai-compatible";
+
 export interface ClaudeClient {
   raw: Anthropic;
   config: Config;
+  /** 미지정 시 "anthropic" (기존 코드/테스트 하위호환). */
+  provider?: LlmProvider;
+  /** openai-compatible 전용 — 예: https://api.openai.com/v1 */
+  baseUrl?: string | null;
 }
 
 export function createClient(config: Config): ClaudeClient {
+  // openai-compatible이어도 raw는 생성해 둔다(생성 자체는 네트워크 없음) —
+  // 타입/테스트 하위호환을 위해 필드 형태를 바꾸지 않는 게 안전.
   const raw = new Anthropic({ apiKey: config.apiKey });
-  return { raw, config };
+  return {
+    raw,
+    config,
+    provider: config.llmProvider ?? "anthropic",
+    baseUrl: config.llmBaseUrl ?? null,
+  };
 }
 
 /**
@@ -111,6 +130,176 @@ async function withRetry<T>(
   throw lastErr;
 }
 
+// ──────────────────────────────────────────────────────────
+// OpenAI-호환 어댑터 (fetch 기반, 의존성 0)
+// GPT·Gemini·Kimi·Qwen·GLM 등의 chat/completions 엔드포인트.
+// ──────────────────────────────────────────────────────────
+
+/** ClaudeMessage(content: string | blocks[]) → OpenAI 메시지(content: string). */
+function toOpenAiMessages(
+  system: string,
+  messages: ClaudeMessage[],
+): Array<{ role: string; content: string }> {
+  const out: Array<{ role: string; content: string }> = [
+    { role: "system", content: system },
+  ];
+  for (const m of messages) {
+    const content =
+      typeof m.content === "string"
+        ? m.content
+        : m.content
+            .map((b) => ("text" in b && typeof b.text === "string" ? b.text : ""))
+            .filter(Boolean)
+            .join("\n");
+    out.push({ role: m.role, content });
+  }
+  return out;
+}
+
+/** 프로바이더 에러 → isTransientApiError/friendlyApiErrorMessage가 이해하는 형태로. */
+async function openAiHttpError(res: Response): Promise<Error> {
+  let detail = "";
+  let errType: string | undefined;
+  try {
+    const body = (await res.json()) as {
+      error?: { message?: string; type?: string; code?: string };
+    };
+    detail = body?.error?.message ?? "";
+    errType = body?.error?.type ?? body?.error?.code;
+  } catch {
+    // body 없음/비JSON — status만으로
+  }
+  const e = new Error(
+    detail || `LLM API 오류 (HTTP ${res.status})`,
+  ) as Error & { status?: number; type?: string };
+  e.status = res.status;
+  if (res.status === 401 || res.status === 403) e.type = "authentication_error";
+  else if (res.status === 404) e.type = "not_found_error";
+  else if (res.status === 429) e.type = "rate_limit_error";
+  else if (errType) e.type = errType;
+  return e;
+}
+
+/**
+ * chat/completions 요청 1회. stream=true면 SSE를 파싱해 onText로 흘림.
+ * max_tokens를 거부하는 신형 OpenAI 모델(max_completion_tokens 요구)은
+ * 에러 메시지를 보고 파라미터명을 바꿔 1회 재시도.
+ */
+async function openAiChatOnce(
+  client: ClaudeClient,
+  args: {
+    system: string;
+    messages: ClaudeMessage[];
+    onText?: (chunk: string) => void | Promise<void>;
+    model?: string;
+    maxTokens?: number;
+  },
+  stream: boolean,
+  onTextStarted?: () => void,
+): Promise<{ text: string; usage: { input: number; output: number } }> {
+  const base = (client.baseUrl ?? "").replace(/\/+$/, "");
+  if (!base) {
+    throw new Error(
+      "LLM base URL이 설정되지 않았습니다. 설정에서 프로바이더/주소를 확인해 주세요.",
+    );
+  }
+  const url = `${base}/chat/completions`;
+  const maxTokens = args.maxTokens ?? client.config.maxTokens;
+
+  const doFetch = async (tokenParam: "max_tokens" | "max_completion_tokens") => {
+    const body: Record<string, unknown> = {
+      model: args.model ?? client.config.model,
+      messages: toOpenAiMessages(args.system, args.messages),
+      stream,
+      [tokenParam]: maxTokens,
+    };
+    if (stream) body.stream_options = { include_usage: true };
+    return fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${client.config.apiKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+  };
+
+  let res = await doFetch("max_tokens");
+  if (!res.ok) {
+    // 신형 OpenAI 모델: max_tokens 거부 → max_completion_tokens로 재시도
+    const errText = await res.clone().text().catch(() => "");
+    if (res.status === 400 && errText.includes("max_completion_tokens")) {
+      res = await doFetch("max_completion_tokens");
+    }
+  }
+  if (!res.ok) throw await openAiHttpError(res);
+
+  // ── non-stream ──
+  if (!stream) {
+    const data = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string | null } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
+    return {
+      text: data.choices?.[0]?.message?.content ?? "",
+      usage: {
+        input: data.usage?.prompt_tokens ?? 0,
+        output: data.usage?.completion_tokens ?? 0,
+      },
+    };
+  }
+
+  // ── SSE stream ──
+  if (!res.body) throw new Error("LLM 응답 스트림이 비어 있습니다.");
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let fullText = "";
+  let usage = { input: 0, output: 0 };
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    // SSE 프레임은 개행 단위 — 마지막 불완전 라인은 buf에 남김
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t.startsWith("data:")) continue;
+      const payload = t.slice(5).trim();
+      if (payload === "[DONE]") continue;
+      try {
+        const j = JSON.parse(payload) as {
+          choices?: Array<{ delta?: { content?: string | null } }>;
+          usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
+        };
+        const chunk = j.choices?.[0]?.delta?.content;
+        if (chunk) {
+          fullText += chunk;
+          onTextStarted?.();
+          if (args.onText) {
+            const r = args.onText(chunk);
+            if (r && typeof (r as Promise<void>).catch === "function") {
+              (r as Promise<void>).catch((err) =>
+                console.error("onText error:", err),
+              );
+            }
+          }
+        }
+        if (j.usage) {
+          usage = {
+            input: j.usage.prompt_tokens ?? 0,
+            output: j.usage.completion_tokens ?? 0,
+          };
+        }
+      } catch {
+        // 불완전/비JSON 프레임 — skip (keep-alive 등)
+      }
+    }
+  }
+  return { text: fullText, usage };
+}
+
 /** Streams an assistant turn. onText fires per text chunk (sync or async).
  *  과부하/일시적 에러 시 stream 시작 전이면 retry. 일단 텍스트가 흘러나간 후 에러나면 retry하지 않음.
  */
@@ -130,6 +319,24 @@ export async function streamTurn(
     async () => {
       let fullText = "";
       let textStarted = false;
+
+      // OpenAI-호환 프로바이더 분기 — retry/no-retry 의미는 Anthropic 경로와 동일:
+      // 텍스트가 이미 흘러나간 후의 에러는 재시도하지 않음(중복 방지).
+      if (client.provider === "openai-compatible") {
+        try {
+          return await openAiChatOnce(client, args, true, () => {
+            textStarted = true;
+          });
+        } catch (err) {
+          if (textStarted) {
+            const e = new Error(friendlyApiErrorMessage(err));
+            (e as Error & { _noRetry?: boolean })._noRetry = true;
+            throw e;
+          }
+          throw err;
+        }
+      }
+
       const stream = client.raw.messages.stream({
         model: args.model ?? client.config.model,
         max_tokens: args.maxTokens ?? client.config.maxTokens,
@@ -193,6 +400,10 @@ export async function completeOnce(
 ): Promise<{ text: string; usage: { input: number; output: number } }> {
   return withRetry(
     async () => {
+      if (client.provider === "openai-compatible") {
+        return openAiChatOnce(client, args, false);
+      }
+
       const response = await client.raw.messages.create({
         model: args.model ?? client.config.model,
         max_tokens: args.maxTokens ?? client.config.maxTokens,

@@ -13,6 +13,10 @@ export interface Config {
   apiKey: string;
   model: string;
   maxTokens: number;
+  /** v0.6 멀티 LLM — "anthropic"(기본) | "openai-compatible"(GPT·Gemini·Kimi·Qwen·GLM 등) */
+  llmProvider: "anthropic" | "openai-compatible";
+  /** openai-compatible 전용 base URL (예: https://api.openai.com/v1) */
+  llmBaseUrl: string | null;
   roadmapRoot: string | null;
   pinnedRoadmapPath: string | null;
   curatedOrg: string | null;
@@ -50,10 +54,27 @@ function findObsidianVaultRoot(startPath: string | null): string | null {
 }
 
 export function loadConfig(): Config {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  // v0.6 멀티 LLM — 프로바이더별 키 해석.
+  // anthropic(기본): ANTHROPIC_API_KEY. openai-compatible: SPIRAL_LLM_API_KEY
+  // (없으면 ANTHROPIC_API_KEY fallback — 프록시가 같은 키를 쓰는 경우).
+  const llmProvider =
+    process.env.SPIRAL_LLM_PROVIDER?.trim() === "openai-compatible"
+      ? ("openai-compatible" as const)
+      : ("anthropic" as const);
+  const llmBaseUrl =
+    llmProvider === "openai-compatible"
+      ? process.env.SPIRAL_LLM_BASE_URL?.trim() || null
+      : null;
+  const apiKey =
+    llmProvider === "openai-compatible"
+      ? process.env.SPIRAL_LLM_API_KEY?.trim() ||
+        process.env.ANTHROPIC_API_KEY
+      : process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     throw new Error(
-      "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and add your key.",
+      llmProvider === "openai-compatible"
+        ? "SPIRAL_LLM_API_KEY is not set (openai-compatible provider needs an API key)."
+        : "ANTHROPIC_API_KEY is not set. Copy .env.example to .env and add your key.",
     );
   }
 
@@ -103,6 +124,8 @@ export function loadConfig(): Config {
     apiKey,
     model: process.env.SPIRAL_MODEL ?? "claude-sonnet-4-6",
     maxTokens: Number.parseInt(process.env.SPIRAL_MAX_TOKENS ?? "4096", 10),
+    llmProvider,
+    llmBaseUrl,
     roadmapRoot,
     pinnedRoadmapPath,
     curatedOrg,
