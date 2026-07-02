@@ -53,6 +53,9 @@ contextBridge.exposeInMainWorld("spiralSettings", {
     ipcRenderer.invoke("settings:update-vault", { vaultPath }),
   updateModel: (model) =>
     ipcRenderer.invoke("settings:update-model", { model }),
+  // v0.6 멀티 LLM — {provider, baseUrl, apiKey, model, relaunch}
+  updateLlm: (payload) =>
+    ipcRenderer.invoke("settings:update-llm", payload ?? {}),
   switchWorkspace: (id) =>
     ipcRenderer.invoke("settings:switch-workspace", { id }),
   removeWorkspace: (args) =>

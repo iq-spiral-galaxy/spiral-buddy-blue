@@ -21,6 +21,7 @@ import {
   THUMBS_UP_SVG,
   THUMBS_DOWN_SVG,
 } from "./icons.js";
+import { LLM_PRESETS } from "./llm-presets.js";
 
 // ──────────────────────────────────────────────────────────
 // State
@@ -2308,6 +2309,9 @@ async function initSettings() {
   document.getElementById("settings-pick-vault")?.addEventListener("click", pickVault);
   document.getElementById("settings-save-model")?.addEventListener("click", saveModel);
 
+  // v0.6 멀티 LLM — AI 프로바이더 섹션
+  initLlmSection();
+
   // 워크스페이스 액션
   document
     .getElementById("settings-add-workspace-btn")
@@ -2519,6 +2523,9 @@ function openSettingsModal() {
       .join("");
   }
 
+  // v0.6 멀티 LLM — AI 프로바이더 섹션 채우기 (저장된 값 우선)
+  refreshLlmSectionFromCache();
+
   renderWorkspaceListInSettings();
 }
 
@@ -2579,6 +2586,155 @@ async function saveModel() {
   state.selectedModel = val;
   localStorage.removeItem("spiral-buddy:model");
   setStatus("모델 설정이 저장됐습니다. 다음 세션부터 적용됩니다.");
+}
+
+// ──────────────────────────────────────────────────────────
+// v0.6 멀티 LLM — AI 프로바이더 설정 (기본: Claude/Anthropic, 기존 동작 무변경)
+// ──────────────────────────────────────────────────────────
+
+function llmEls() {
+  return {
+    provider: document.getElementById("settings-llm-provider"),
+    baseUrl: document.getElementById("settings-llm-baseurl"),
+    key: document.getElementById("settings-llm-key"),
+    model: document.getElementById("settings-llm-model"),
+    hint: document.getElementById("settings-llm-hint"),
+    baseUrlRow: document.getElementById("settings-llm-baseurl-row"),
+    keyRow: document.getElementById("settings-llm-key-row"),
+    modelRow: document.getElementById("settings-llm-model-row"),
+    saveBtn: document.getElementById("settings-save-llm"),
+  };
+}
+
+function initLlmSection() {
+  const el = llmEls();
+  if (!el.provider) return;
+  el.provider.innerHTML = LLM_PRESETS.map(
+    (p) => `<option value="${escapeAttr(p.id)}">${escapeHtml(p.label)}</option>`,
+  ).join("");
+  // 프로바이더 변경 → 프리셋 기본값으로 채움 (모델은 예시일 뿐, 자유 수정 가능)
+  el.provider.addEventListener("change", () =>
+    applyLlmPreset(el.provider.value, { fillDefaults: true }),
+  );
+  el.saveBtn?.addEventListener("click", saveLlm);
+}
+
+function applyLlmPreset(id, { fillDefaults = false } = {}) {
+  const el = llmEls();
+  if (!el.provider) return;
+  const preset = LLM_PRESETS.find((p) => p.id === id) ?? LLM_PRESETS[0];
+  const isAnthropic = preset.id === "anthropic";
+  const isCustom = preset.id === "custom";
+
+  // anthropic: 세부 입력 숨김 — 기존 "Anthropic API Key" + "기본 모델" 섹션을 그대로 사용
+  el.baseUrlRow?.classList.toggle("hidden", isAnthropic);
+  el.keyRow?.classList.toggle("hidden", isAnthropic);
+  el.modelRow?.classList.toggle("hidden", isAnthropic);
+
+  if (!isAnthropic) {
+    if (fillDefaults) {
+      el.baseUrl.value = preset.baseUrl ?? "";
+      el.model.value = preset.exampleModel ?? "";
+    }
+    // Base URL은 프리셋 고정값을 보여주되, 커스텀에서만 직접 편집
+    el.baseUrl.readOnly = !isCustom;
+    el.key.value = "";
+    const keySaved =
+      Boolean(_settingsCache?.llmKeySet) && _settingsCache?.llmProvider === preset.id;
+    el.key.placeholder = keySaved ? "새 키 입력 (변경할 때만)" : "API Key";
+  }
+
+  if (el.hint) {
+    const keySaved =
+      Boolean(_settingsCache?.llmKeySet) && _settingsCache?.llmProvider === preset.id;
+    const parts = [escapeHtml(preset.hint ?? "")];
+    if (!isAnthropic && keySaved) {
+      parts.push("✓ <strong>저장된 키 있음</strong> — 변경할 때만 새로 입력");
+    }
+    if (!isAnthropic) {
+      parts.push("저장 후 앱을 재시작하면 적용됩니다.");
+    }
+    el.hint.innerHTML = parts.filter(Boolean).join("<br>");
+    el.hint.classList.toggle("ok", !isAnthropic && keySaved);
+  }
+}
+
+/** 설정 모달 열 때 — 저장된 값 우선, 없으면 프리셋 기본값으로 채움. */
+function refreshLlmSectionFromCache() {
+  const el = llmEls();
+  if (!el.provider) return;
+  const saved = _settingsCache?.llmProvider ?? "anthropic";
+  el.provider.value = LLM_PRESETS.some((p) => p.id === saved) ? saved : "custom";
+  applyLlmPreset(el.provider.value, { fillDefaults: true });
+  if (el.provider.value !== "anthropic") {
+    if (_settingsCache?.llmBaseUrl) el.baseUrl.value = _settingsCache.llmBaseUrl;
+    if (_settingsCache?.llmModel) el.model.value = _settingsCache.llmModel;
+  }
+}
+
+async function saveLlm() {
+  const el = llmEls();
+  if (!el.provider) return;
+  const provider = el.provider.value || "anthropic";
+  const isAnthropic = provider === "anthropic";
+  const baseUrl = isAnthropic ? null : el.baseUrl.value.trim();
+  const apiKey = isAnthropic ? "" : el.key.value.trim();
+  const model = isAnthropic ? "" : el.model.value.trim();
+
+  const showErr = (msg) => {
+    if (el.hint) {
+      el.hint.textContent = `✗ ${msg}`;
+      el.hint.classList.remove("ok");
+    }
+  };
+
+  if (!isAnthropic) {
+    if (!baseUrl) return showErr("Base URL을 입력하세요.");
+    if (!model) return showErr("모델 ID를 입력하세요.");
+    const keySaved =
+      Boolean(_settingsCache?.llmKeySet) && _settingsCache?.llmProvider === provider;
+    if (!apiKey && !keySaved) return showErr("API 키를 입력하세요.");
+  }
+
+  // 프로바이더 설정은 서버 부팅 시에만 반영됨 — 워크스페이스 전환과 같은
+  // relaunch 패턴 (main process에서 app.relaunch). 취소하면 저장만.
+  const relaunch = window.confirm(
+    "AI 프로바이더 설정은 앱을 재시작해야 적용됩니다.\n저장 후 지금 바로 재시작할까요?\n\n(취소 = 저장만 하고, 다음 실행부터 적용)",
+  );
+
+  if (el.saveBtn) {
+    el.saveBtn.disabled = true;
+    el.saveBtn.textContent = "저장 중…";
+  }
+  const res = await window.spiralSettings.updateLlm({
+    provider,
+    baseUrl,
+    apiKey,
+    model,
+    relaunch,
+  });
+  if (el.saveBtn) {
+    el.saveBtn.disabled = false;
+    el.saveBtn.textContent = "저장";
+  }
+  if (res?.ok) {
+    _settingsCache = await window.spiralSettings.get();
+    el.key.value = "";
+    refreshLlmSectionFromCache();
+    if (el.hint && !relaunch) {
+      el.hint.innerHTML =
+        `✓ <strong>저장됨</strong> — 앱을 재시작하면 적용됩니다.` +
+        `<br>${el.hint.innerHTML}`;
+      el.hint.classList.add("ok");
+    }
+    setStatus(
+      relaunch
+        ? "AI 프로바이더 설정 저장됨 — 앱을 재시작합니다…"
+        : "저장됨 — 앱을 재시작하면 적용됩니다.",
+    );
+  } else {
+    showErr(`저장 실패: ${res?.error ?? "알 수 없는 오류"}`);
+  }
 }
 
 function renderWorkspaceListInSettings() {

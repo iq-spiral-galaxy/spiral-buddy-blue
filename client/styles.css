@@ -2835,6 +2835,15 @@ body.sidebar-collapsed .messages {
   cursor: not-allowed;
 }
 
+/* v0.6 멀티 LLM — AI 프로바이더 섹션: 쌓인 row 간격 + readOnly 시각 표시 */
+#settings-llm-field .settings-row + .settings-row {
+  margin-top: 6px;
+}
+#settings-llm-field input[readonly] {
+  opacity: 0.65;
+  cursor: default;
+}
+
 .settings-add-btn {
   width: 100%;
   background: transparent;

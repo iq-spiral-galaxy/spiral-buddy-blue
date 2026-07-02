@@ -518,6 +518,25 @@
             <div class="settings-hint">변경 시 앱이 자동 재시작됩니다.</div>
           </div>
 
+          <!-- v0.6 멀티 LLM — AI 프로바이더 (기본: Claude/Anthropic, 기존 동작 무변경) -->
+          <div class="settings-field" id="settings-llm-field">
+            <label>AI 프로바이더</label>
+            <div class="settings-row">
+              <select id="settings-llm-provider"></select>
+              <button id="settings-save-llm" class="settings-save-btn" type="button">저장</button>
+            </div>
+            <div class="settings-row" id="settings-llm-baseurl-row">
+              <input id="settings-llm-baseurl" type="text" placeholder="Base URL (예: https://api.openai.com/v1)" autocomplete="off" />
+            </div>
+            <div class="settings-row" id="settings-llm-key-row">
+              <input id="settings-llm-key" type="password" placeholder="API Key" autocomplete="off" />
+            </div>
+            <div class="settings-row" id="settings-llm-model-row">
+              <input id="settings-llm-model" type="text" placeholder="모델 ID (예: gpt-5.1)" autocomplete="off" />
+            </div>
+            <div class="settings-hint" id="settings-llm-hint"></div>
+          </div>
+
           <div class="settings-field">
             <label>기본 모델</label>
             <div class="settings-row">

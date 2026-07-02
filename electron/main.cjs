@@ -225,6 +225,19 @@ function encryptApiKeyForDisk(cfg) {
       // 암호화 실패 — 평문 유지 (기존 동작)
     }
   }
+  // v0.6 멀티 LLM — llmApiKey도 anthropicApiKey와 동일하게 암호화 저장
+  if (typeof out.llmApiKey === "string" && out.llmApiKey) {
+    try {
+      if (safeStorage.isEncryptionAvailable()) {
+        out.llmApiKeyEnc = safeStorage
+          .encryptString(out.llmApiKey)
+          .toString("base64");
+        delete out.llmApiKey;
+      }
+    } catch {
+      // 암호화 실패 — 평문 유지
+    }
+  }
   return out;
 }
 
@@ -244,6 +257,21 @@ function decryptApiKeyFromDisk(raw) {
     }
     delete raw.anthropicApiKeyEnc;
   }
+  // v0.6 멀티 LLM — llmApiKey 복호화 (anthropicApiKey와 동일 패턴)
+  if (typeof raw.llmApiKeyEnc === "string" && raw.llmApiKeyEnc) {
+    try {
+      raw.llmApiKey = safeStorage.decryptString(
+        Buffer.from(raw.llmApiKeyEnc, "base64"),
+      );
+    } catch (e) {
+      console.warn(
+        "[config] LLM API 키 복호화 실패 — 키 재입력 필요:",
+        e instanceof Error ? e.message : e,
+      );
+      raw.llmApiKey = "";
+    }
+    delete raw.llmApiKeyEnc;
+  }
   return raw;
 }
 
@@ -253,9 +281,11 @@ function loadConfig() {
     const raw = fs.readFileSync(CONFIG_PATH, "utf-8");
     const original = JSON.parse(raw);
     // v0.5.77 — 평문 키가 디스크에 있었는지 복호화 전에 기억 (암호화 업그레이드 트리거)
+    // v0.6 — llmApiKey 평문도 같은 트리거로 암호화 업그레이드
     const hadPlaintextKey =
-      typeof original.anthropicApiKey === "string" &&
-      original.anthropicApiKey.length > 0;
+      (typeof original.anthropicApiKey === "string" &&
+        original.anthropicApiKey.length > 0) ||
+      (typeof original.llmApiKey === "string" && original.llmApiKey.length > 0);
     decryptApiKeyFromDisk(original);
     const migrated = migrateConfig(original);
     // 마이그레이션으로 인해 model이 바뀌었거나 baseline 플래그가 추가됐으면 디스크에 반영
@@ -406,7 +436,10 @@ async function startServerInProcess(cfg) {
   const port = serverPort;
   const ws = activeWorkspace(cfg);
   // process.env에 active workspace 기반으로 주입
-  process.env.ANTHROPIC_API_KEY = cfg.anthropicApiKey;
+  // v0.6 멀티 LLM — anthropic 키가 없는 config(다른 프로바이더만 쓰는 경우)에서도
+  // env 블록이 "undefined" 문자열을 주입하지 않도록 llm 키로 fallback.
+  // (anthropic 키가 있으면 기존과 byte-identical)
+  process.env.ANTHROPIC_API_KEY = cfg.anthropicApiKey || cfg.llmApiKey || "";
   process.env.SPIRAL_VAULT_PATH = cfg.vaultPath;
   process.env.PORT = String(port);
   process.env.NO_OPEN = "1";
@@ -419,6 +452,15 @@ async function startServerInProcess(cfg) {
   if (cfg.model) process.env.SPIRAL_MODEL = cfg.model;
   if (cfg.maxTokens) process.env.SPIRAL_MAX_TOKENS = String(cfg.maxTokens);
   if (cfg.vaultName) process.env.SPIRAL_VAULT_NAME = cfg.vaultName;
+  // v0.6 멀티 LLM — anthropic(기본)이 아닐 때만 SPIRAL_LLM_* 주입.
+  // anthropic이면 아무것도 설정하지 않음 → 기존 동작과 완전히 동일.
+  if (cfg.llmProvider && cfg.llmProvider !== "anthropic") {
+    process.env.SPIRAL_LLM_PROVIDER = "openai-compatible";
+    if (cfg.llmBaseUrl) process.env.SPIRAL_LLM_BASE_URL = cfg.llmBaseUrl;
+    if (cfg.llmApiKey) process.env.SPIRAL_LLM_API_KEY = cfg.llmApiKey;
+    // 비-anthropic 프로바이더에선 llmModel이 cfg.model(Claude 모델 선택)보다 우선
+    if (cfg.llmModel) process.env.SPIRAL_MODEL = cfg.llmModel;
+  }
   // v0.5.72 — 세션 snapshot 저장 위치 (워크스페이스별 분리).
   // 앱 재시작/업데이트 후에도 pause된 세션을 이어갈 수 있게 함.
   process.env.SPIRAL_SESSION_DIR = path.join(
@@ -1226,6 +1268,11 @@ ipcMain.handle("settings:get", () => {
     activeWorkspaceId: cfg.activeWorkspaceId,
     workspaces: cfg.workspaces ?? [],
     githubToken: cfg.githubToken ? "(set)" : null,
+    // v0.6 멀티 LLM — 키 원문은 절대 반환하지 않음 (존재 여부만)
+    llmProvider: cfg.llmProvider ?? "anthropic",
+    llmBaseUrl: cfg.llmBaseUrl ?? null,
+    llmModel: cfg.llmModel ?? null,
+    llmKeySet: Boolean(cfg.llmApiKey),
   };
 });
 
@@ -1272,6 +1319,51 @@ ipcMain.handle("settings:update-model", (_e, { model }) => {
   cfg.model = model || null;
   saveConfig(cfg);
   return { ok: true };
+});
+
+// v0.6 멀티 LLM — AI 프로바이더 설정 저장.
+// provider === "anthropic"이면 서버 env에 SPIRAL_LLM_*를 전혀 주입하지 않음 (기존 동작).
+// 부팅 시에만 반영되므로 relaunch: true면 workspace 전환과 동일한 재시작 패턴 사용.
+ipcMain.handle("settings:update-llm", (_e, args) => {
+  const { provider, baseUrl, apiKey, model, relaunch } = args ?? {};
+  const cfg = loadConfig();
+  if (!cfg) return { ok: false, error: "config not found" };
+
+  const nextProvider =
+    typeof provider === "string" && provider.trim() ? provider.trim() : "anthropic";
+  if (nextProvider !== "anthropic") {
+    const nextBaseUrl =
+      typeof baseUrl === "string" && baseUrl.trim()
+        ? baseUrl.trim()
+        : cfg.llmBaseUrl ?? null;
+    const nextModel =
+      typeof model === "string" && model.trim()
+        ? model.trim()
+        : cfg.llmModel ?? null;
+    // 빈 키는 "변경 안 함" — 기존 저장 키 유지 (settings:update-api-key와 같은 관례)
+    const nextKey =
+      typeof apiKey === "string" && apiKey.trim()
+        ? apiKey.trim()
+        : cfg.llmApiKey ?? null;
+    if (!nextBaseUrl) return { ok: false, error: "Base URL을 입력하세요." };
+    if (!nextModel) return { ok: false, error: "모델 ID를 입력하세요." };
+    if (!nextKey) return { ok: false, error: "API 키를 입력하세요." };
+    cfg.llmBaseUrl = nextBaseUrl;
+    cfg.llmModel = nextModel;
+    cfg.llmApiKey = nextKey;
+  }
+  // anthropic으로 되돌릴 땐 llm* 저장값은 그대로 둠 — env 블록이 안 쓰므로 무해하고,
+  // 나중에 다시 전환할 때 재입력이 필요 없음.
+  cfg.llmProvider = nextProvider;
+  saveConfig(cfg);
+
+  if (relaunch) {
+    setTimeout(() => {
+      app.relaunch();
+      app.exit(0);
+    }, 100);
+  }
+  return { ok: true, restartNeeded: true };
 });
 
 ipcMain.handle("settings:switch-workspace", (_e, { id }) => {
