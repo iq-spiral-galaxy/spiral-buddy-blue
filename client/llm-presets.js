@@ -49,6 +49,27 @@ export const LLM_PRESETS = [
     hint: "키 발급: z.ai → API Keys.",
   },
   {
+    id: "deepseek",
+    label: "DeepSeek",
+    baseUrl: "https://api.deepseek.com/v1",
+    exampleModel: "deepseek-chat",
+    hint: "키 발급: platform.deepseek.com → API Keys. 추론 특화는 deepseek-reasoner.",
+  },
+  {
+    id: "mistral",
+    label: "Mistral",
+    baseUrl: "https://api.mistral.ai/v1",
+    exampleModel: "mistral-large-latest",
+    hint: "키 발급: console.mistral.ai → API Keys.",
+  },
+  {
+    id: "minimax",
+    label: "MiniMax",
+    baseUrl: "https://api.minimax.io/v1",
+    exampleModel: "MiniMax-M2",
+    hint: "키 발급: platform.minimax.io → API Keys. (중국 본토 계정은 base URL을 api.minimaxi.com으로 변경)",
+  },
+  {
     id: "custom",
     label: "커스텀 (OpenAI-호환)",
     baseUrl: "",
